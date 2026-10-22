@@ -29,7 +29,7 @@ local function lerp(a: number, b: number, t: number): number
 	return a + (b - a) * t
 end
 
-function TimingBar.generate(seed: number, difficulty: number): Spec
+function TimingBar.generate(seed: number, difficulty: number, _context: any?): Spec
 	local d = math.clamp(math.floor(difficulty), Minigames.DIFFICULTY_MIN, Minigames.DIFFICULTY_MAX)
 	local t = (d - Minigames.DIFFICULTY_MIN) / (Minigames.DIFFICULTY_MAX - Minigames.DIFFICULTY_MIN)
 	local rng = Rng.new(seed)
@@ -143,5 +143,8 @@ function TimingBar.validTaps(spec: Spec, taps: any, elapsed: number): boolean
 	end
 	return true
 end
+
+-- Shared mini-game interface: generate / grade / validInput.
+TimingBar.validInput = TimingBar.validTaps
 
 return TimingBar

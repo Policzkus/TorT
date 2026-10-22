@@ -13,6 +13,8 @@ Loader.run(script.Services, {
 	"LeaderstatsService",
 	"NotifyService",
 	"WorldService", -- builds the world in Init, before anything asks about houses
+	"WorldEventsService",
+	"HouseService",
 	"CandyService",
 	"BucketService",
 	"UpgradeService",
@@ -20,5 +22,6 @@ Loader.run(script.Services, {
 	"NeighborhoodService",
 	"DoorService",
 	"StashService",
+	"SettingsService",
 	"AdminService",
 }, "Server")

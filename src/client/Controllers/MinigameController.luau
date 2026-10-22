@@ -1,8 +1,10 @@
 --!strict
--- Runs door mini-games when the server sends a challenge: locks movement, captures input
--- (one big tap target on mobile, Space/click on PC, Ⓐ on gamepad), shows the grade, submits taps.
+-- Runs door mini-games when the server sends a challenge: locks movement, routes input to the
+-- active game (one big tap target on mobile, Space/click on PC, Ⓐ on gamepad; Costume Line uses
+-- its own buttons), shows the grade instantly from the shared rules, and submits the raw input.
 
 local ContextActionService = game:GetService("ContextActionService")
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,14 +12,32 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Modules.Net)
-local Rules = require(Shared.Modules.Minigames.TimingBar)
 local Sound = require(script.Parent.SoundController)
-local TimingBar = require(script.Parent.Minigames.TimingBar)
 local Scale = require(script.Parent.Parent.UI.Scale)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
-local ACTION = "MinigameTap"
+local ACTION = "MinigameInput"
+
+type Session = {
+	press: (() -> ())?,
+	release: (() -> ())?,
+	usesOwnButtons: boolean?,
+	cancel: () -> (),
+}
+
+type Game = {
+	run: (parent: Frame, challenge: any, callbacks: any) -> Session,
+}
+
+-- Client UI and shared rules per mini-game kind.
+local GAMES: { [string]: { ui: Game, rules: any } } = {}
+for _, kind in { "TimingBar", "KnockRhythm", "NerveHold", "CostumeLine" } do
+	GAMES[kind] = {
+		ui = require(script.Parent.Minigames:WaitForChild(kind)) :: any,
+		rules = require(Shared.Modules.Minigames:WaitForChild(kind)) :: any,
+	}
+end
 
 local GRADE_STYLE: { [string]: { text: string, color: Color3, sound: string } } = {
 	MISS = { text = "MISS", color = Color3.fromHex("FF4D5E"), sound = "Miss" },
@@ -28,11 +48,10 @@ local GRADE_STYLE: { [string]: { text: string, color: Color3, sound: string } } 
 
 local MinigameController = {}
 
-local gui: ScreenGui
 local stage: Frame
 local catcher: TextButton
 local gradeLabel: TextLabel
-local session: TimingBar.Session? = nil
+local session: Session? = nil
 local controls: any = nil
 
 local function lockMovement(locked: boolean)
@@ -62,51 +81,26 @@ end
 local function close()
 	ContextActionService:UnbindAction(ACTION)
 	catcher.Visible = false
+	GuiService.SelectedObject = nil
 	lockMovement(false)
-	task.delay(0.6, function()
+	task.delay(0.7, function()
 		if session == nil then
 			gradeLabel.Visible = false
 		end
 	end)
 end
 
-local function start(challenge: any)
-	if session then
-		session.cancel()
-		session = nil
-	end
-	if challenge.kind ~= "TimingBar" then
-		-- Not built on the client yet: answer immediately so the door doesn't hang.
-		Net.event("MinigameSubmit"):FireServer(challenge.id, {})
-		return
-	end
-	gradeLabel.Visible = false
-	lockMovement(true)
-	catcher.Visible = true
-	local current: TimingBar.Session
-	current = TimingBar.run(stage, challenge, {
-		onTap = function(hit, grade, total)
-			Sound.play("Tick")
-			if hit < total then
-				showGrade(grade, false) -- multi-hit: per-hit feedback, the final grade comes at the end
-			end
-		end,
-		onDone = function(taps, spec)
-			Net.event("MinigameSubmit"):FireServer(challenge.id, taps)
-			local final = Rules.grade(spec, taps)
-			if session == current then
-				session = nil
-			end
-			showGrade(final, true)
-			close()
-		end,
-	})
-	session = current
+local function bindInput()
 	ContextActionService:BindActionAtPriority(
 		ACTION,
 		function(_, state)
-			if state == Enum.UserInputState.Begin and session then
-				session.tap()
+			local active = session
+			if active then
+				if state == Enum.UserInputState.Begin and active.press then
+					active.press()
+				elseif state == Enum.UserInputState.End and active.release then
+					active.release()
+				end
 			end
 			return Enum.ContextActionResult.Sink
 		end,
@@ -116,6 +110,44 @@ local function start(challenge: any)
 		Enum.KeyCode.ButtonA,
 		Enum.KeyCode.ButtonR2
 	)
+end
+
+local function start(challenge: any)
+	if session then
+		session.cancel()
+		session = nil
+	end
+	local entry = GAMES[challenge.kind]
+	if entry == nil then
+		-- Not built on the client: answer at once so the door doesn't hang.
+		Net.event("MinigameSubmit"):FireServer(challenge.id, {})
+		return
+	end
+	gradeLabel.Visible = false
+	lockMovement(true)
+	local current: Session
+	current = entry.ui.run(stage, challenge, {
+		onTap = function(hit: number, grade: string, total: number)
+			Sound.play("Tick")
+			if hit < total then
+				showGrade(grade, false) -- per-hit feedback; the final grade comes at the end
+			end
+		end,
+		onDone = function(input: { number }, spec: any)
+			Net.event("MinigameSubmit"):FireServer(challenge.id, input)
+			local final = entry.rules.grade(spec, input)
+			if session == current then
+				session = nil
+			end
+			showGrade(final, true)
+			close()
+		end,
+	})
+	session = current
+	catcher.Visible = not current.usesOwnButtons
+	if not current.usesOwnButtons then
+		bindInput()
+	end
 end
 
 function MinigameController.isActive(): boolean
@@ -152,13 +184,14 @@ function MinigameController.Init()
 		create("Frame", {
 			Name = "GradeAnchor",
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.48),
+			Position = UDim2.fromScale(0.5, 0.36),
 			Size = UDim2.fromOffset(500, 80),
 			BackgroundTransparency = 1,
+			ZIndex = 5,
 			gradeLabel,
 		}),
 	})
-	gui = create("ScreenGui", {
+	local gui = create("ScreenGui", {
 		Name = "Minigame",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
@@ -170,15 +203,17 @@ function MinigameController.Init()
 	})
 	Scale.attach(gui)
 
+	local function pointer(input: InputObject): boolean
+		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+	end
 	catcher.InputBegan:Connect(function(input: InputObject)
-		if
-			session
-			and (
-				input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch
-			)
-		then
-			session.tap()
+		if session and session.press and pointer(input) then
+			session.press()
+		end
+	end)
+	catcher.InputEnded:Connect(function(input: InputObject)
+		if session and session.release and pointer(input) then
+			session.release()
 		end
 	end)
 	Net.event("MinigameStart").OnClientEvent:Connect(start)

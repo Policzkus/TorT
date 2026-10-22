@@ -15,6 +15,9 @@ local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local DataService = require(script.Parent.DataService)
 local NotifyService = require(script.Parent.NotifyService)
+local HouseService = require(script.Parent.HouseService)
+local WorldEventsService = require(script.Parent.WorldEventsService)
+local WorldService = require(script.Parent.WorldService)
 
 type Command = {
 	usage: string,
@@ -138,6 +141,58 @@ commands.upgrade = {
 			upgrades[track] = math.max(0, math.floor(level))
 		end)
 		return `{target.Name} {track} = {math.floor(level)}`
+	end,
+}
+
+commands.event = {
+	usage = "/event <dawn|witching|fullsize|bloodmoon on|off|auto> - trigger world events",
+	run = function(_admin, args)
+		local which = string.lower(args[1] or "")
+		if which == "dawn" then
+			WorldEventsService.startNight()
+			return `Night {WorldEventsService.night()} begins`
+		elseif which == "witching" then
+			WorldEventsService.startWitching()
+			return "Witching Hour started"
+		elseif which == "fullsize" then
+			WorldEventsService.endFullSize()
+			if not WorldEventsService.startFullSize() then
+				error("Nobody is standing in a street", 0)
+			end
+			return "Full-Size Bar house spawned"
+		elseif which == "bloodmoon" then
+			local mode = string.lower(args[2] or "on")
+			WorldEventsService.setBloodMoonOverride(if mode == "auto" then nil else mode == "on")
+			return `Blood Moon {mode}`
+		end
+		error("Try /event dawn, witching, fullsize or bloodmoon on|off|auto", 0)
+	end,
+}
+
+commands.housetype = {
+	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff> - change the house nearest to you",
+	run = function(admin, args)
+		local wanted = args[1]
+		local valid = { Normal = true, Decorated = true, Trick = true, Bowl = true, LightsOff = true }
+		if not valid[wanted] then
+			error("Try Normal, Decorated, Trick, Bowl or LightsOff", 0)
+		end
+		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root == nil then
+			error("You need a character", 0)
+		end
+		local best, bestDistance = nil, math.huge
+		for houseId, house in WorldService.info().houses do
+			local distance = (house.door.Position - root.Position).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = houseId, distance
+			end
+		end
+		if best == nil then
+			error("No houses", 0)
+		end
+		HouseService.setType(best, wanted)
+		return `{best} is now {wanted}`
 	end,
 }
 

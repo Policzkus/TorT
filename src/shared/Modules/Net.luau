@@ -22,6 +22,9 @@ local EVENTS: { [string]: string } = {
 	MinigameStart = "S→C play a mini-game: (challenge: {id, kind, difficulty, seed, context})",
 	MinigameSubmit = "C→S raw input for a challenge: (id: number, taps: {number})",
 	DoorResult = "S→C candy from a door: (result: DoorService.DoorResult)",
+	Jumpscare = "S→C play a scare: (houseId: string, kind: 'monster' | 'caught', line: string?)",
+	CooldownsReset = "S→C Dawn: every door is ready again",
+	SaveSettings = "C→S store the player's settings: (settings: {music, sfx, jumpscare, reduceFlash})",
 	-- Bucket and bank
 	Stashed = "S→C bucket poured into the Candy Box: (moved: number, boxFull: boolean, dropoffId: string)",
 	-- Travel

@@ -14,6 +14,26 @@ export type PlayOptions = { volume: number?, speed: number? }
 
 local folder: Folder? = nil
 local templates: { [string]: Sound } = {}
+local groups: { [string]: SoundGroup } = {}
+
+-- "SFX" and "Music" groups carry the player's volume settings.
+function SoundController.group(name: string): SoundGroup
+	local existing = groups[name]
+	if existing then
+		return existing
+	end
+	local group = Instance.new("SoundGroup")
+	group.Name = name
+	group.Volume = 1
+	group.Parent = SoundService
+	groups[name] = group
+	return group
+end
+
+function SoundController.setVolumes(music: number, sfx: number)
+	SoundController.group("Music").Volume = music * 2 -- 0.5 (the default setting) = full volume
+	SoundController.group("SFX").Volume = sfx
+end
 
 local function getFolder(): Folder
 	if folder == nil then
@@ -40,6 +60,7 @@ local function template(name: string): Sound?
 	sound.Volume = cfg.volume
 	sound.PlaybackSpeed = cfg.speed or 1
 	sound.Looped = cfg.looped == true
+	sound.SoundGroup = SoundController.group("SFX")
 	sound.Parent = getFolder()
 	templates[name] = sound
 	return sound

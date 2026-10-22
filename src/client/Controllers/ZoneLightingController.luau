@@ -13,8 +13,20 @@ local BLEND = TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InO
 
 local ZoneLightingController = {}
 
+local worldState: Instance? = nil
+
 local function blend(zoneId: string?)
 	local properties = ZoneLighting.properties(zoneId)
+	-- Witching Hour and the Blood Moon paint everything red.
+	local witching = worldState ~= nil and worldState:GetAttribute("Witching") == true
+	local bloodMoon = worldState ~= nil and worldState:GetAttribute("BloodMoon") == true
+	if witching or bloodMoon then
+		properties.atmosphere.Color = Color3.fromHex(if witching then "8A2A2E" else "7A3A40")
+		properties.atmosphere.Decay = Color3.fromHex("3A0A10")
+		properties.atmosphere.Density = math.min(0.75, properties.atmosphere.Density + 0.12)
+		properties.colorCorrection.TintColor = Color3.fromHex(if witching then "FFC8C8" else "FFDADA")
+		properties.colorCorrection.Saturation = 0.15
+	end
 	TweenService:Create(Lighting, BLEND, properties.lighting):Play()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
@@ -28,10 +40,17 @@ end
 
 function ZoneLightingController.Start()
 	local player = Players.LocalPlayer
-	player:GetAttributeChangedSignal("Zone"):Connect(function()
+	local function refresh()
 		blend(player:GetAttribute("Zone") :: string?)
-	end)
-	blend(player:GetAttribute("Zone") :: string?)
+	end
+	player:GetAttributeChangedSignal("Zone"):Connect(refresh)
+	refresh()
+	worldState = ReplicatedStorage:WaitForChild("WorldState", 15)
+	if worldState then
+		worldState:GetAttributeChangedSignal("Witching"):Connect(refresh)
+		worldState:GetAttributeChangedSignal("BloodMoon"):Connect(refresh)
+		refresh()
+	end
 end
 
 return ZoneLightingController

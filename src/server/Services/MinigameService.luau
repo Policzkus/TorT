@@ -8,17 +8,21 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Minigames = require(ReplicatedStorage.Shared.Config.Minigames)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
-local TimingBar = require(ReplicatedStorage.Shared.Modules.Minigames.TimingBar)
+local Games = ReplicatedStorage.Shared.Modules.Minigames
 
+-- Every mini-game rules module has the same shape (generate / grade / validInput).
 type Rules = {
-	generate: (seed: number, difficulty: number) -> any,
-	grade: (spec: any, taps: { number }) -> (string, { string }),
-	validTaps: (spec: any, taps: any, elapsed: number) -> boolean,
+	generate: (seed: number, difficulty: number, context: any?) -> any,
+	grade: (spec: any, input: { number }) -> (string, { string }),
+	validInput: (spec: any, input: any, elapsed: number) -> boolean,
 }
 
--- Mini-games that exist so far. Others in a neighborhood's weights are skipped until built.
+-- Mini-games that exist. Others in a neighborhood's weights are skipped until built.
 local KINDS: { [string]: Rules } = {
-	TimingBar = TimingBar :: any,
+	TimingBar = require(Games.TimingBar) :: any,
+	KnockRhythm = require(Games.KnockRhythm) :: any,
+	NerveHold = require(Games.NerveHold) :: any,
+	CostumeLine = require(Games.CostumeLine) :: any,
 }
 
 export type Challenge = {
@@ -105,7 +109,7 @@ function MinigameService.issue(
 		seed = random:NextInteger(1, 2147483646),
 		context = context,
 	}
-	local spec = rules.generate(challenge.seed, difficulty)
+	local spec = rules.generate(challenge.seed, difficulty, context)
 	pending[player] = { challenge = challenge, spec = spec, issuedAt = os.clock(), onResult = onResult }
 	Net.event("MinigameStart"):FireClient(player, challenge)
 
@@ -129,7 +133,7 @@ function MinigameService.Start()
 		local rules = KINDS[open.challenge.kind]
 		local elapsed = os.clock() - open.issuedAt
 		local grade = "MISS"
-		if rules.validTaps(open.spec, taps, elapsed) then
+		if rules.validInput(open.spec, taps, elapsed) then
 			grade = rules.grade(open.spec, taps)
 		else
 			warn(`[AntiCheat] {player.Name} sent invalid {open.challenge.kind} input`)

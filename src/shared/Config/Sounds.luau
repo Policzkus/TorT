@@ -13,6 +13,7 @@ export type Sound = {
 local sounds: { [string]: Sound } = {
 	-- Doors
 	Knock = { id = 9120918417, volume = 0.9 }, -- ProSoundEffects "Wood Knock … Hits 3"
+	KnockSingle = { id = 9119128908, volume = 0.8 }, -- ProSoundEffects "Shutter Bangs Single Wood Hits Knocks 7"
 	Creak = { id = 109033795658503, volume = 0.5 }, -- Daily Sounds "Creaky Door"
 	-- Mini-games and rewards
 	Tick = { id = 106984966606682, volume = 0.35, speed = 1.6 }, -- Daily Sounds "Cartoon Pop"

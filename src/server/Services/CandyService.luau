@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Formulas = require(ReplicatedStorage.Shared.Modules.Formulas)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local DataService = require(script.Parent.DataService)
+local WorldEventsService = require(script.Parent.WorldEventsService)
 
 local CandyService = {}
 
@@ -24,9 +25,9 @@ function CandyService.bonuses(player: Player): Formulas.Bonuses
 	}
 end
 
--- Product of active event multipliers (Witching Hour, Blood Moon…). Phase 2.
+-- Product of active event multipliers (Witching Hour, Blood Moon), capped.
 function CandyService.eventMultiplier(_player: Player): number
-	return 1
+	return WorldEventsService.eventMultiplier()
 end
 
 function CandyService.bucketCapacity(player: Player): number
@@ -73,6 +74,17 @@ function CandyService.stash(player: Player): (number, boolean)
 		CandyService.Stashed:Fire(player, moved, boxFull)
 	end
 	return moved, boxFull
+end
+
+-- Caught! Removes `share` of the carried bucket (banked candy is never touched). Returns the loss.
+function CandyService.loseFromBucket(player: Player, share: number): number
+	local data = DataService.get(player)
+	if data == nil or data.bucket <= 0 then
+		return 0
+	end
+	local lost = math.floor(data.bucket * math.clamp(share, 0, 1))
+	DataService.set(player, "bucket", data.bucket - lost)
+	return lost
 end
 
 -- Spends banked candy. Returns false (and changes nothing) if the player can't afford it.

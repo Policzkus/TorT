@@ -8,12 +8,14 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Events = require(Shared.Config.Events)
 local Neighborhoods = require(Shared.Config.Neighborhoods)
 local Upgrades = require(Shared.Config.Upgrades)
 local Format = require(Shared.Modules.Format)
 local Formulas = require(Shared.Modules.Formulas)
 local Net = require(Shared.Modules.Net)
 local DoorController = require(script.Parent.DoorController)
+local SettingsController = require(script.Parent.SettingsController)
 local ShopController = require(script.Parent.ShopController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
@@ -43,6 +45,10 @@ local bucketBar: ProgressBar.ProgressBar
 local goalLabel: TextLabel
 local goalBar: ProgressBar.ProgressBar
 local shopBadge: TextLabel
+local clockPanel: Frame
+local clockLabel: TextLabel
+local clockSub: TextLabel
+local streakPill: TextLabel
 local popLayer: Frame
 local shownCandy = Instance.new("NumberValue")
 
@@ -251,6 +257,73 @@ local function refreshBadge()
 	shopBadge.Visible = ShopController.cheapestAffordable() ~= nil
 end
 
+local function formatHour(hour: number): string
+	local whole = math.floor(hour) % 24
+	local minutes = math.floor((hour % 1) * 60)
+	local suffix = if whole >= 12 then "PM" else "AM"
+	local twelve = whole % 12
+	return string.format("%d:%02d %s", if twelve == 0 then 12 else twelve, minutes, suffix)
+end
+
+local function refreshClock(state: Instance)
+	local startedAt = (state:GetAttribute("NightStartedAt") :: number?) or Workspace:GetServerTimeNow()
+	local elapsed = math.clamp(Workspace:GetServerTimeNow() - startedAt, 0, Events.NIGHT_LENGTH)
+	local hour = Events.START_HOUR + elapsed / Events.NIGHT_LENGTH * (Events.END_HOUR - Events.START_HOUR)
+	clockLabel.Text = formatHour(hour)
+	local witchingAt = Events.NIGHT_LENGTH - Events.WITCHING_LENGTH
+	local outline = clockPanel:FindFirstChild("Outline") :: UIStroke
+	if state:GetAttribute("Witching") == true then
+		clockSub.Text = `🩸 WITCHING ×2  {Format.clock(Events.NIGHT_LENGTH - elapsed)}`
+		clockSub.TextColor3 = Theme.Colors.Danger
+		clockLabel.TextColor3 = Color3.fromHex("FF8A8A")
+		outline.Color = Theme.Colors.Danger
+	elseif elapsed >= witchingAt - Events.WITCHING_WARNING then
+		clockSub.Text = `⚠ Witching in {Format.clock(witchingAt - elapsed)}`
+		clockSub.TextColor3 = Theme.Colors.OrangeLight
+		clockLabel.TextColor3 = Theme.Colors.Text
+		outline.Color = Theme.Colors.Orange
+	elseif state:GetAttribute("BloodMoon") == true then
+		clockSub.Text = "🌕 BLOOD MOON ×2"
+		clockSub.TextColor3 = Theme.Colors.Danger
+		clockLabel.TextColor3 = Theme.Colors.Text
+		outline.Color = Theme.Colors.Danger
+	else
+		clockSub.Text = `Night {state:GetAttribute("Night") or 1}`
+		clockSub.TextColor3 = Theme.Colors.TextDim
+		clockLabel.TextColor3 = Theme.Colors.Text
+		outline.Color = Theme.Colors.Stroke
+	end
+end
+
+local function refreshStreak(streak: number)
+	if streak < 2 then
+		streakPill.Visible = false
+		return
+	end
+	local bonus = math.round(Formulas.streakBonus(streak) * 100)
+	streakPill.Visible = true
+	streakPill.Text = `{if streak >= 5 then "🔥🔥" else "🔥"} x{streak}  +{bonus}%`
+	streakPill.TextColor3 = if streak >= 5 then Theme.Colors.Slime else Theme.Colors.OrangeLight
+	bump(streakPill, if streak >= 5 then 1.25 else 1.12)
+end
+
+-- Short callouts that rise from the door after the candy pop ("BRAVE!", "FULL-SIZE ×10"...).
+local function callout(text: string, color: Color3, from: Vector2, delay: number)
+	task.delay(delay, function()
+		local label = floatingText(text, color, from - Vector2.new(0, 90), 30)
+		local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
+		TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			:Play()
+		TweenService:Create(label, TweenInfo.new(1.4, Enum.EasingStyle.Quad), {
+			Position = UDim2.fromOffset(from.X, from.Y - 150),
+			TextTransparency = 1,
+		}):Play()
+		task.delay(1.4, function()
+			label:Destroy()
+		end)
+	end)
+end
+
 -- Build ----------------------------------------------------------------------------------------
 
 local function build()
@@ -275,6 +348,35 @@ local function build()
 		color = Theme.Colors.Info,
 		textSize = 12,
 		parent = candyPanel,
+	})
+
+	clockPanel = panel("Night", 210, 3);
+	(clockPanel:FindFirstChild("Icon") :: TextLabel).Text = "🌙"
+	clockLabel = create("TextLabel", {
+		Name = "Time",
+		Position = UDim2.fromOffset(60, 4),
+		Size = UDim2.fromOffset(140, 32),
+		BackgroundTransparency = 1,
+		FontFace = Theme.Fonts.Heading,
+		Text = "6:00 PM",
+		TextColor3 = Theme.Colors.Text,
+		TextSize = 26,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
+		Parent = clockPanel,
+	})
+	clockSub = create("TextLabel", {
+		Name = "Sub",
+		Position = UDim2.fromOffset(60, 38),
+		Size = UDim2.fromOffset(140, 20),
+		BackgroundTransparency = 1,
+		FontFace = Theme.Fonts.BodyHeavy,
+		Text = "Night 1",
+		TextColor3 = Theme.Colors.TextDim,
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
+		Parent = clockPanel,
 	})
 
 	bucketPanel = panel("Bucket", 250, 2);
@@ -313,6 +415,29 @@ local function build()
 		}),
 		candyPanel,
 		bucketPanel,
+		clockPanel,
+		Parent = gui,
+	})
+
+	streakPill = create("TextLabel", {
+		Name = "Streak",
+		Position = UDim2.new(0.5, 222, 0, 82),
+		Size = UDim2.fromOffset(160, 34),
+		BackgroundColor3 = Theme.Colors.Panel,
+		FontFace = Theme.Fonts.Heading,
+		Text = "",
+		TextColor3 = Theme.Colors.OrangeLight,
+		TextSize = 20,
+		Visible = false,
+		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
+		create("UIStroke", {
+			Name = "Outline",
+			Color = Theme.Colors.Orange,
+			Thickness = 2.5,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		}),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+		create("UIScale", { Name = "Bump" }),
 		Parent = gui,
 	})
 
@@ -386,6 +511,17 @@ local function build()
 		{ Rotation = 12 }
 	):Play()
 
+	Button.new({
+		name = "Settings",
+		text = "⚙️\nSettings",
+		size = UDim2.fromOffset(84, 84),
+		color = Theme.Colors.PanelLight,
+		textSize = 18,
+		layoutOrder = 9,
+		parent = menu,
+		onClick = SettingsController.toggle,
+	})
+
 	popLayer = create("Frame", {
 		Name = "Pops",
 		Size = UDim2.fromScale(1, 1),
@@ -400,6 +536,31 @@ end
 local function onDoorResult(result: any)
 	local from = doorPoint(result.houseId)
 	local color = GRADE_COLORS[result.grade] or GRADE_COLORS.GOOD
+	refreshStreak(result.streak or 0)
+	local delay = 0.15
+	if result.bowl == "caught" then
+		callout(`CAUGHT! -{Format.number(result.lost or 0)} 🍬`, Theme.Colors.Danger, from, 0.9)
+		task.delay(1, function()
+			shake(bucketPanel)
+			Sound.play("Miss")
+		end)
+		return
+	end
+	if result.bowl == "all" then
+		callout("🤑 TAKE ALL ×12!", Theme.Colors.Slime, from, delay)
+		delay += 0.35
+	end
+	if result.brave then
+		callout("😤 BRAVE! ×2.5", Theme.Colors.Slime, from, delay)
+		delay += 0.35
+	end
+	if result.fullSize then
+		callout(`🍫 FULL-SIZE ×{Events.FULL_SIZE_MULTIPLIER}!`, Color3.fromHex("FFD23F"), from, delay)
+		delay += 0.35
+	end
+	if (result.event or 1) > 1 then
+		callout(`🩸 ×{result.event} EVENT`, Theme.Colors.Danger, from, delay)
+	end
 	if result.added > 0 then
 		flyPop(`+{Format.number(result.added)} 🍬`, color, from, bucketPanel, function()
 			bump(bucketPanel)
@@ -410,7 +571,7 @@ local function onDoorResult(result: any)
 	if result.overflow > 0 then
 		task.delay(0.6, function()
 			local at = centreOf(bucketPanel) + Vector2.new(bucketPanel.AbsoluteSize.X / uiScale.Scale / 2 + 150, 0)
-			local label = floatingText(`OVERFLOW −{Format.number(result.overflow)} 🍬`, Theme.Colors.Danger, at, 26)
+			local label = floatingText(`OVERFLOW -{Format.number(result.overflow)} 🍬`, Theme.Colors.Danger, at, 26)
 			local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
 			scale.Scale = 1
 			shake(bucketPanel)
@@ -482,6 +643,14 @@ function HUDController.Start()
 
 	Net.event("DoorResult").OnClientEvent:Connect(onDoorResult)
 	Net.event("Stashed").OnClientEvent:Connect(onStashed)
+
+	task.spawn(function()
+		local state = ReplicatedStorage:WaitForChild("WorldState")
+		while true do
+			refreshClock(state)
+			task.wait(0.5)
+		end
+	end)
 end
 
 return HUDController

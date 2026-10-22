@@ -18,7 +18,7 @@ export type Callbacks = {
 }
 
 export type Session = {
-	tap: () -> (),
+	press: () -> (),
 	cancel: () -> (),
 }
 
@@ -173,7 +173,7 @@ function TimingBar.run(parent: Frame, challenge: any, callbacks: Callbacks): Ses
 	end
 
 	return {
-		tap = tap,
+		press = tap,
 		cancel = function()
 			if not done then
 				done = true

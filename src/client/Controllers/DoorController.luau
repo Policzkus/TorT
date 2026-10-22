@@ -59,6 +59,13 @@ local function setBadge(houseId: string, door: BasePart?, secondsLeft: number?)
 	text.Text = `💤 {math.ceil(secondsLeft :: number)}s`
 end
 
+-- Lights-off and bowl houses never answer the door.
+local function answers(door: BasePart): boolean
+	local model = door:FindFirstAncestorOfClass("Model")
+	local houseType = model and model:GetAttribute("HouseType")
+	return houseType ~= "LightsOff" and houseType ~= "Bowl"
+end
+
 local function apply(houseId: string)
 	local door = doors[houseId]
 	local left = (readyAt[houseId] or 0) - Workspace:GetServerTimeNow()
@@ -66,7 +73,7 @@ local function apply(houseId: string)
 	if door then
 		local prompt = promptOf(door)
 		if prompt then
-			prompt.Enabled = not onCooldown
+			prompt.Enabled = not onCooldown and answers(door)
 		end
 	end
 	setBadge(houseId, door, if onCooldown then left else nil)
@@ -79,6 +86,12 @@ local function track(door: Instance)
 	local houseId = door:GetAttribute("HouseId")
 	if type(houseId) == "string" and door:IsA("BasePart") then
 		doors[houseId] = door
+		local model = door:FindFirstAncestorOfClass("Model")
+		if model then
+			model:GetAttributeChangedSignal("HouseType"):Connect(function()
+				apply(houseId)
+			end)
+		end
 		apply(houseId)
 	end
 end
@@ -112,6 +125,17 @@ function DoorController.Start()
 	Net.event("DoorResult").OnClientEvent:Connect(function(result: any)
 		readyAt[result.houseId] = result.cooldownUntil
 		apply(result.houseId)
+	end)
+	-- Dawn: every door is ready again.
+	Net.event("CooldownsReset").OnClientEvent:Connect(function()
+		local ids = {}
+		for houseId in readyAt do
+			table.insert(ids, houseId)
+		end
+		table.clear(readyAt)
+		for _, houseId in ids do
+			apply(houseId)
+		end
 	end)
 
 	while true do

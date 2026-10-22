@@ -25,4 +25,45 @@ return {
 		-- Passes the needle makes per hit before the hit counts as a MISS.
 		passesPerHit = 2.5,
 	},
+
+	-- The door knocks a pattern; repeat it in time. Graded by the average timing error.
+	KnockRhythm = {
+		easyKnocks = 3,
+		hardKnocks = 7,
+		easyBpm = 90,
+		hardBpm = 140,
+		syncopationFrom = 3, -- half-beat gaps
+		longGapFrom = 4, -- 1.5-beat gaps
+		fakesFrom = 5, -- creaks to ignore while listening
+		leadIn = 0.6, -- seconds before the first knock
+		gapBeforeTurn = 0.7, -- after the last knock, before "YOUR TURN"
+		answerTime = 3, -- extra seconds after the pattern length to finish repeating
+		-- Average error (s) per grade.
+		perfect = 0.07,
+		great = 0.12,
+		good = 0.2,
+		missingTapError = 0.5,
+	},
+
+	-- Hold through the scares; letting go early is a flinch.
+	NerveHold = {
+		easyDuration = 3,
+		hardDuration = 7,
+		pressWindow = 1.5, -- seconds to start holding
+		trapsFrom = 5, -- fake "LET GO!" whispers
+		-- Share of the hold completed per grade.
+		perfect = 1,
+		great = 0.75,
+		good = 0.45,
+	},
+
+	-- Pick the answer the homeowner would like. Faster correct answers grade higher.
+	CostumeLine = {
+		easyOptions = 2,
+		hardOptions = 4,
+		easyTimer = 8,
+		hardTimer = 4,
+		perfectShare = 0.35, -- answered within this share of the timer
+		greatShare = 0.65,
+	},
 }

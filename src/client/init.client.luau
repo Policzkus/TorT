@@ -7,14 +7,18 @@ local Loader = require(ReplicatedStorage:WaitForChild("Shared").Modules.Loader)
 Loader.run(script.Controllers, {
 	"StateController",
 	"SoundController",
+	"MusicController",
 	"TransitionController",
 	"NotificationController",
 	"CelebrationController",
 	"ZoneLightingController",
 	"DoorController",
+	"HouseVisualController",
+	"JumpscareController",
 	"MinigameController",
 	"ShopController",
 	"BusController",
 	"GateController",
+	"SettingsController",
 	"HUDController",
 }, "Client")
