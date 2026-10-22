@@ -4,7 +4,7 @@
 return {
 	-- PSX camera overlay
 	Vignette = 12754479702, -- "White Vignette" (althruist), tinted black in code
-	Grain = 108518939237205, -- "static2" (CrashedFatality), tiled + jittered as film grain
+	Grain = 0, -- "static2" (108518939237205) showed tile seams; find a seamless noise texture
 
 	-- Minimal HUD icons (white on transparent)
 	Candy = 116802131222258, -- "Candy icon" (GUDUBIDO)

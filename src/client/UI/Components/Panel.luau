@@ -46,27 +46,30 @@ function Panel.new(options: Options): Panel
 		Position = UDim2.fromScale(0.5, 0.52),
 		Size = UDim2.fromOffset(options.size.X, options.size.Y),
 		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = 0.08,
 		Visible = false,
 		popScale,
-		create("UICorner", { CornerRadius = UDim.new(0, 18) }),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 4 }),
-		create("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new(Theme.Colors.PanelLight, Theme.Colors.Panel),
-		}),
+		create("UICorner", { CornerRadius = Theme.Corner }),
+		create("UIStroke", { Color = Theme.Colors.Hairline, Transparency = 0.7, Thickness = 1 }),
 		create("TextLabel", {
 			Name = "Title",
 			Position = UDim2.fromOffset(18, 10),
 			Size = UDim2.new(1, -90, 0, 46),
 			BackgroundTransparency = 1,
 			FontFace = Theme.Fonts.Heading,
-			Text = options.title,
-			TextColor3 = Theme.Colors.OrangeLight,
-			TextSize = 32,
+			Text = string.upper(options.title),
+			TextColor3 = Theme.Colors.Text,
+			TextSize = 28,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
 		}),
 		content,
+		create("TextButton", {
+			Name = "MouseUnlock",
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1,
+			Text = "",
+			Modal = true, -- frees the mouse in first person while this window is visible
+		}),
 	})
 	local gui: ScreenGui = create("ScreenGui", {
 		Name = options.name,
@@ -93,8 +96,8 @@ function Panel.new(options: Options): Panel
 		size = UDim2.fromOffset(44, 44),
 		position = UDim2.new(1, -12, 0, 12),
 		anchor = Vector2.new(1, 0),
-		color = Theme.Colors.Danger,
-		textSize = 24,
+		color = Theme.Colors.PanelLight,
+		textSize = 22,
 		parent = frame,
 		onClick = function()
 			self:close()

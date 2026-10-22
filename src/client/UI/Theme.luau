@@ -1,24 +1,27 @@
 --!strict
--- Visual identity: chunky cartoon Halloween. Every UI file pulls colors and fonts from here.
+-- Visual identity (PROMPT §V2.3): minimal noir HUD in the spirit of the user's Watch Dogs reference.
+-- Near-black translucent tiles, hairline borders, sharp corners, a typewriter face for headings.
+-- Every UI file pulls colors and fonts from here.
 
 local Theme = {}
 
 Theme.Colors = {
-	Panel = Color3.fromHex("2A1B3D"),
-	PanelLight = Color3.fromHex("3D2A56"),
-	PanelDark = Color3.fromHex("1A1026"),
-	Stroke = Color3.fromHex("120A1C"),
-	Orange = Color3.fromHex("FF8A00"),
-	OrangeLight = Color3.fromHex("FFB347"),
-	Slime = Color3.fromHex("7CFF4F"),
-	Text = Color3.fromHex("FFFFFF"),
-	TextDim = Color3.fromHex("C9B8E0"),
-	Success = Color3.fromHex("4CD964"),
-	Danger = Color3.fromHex("FF4D5E"),
-	Info = Color3.fromHex("8E6BFF"),
+	Panel = Color3.fromHex("0C0C0F"),
+	PanelLight = Color3.fromHex("1B1B20"),
+	PanelDark = Color3.fromHex("050507"),
+	Stroke = Color3.fromHex("000000"),
+	Hairline = Color3.fromHex("E6E6E6"),
+	Orange = Color3.fromHex("D89A3C"),
+	OrangeLight = Color3.fromHex("E8C27A"),
+	Slime = Color3.fromHex("A6E07C"),
+	Text = Color3.fromHex("F0F0F0"),
+	TextDim = Color3.fromHex("8E8E96"),
+	Success = Color3.fromHex("A6E07C"),
+	Danger = Color3.fromHex("D84A4A"),
+	Info = Color3.fromHex("9A9AB4"),
 }
 
--- CS-style rarity colors.
+-- CS-style rarity colors (crates).
 Theme.Rarity = {
 	MilSpec = Color3.fromHex("4B69FF"),
 	Restricted = Color3.fromHex("8847FF"),
@@ -28,12 +31,15 @@ Theme.Rarity = {
 }
 
 Theme.Fonts = {
-	Heading = Font.fromEnum(Enum.Font.FredokaOne),
-	Body = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold),
-	BodyHeavy = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.ExtraBold),
+	Heading = Font.fromEnum(Enum.Font.SpecialElite),
+	Body = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Medium),
+	BodyHeavy = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold),
+	Hud = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.SemiBold),
 }
 
-Theme.Corner = UDim.new(0, 12)
-Theme.StrokeThickness = 2.5
+Theme.Corner = UDim.new(0, 3)
+Theme.StrokeThickness = 1
+-- Background transparency of HUD tiles and panels.
+Theme.TileTransparency = 0.35
 
 return Theme

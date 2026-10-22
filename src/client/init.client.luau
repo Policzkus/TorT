@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Loader = require(ReplicatedStorage:WaitForChild("Shared").Modules.Loader)
 
 Loader.run(script.Controllers, {
+	"LoadingController",
 	"StateController",
 	"SoundController",
 	"CameraController",
@@ -18,6 +19,7 @@ Loader.run(script.Controllers, {
 	"HouseVisualController",
 	"JumpscareController",
 	"MinigameController",
+	"RadialMenuController",
 	"ShopController",
 	"BusController",
 	"GateController",

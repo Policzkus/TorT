@@ -10,6 +10,8 @@ local Template: Types.PlayerData = {
 	bucket = 0,
 	souls = 0,
 	rebirths = 0,
+	lives = 3,
+	livesRefillAt = 0, -- os.time() when the next life comes back (0 = full)
 
 	upgrades = {
 		bucketTier = 1,

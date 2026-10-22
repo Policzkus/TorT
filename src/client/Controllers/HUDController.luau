@@ -1,90 +1,138 @@
 --!strict
--- The main HUD (PROMPT §3.18): banked candy with a rolling counter and Candy Box bar, the bucket
--- fill bar, the "next goal" bar, menu buttons, and all the candy pops that fly around.
+-- Minimal HUD (PROMPT §V2.3, the user's Watch Dogs reference): a small cluster of monochrome chips
+-- bottom-left (candy, bag, lives, souls, night clock), a quiet "next goal" line and streak above it,
+-- a centre crosshair dot, and a menu hint bottom-right. Candy pops fly into the bag chip.
 
 local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Events = require(Shared.Config.Events)
+local Images = require(Shared.Config.Images)
+local Lives = require(Shared.Config.Lives)
 local Neighborhoods = require(Shared.Config.Neighborhoods)
 local Upgrades = require(Shared.Config.Upgrades)
 local Format = require(Shared.Modules.Format)
 local Formulas = require(Shared.Modules.Formulas)
 local Net = require(Shared.Modules.Net)
 local DoorController = require(script.Parent.DoorController)
-local SettingsController = require(script.Parent.SettingsController)
+local RadialMenuController = require(script.Parent.RadialMenuController)
 local ShopController = require(script.Parent.ShopController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
-local Button = require(script.Parent.Parent.UI.Components.Button)
-local ProgressBar = require(script.Parent.Parent.UI.Components.ProgressBar)
 local Scale = require(script.Parent.Parent.UI.Scale)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
 local GRADE_COLORS: { [string]: Color3 } = {
-	MISS = Color3.fromHex("FF8A8A"),
-	GOOD = Color3.fromHex("FFFFFF"),
-	GREAT = Color3.fromHex("FFD23F"),
-	PERFECT = Color3.fromHex("7CFF4F"),
+	MISS = Theme.Colors.Danger,
+	GOOD = Theme.Colors.Text,
+	GREAT = Theme.Colors.OrangeLight,
+	PERFECT = Theme.Colors.Slime,
 }
 
 local HUDController = {}
 
 local gui: ScreenGui
 local uiScale: UIScale
-local candyPanel: Frame
+local candyChip: Frame
 local candyLabel: TextLabel
-local boxBar: ProgressBar.ProgressBar
-local bucketPanel: Frame
-local bucketLabel: TextLabel
-local bucketBar: ProgressBar.ProgressBar
-local goalLabel: TextLabel
-local goalBar: ProgressBar.ProgressBar
-local shopBadge: TextLabel
-local clockPanel: Frame
+local bagChip: Frame
+local bagLabel: TextLabel
+local bagFill: Frame
+local hearts: { ImageLabel | TextLabel } = {}
+local soulsLabel: TextLabel
+local clockChip: Frame
 local clockLabel: TextLabel
-local clockSub: TextLabel
-local streakPill: TextLabel
+local streakChip: Frame
+local streakLabel: TextLabel
+local goalLabel: TextLabel
+local goalFill: Frame
+local menuDot: Frame
 local popLayer: Frame
 local shownCandy = Instance.new("NumberValue")
 
-local function panel(name: string, width: number, order: number): Frame
-	return create("Frame", {
-		Name = name,
-		Size = UDim2.fromOffset(width, 66),
-		LayoutOrder = order,
-		BackgroundColor3 = Theme.Colors.Panel,
-		create("UICorner", { CornerRadius = UDim.new(0, 14) }),
-		create("UIStroke", { Name = "Outline", Color = Theme.Colors.Stroke, Thickness = 3 }),
-		create("UIScale", { Name = "Bump" }),
-		create("TextLabel", {
+-- Chips --------------------------------------------------------------------------------------
+
+local function icon(imageId: number, fallback: string): ImageLabel | TextLabel
+	if imageId ~= 0 then
+		return create("ImageLabel", {
 			Name = "Icon",
-			Position = UDim2.fromOffset(8, 9),
-			Size = UDim2.fromOffset(48, 48),
+			Size = UDim2.fromOffset(18, 18),
 			BackgroundTransparency = 1,
-			FontFace = Theme.Fonts.Heading,
-			TextSize = 38,
-			Text = "",
+			Image = "rbxassetid://" .. imageId,
+			ImageColor3 = Theme.Colors.Text,
+			LayoutOrder = 0,
+		})
+	end
+	return create("TextLabel", {
+		Name = "Icon",
+		Size = UDim2.fromOffset(18, 18),
+		BackgroundTransparency = 1,
+		FontFace = Theme.Fonts.Hud,
+		Text = fallback,
+		TextColor3 = Theme.Colors.Text,
+		TextSize = 14,
+		LayoutOrder = 0,
+	})
+end
+
+local function chip(name: string, order: number, imageId: number?, fallback: string?): Frame
+	local frame = create("Frame", {
+		Name = name,
+		LayoutOrder = order,
+		Size = UDim2.fromOffset(0, 30),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = Theme.TileTransparency,
+		create("UICorner", { CornerRadius = Theme.Corner }),
+		create("UIStroke", { Name = "Outline", Color = Theme.Colors.Hairline, Transparency = 0.85, Thickness = 1 }),
+		create("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 9) }),
+		create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
+		create("UIScale", { Name = "Bump" }),
+	})
+	if imageId then
+		icon(imageId, fallback or "").Parent = frame
+	end
+	return frame
+end
+
+local function chipText(parent: Instance, text: string, order: number?): TextLabel
+	return create("TextLabel", {
+		Name = "Value",
+		LayoutOrder = order or 1,
+		Size = UDim2.fromOffset(0, 30),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		FontFace = Theme.Fonts.Hud,
+		Text = text,
+		TextColor3 = Theme.Colors.Text,
+		TextSize = 17,
+		Parent = parent,
 	})
 end
 
 local function bump(frame: GuiObject, amount: number?)
 	local scale = frame:FindFirstChild("Bump") :: UIScale?
 	if scale then
-		scale.Scale = amount or 1.12
-		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		scale.Scale = amount or 1.1
+		TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 	end
 end
 
 local function shake(frame: GuiObject)
 	task.spawn(function()
-		for _, angle in { -5, 5, -4, 4, -2, 0 } do
+		for _, angle in { -4, 4, -3, 3, -1, 0 } do
 			frame.Rotation = angle
 			task.wait(0.04)
 		end
@@ -100,39 +148,39 @@ local function centreOf(frame: GuiObject): Vector2
 	return (frame.AbsolutePosition + frame.AbsoluteSize / 2 - gui.AbsolutePosition) / uiScale.Scale
 end
 
-local function floatingText(text: string, color: Color3, at: Vector2, size: number): TextLabel
+local function floatingText(text: string, color: Color3, at: Vector2, size: number, font: Font?): TextLabel
 	return create("TextLabel", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromOffset(at.X, at.Y),
-		Size = UDim2.fromOffset(240, size + 8),
+		Size = UDim2.fromOffset(300, size + 8),
 		BackgroundTransparency = 1,
-		FontFace = Theme.Fonts.Heading,
+		FontFace = font or Theme.Fonts.Hud,
 		Text = text,
 		TextColor3 = color,
 		TextSize = size,
 		ZIndex = 10,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
-		create("UIScale", { Scale = 0.4 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.4 }),
+		create("UIScale", { Scale = 0.6 }),
 		Parent = popLayer,
 	})
 end
 
--- Pops "+N 🍬" at `from`, then flies it into `target` and calls onArrive.
+-- "+12" rises at the door, then drifts into the bag chip.
 local function flyPop(text: string, color: Color3, from: Vector2, target: GuiObject, onArrive: (() -> ())?)
-	local label = floatingText(text, color, from, 34)
+	local label = floatingText(text, color, from, 24)
 	local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
 		:Play()
 	TweenService:Create(label, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.fromOffset(from.X, from.Y - 50),
+		Position = UDim2.fromOffset(from.X, from.Y - 36),
 	}):Play()
-	task.delay(0.42, function()
+	task.delay(0.45, function()
 		local goal = centreOf(target)
-		local fly = TweenService:Create(label, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		local fly = TweenService:Create(label, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			Position = UDim2.fromOffset(goal.X, goal.Y),
+			TextTransparency = 0.4,
 		})
-		TweenService
-			:Create(scale, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.45 })
+		TweenService:Create(scale, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.5 })
 			:Play()
 		fly.Completed:Once(function()
 			label:Destroy()
@@ -144,33 +192,28 @@ local function flyPop(text: string, color: Color3, from: Vector2, target: GuiObj
 	end)
 end
 
--- A few candy emojis hopping from one place to another.
-local function candyShower(from: Vector2, to: GuiObject, count: number)
-	for i = 1, count do
-		task.delay((i - 1) * 0.05, function()
-			local start = from + Vector2.new(math.random(-30, 30), math.random(-20, 20))
-			local label = floatingText("🍬", Color3.new(1, 1, 1), start, 26)
-			local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-			scale.Scale = 1
-			local goal = centreOf(to)
-			local tween =
-				TweenService:Create(label, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-					Position = UDim2.fromOffset(goal.X, goal.Y),
-					Rotation = math.random(-90, 90),
-				})
-			tween.Completed:Once(function()
-				label:Destroy()
-			end)
-			tween:Play()
+-- Short callouts that rise from the door after the candy pop ("BRAVE", "FULL-SIZE"...).
+local function callout(text: string, color: Color3, from: Vector2, delay: number)
+	task.delay(delay, function()
+		local label = floatingText(text, color, from - Vector2.new(0, 70), 22, Theme.Fonts.Heading)
+		local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
+		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			:Play()
+		TweenService:Create(label, TweenInfo.new(1.5, Enum.EasingStyle.Quad), {
+			Position = UDim2.fromOffset(from.X, from.Y - 120),
+			TextTransparency = 1,
+		}):Play()
+		task.delay(1.5, function()
+			label:Destroy()
 		end)
-	end
+	end)
 end
 
 local function doorPoint(houseId: string): Vector2
 	local door = DoorController.getDoor(houseId)
 	local camera = Workspace.CurrentCamera
 	if door and camera then
-		local point, onScreen = camera:WorldToViewportPoint(door.Position + Vector3.new(0, 3, 0))
+		local point, onScreen = camera:WorldToViewportPoint(door.Position + Vector3.new(0, 2, 0))
 		if onScreen then
 			return toGui(Vector2.new(point.X, point.Y))
 		end
@@ -183,17 +226,15 @@ end
 
 local function refreshCandy()
 	local candy = StateController.get("candy") or 0
-	local rebirths = StateController.get("rebirths") or 0
-	local capacity = Formulas.boxCapacity(rebirths)
 	TweenService
 		:Create(shownCandy, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = candy })
 		:Play()
-	boxBar:set(candy / capacity, true)
-	boxBar:setText(`📦 {Format.number(candy)} / {Format.number(capacity)}`)
-	boxBar:setColor(if candy >= capacity then Theme.Colors.Danger else Theme.Colors.Info)
+	local rebirths = StateController.get("rebirths") or 0
+	local outline = candyChip:FindFirstChild("Outline") :: UIStroke
+	outline.Color = if candy >= Formulas.boxCapacity(rebirths) then Theme.Colors.Danger else Theme.Colors.Hairline
 end
 
-local function refreshBucket()
+local function refreshBag()
 	local bucket = StateController.get("bucket") or 0
 	local upgrades = StateController.get("upgrades")
 	if upgrades == nil then
@@ -201,60 +242,69 @@ local function refreshBucket()
 	end
 	local capacity = Formulas.bucketCapacity(upgrades.bucketTier)
 	local full = bucket >= capacity
-	bucketLabel.Text = `{Format.number(bucket)} / {Format.number(capacity)}`
-	bucketBar:set(bucket / capacity, true)
-	bucketBar:setColor(
-		if full
-			then Theme.Colors.Danger
-			elseif bucket / capacity > 0.75 then Theme.Colors.OrangeLight
-			else Theme.Colors.Orange
-	)
-	bucketBar:setText(if full then "FULL! Stash it 📦" else Formulas.bucketTier(upgrades.bucketTier).name)
-	local outline = bucketPanel:FindFirstChild("Outline") :: UIStroke
-	outline.Color = if full then Theme.Colors.Danger else Theme.Colors.Stroke
+	bagLabel.Text = `{Format.number(bucket)}/{Format.number(capacity)}`
+	bagLabel.TextColor3 = if full then Theme.Colors.Danger else Theme.Colors.Text
+	TweenService
+		:Create(bagFill, TweenInfo.new(0.25), { Size = UDim2.fromScale(math.clamp(bucket / capacity, 0, 1), 1) })
+		:Play()
+	bagFill.BackgroundColor3 = if full then Theme.Colors.Danger else Theme.Colors.Text
 end
 
--- The next thing to save for: the next street's gate, else the next bucket tier.
+local function refreshLives()
+	local lives = StateController.get("lives") or Lives.MAX
+	for index, heart in hearts do
+		local alive = index <= lives
+		if heart:IsA("ImageLabel") then
+			heart.ImageTransparency = if alive then 0 else 0.8
+		else
+			heart.TextTransparency = if alive then 0 else 0.8
+		end
+	end
+end
+
+local function refreshSouls()
+	soulsLabel.Text = Format.number(StateController.get("souls") or 0)
+end
+
+-- The next thing to save for: the next street, else the next bucket tier.
 local function refreshGoal()
 	local candy = StateController.get("candy") or 0
 	local owned = StateController.get("neighborhoods") or {}
 	local rebirths = StateController.get("rebirths") or 0
 	local upgrades = StateController.get("upgrades")
-	local text, cost, hint = nil, nil, nil
+	local text, cost = nil, nil
 	for _, neighborhood in Neighborhoods.list do
 		if not owned[neighborhood.id] then
 			if neighborhood.enabled and neighborhood.unlock.rebirths <= rebirths then
-				text = `🔓 Next: {neighborhood.name}`
+				text = string.upper(neighborhood.name)
 				cost = neighborhood.unlock.price
-				hint = "Unlock it at the gate at the end of the street!"
 			end
 			break
 		end
 	end
 	if text == nil and upgrades then
-		local level = upgrades.bucketTier
-		local nextTier = (Upgrades.tracks.bucketTier.tiers :: { Upgrades.Tier })[level + 1]
+		local nextTier = (Upgrades.tracks.bucketTier.tiers :: { Upgrades.Tier })[upgrades.bucketTier + 1]
 		if nextTier and nextTier.rebirths <= rebirths then
-			text = `🎃 Next: {nextTier.name}`
+			text = string.upper(nextTier.name)
 			cost = nextTier.cost
-			hint = "Buy it in the Shop!"
 		end
 	end
-	local frame = goalBar.frame.Parent :: Frame
+	local frame = goalLabel.Parent :: Frame
 	if text == nil or cost == nil then
 		frame.Visible = false
 		return
 	end
 	frame.Visible = true
 	local ready = candy >= cost
-	goalLabel.Text = if ready then `{text}  ✅ {hint}` else text
-	goalBar:set(candy / cost, true)
-	goalBar:setColor(if ready then Theme.Colors.Slime else Theme.Colors.Orange)
-	goalBar:setText(`{Format.number(math.min(candy, cost))} / {Format.number(cost)} 🍬`)
+	local amounts = `{Format.number(math.min(candy, cost))} / {Format.number(cost)}`
+	goalLabel.Text = `NEXT  ·  {text}   {amounts}{if ready then "  ✓" else ""}`
+	goalLabel.TextColor3 = if ready then Theme.Colors.Slime else Theme.Colors.TextDim
+	TweenService:Create(goalFill, TweenInfo.new(0.35), { Size = UDim2.fromScale(math.clamp(candy / cost, 0, 1), 1) })
+		:Play()
 end
 
-local function refreshBadge()
-	shopBadge.Visible = ShopController.cheapestAffordable() ~= nil
+local function refreshMenuDot()
+	menuDot.Visible = ShopController.cheapestAffordable() ~= nil
 end
 
 local function formatHour(hour: number): string
@@ -269,258 +319,194 @@ local function refreshClock(state: Instance)
 	local startedAt = (state:GetAttribute("NightStartedAt") :: number?) or Workspace:GetServerTimeNow()
 	local elapsed = math.clamp(Workspace:GetServerTimeNow() - startedAt, 0, Events.NIGHT_LENGTH)
 	local hour = Events.START_HOUR + elapsed / Events.NIGHT_LENGTH * (Events.END_HOUR - Events.START_HOUR)
-	clockLabel.Text = formatHour(hour)
 	local witchingAt = Events.NIGHT_LENGTH - Events.WITCHING_LENGTH
-	local outline = clockPanel:FindFirstChild("Outline") :: UIStroke
+	local outline = clockChip:FindFirstChild("Outline") :: UIStroke
+	local time = formatHour(hour)
 	if state:GetAttribute("Witching") == true then
-		clockSub.Text = `🩸 WITCHING ×2  {Format.clock(Events.NIGHT_LENGTH - elapsed)}`
-		clockSub.TextColor3 = Theme.Colors.Danger
-		clockLabel.TextColor3 = Color3.fromHex("FF8A8A")
+		clockLabel.Text = `{time}  ·  WITCHING HOUR ×2  {Format.clock(Events.NIGHT_LENGTH - elapsed)}`
+		clockLabel.TextColor3 = Theme.Colors.Danger
 		outline.Color = Theme.Colors.Danger
 	elseif elapsed >= witchingAt - Events.WITCHING_WARNING then
-		clockSub.Text = `⚠ Witching in {Format.clock(witchingAt - elapsed)}`
-		clockSub.TextColor3 = Theme.Colors.OrangeLight
-		clockLabel.TextColor3 = Theme.Colors.Text
-		outline.Color = Theme.Colors.Orange
+		clockLabel.Text = `{time}  ·  WITCHING IN {Format.clock(witchingAt - elapsed)}`
+		clockLabel.TextColor3 = Theme.Colors.OrangeLight
+		outline.Color = Theme.Colors.Hairline
 	elseif state:GetAttribute("BloodMoon") == true then
-		clockSub.Text = "🌕 BLOOD MOON ×2"
-		clockSub.TextColor3 = Theme.Colors.Danger
-		clockLabel.TextColor3 = Theme.Colors.Text
+		clockLabel.Text = `{time}  ·  BLOOD MOON ×2`
+		clockLabel.TextColor3 = Theme.Colors.Danger
 		outline.Color = Theme.Colors.Danger
 	else
-		clockSub.Text = `Night {state:GetAttribute("Night") or 1}`
-		clockSub.TextColor3 = Theme.Colors.TextDim
+		clockLabel.Text = `{time}  ·  NIGHT {state:GetAttribute("Night") or 1}`
 		clockLabel.TextColor3 = Theme.Colors.Text
-		outline.Color = Theme.Colors.Stroke
+		outline.Color = Theme.Colors.Hairline
 	end
 end
 
 local function refreshStreak(streak: number)
 	if streak < 2 then
-		streakPill.Visible = false
+		streakChip.Visible = false
 		return
 	end
-	local bonus = math.round(Formulas.streakBonus(streak) * 100)
-	streakPill.Visible = true
-	streakPill.Text = `{if streak >= 5 then "🔥🔥" else "🔥"} x{streak}  +{bonus}%`
-	streakPill.TextColor3 = if streak >= 5 then Theme.Colors.Slime else Theme.Colors.OrangeLight
-	bump(streakPill, if streak >= 5 then 1.25 else 1.12)
-end
-
--- Short callouts that rise from the door after the candy pop ("BRAVE!", "FULL-SIZE ×10"...).
-local function callout(text: string, color: Color3, from: Vector2, delay: number)
-	task.delay(delay, function()
-		local label = floatingText(text, color, from - Vector2.new(0, 90), 30)
-		local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-		TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
-			:Play()
-		TweenService:Create(label, TweenInfo.new(1.4, Enum.EasingStyle.Quad), {
-			Position = UDim2.fromOffset(from.X, from.Y - 150),
-			TextTransparency = 1,
-		}):Play()
-		task.delay(1.4, function()
-			label:Destroy()
-		end)
-	end)
+	streakChip.Visible = true
+	streakLabel.Text = `x{streak} STREAK  +{math.round(Formulas.streakBonus(streak) * 100)}%`
+	streakLabel.TextColor3 = if streak >= 5 then Theme.Colors.Slime else Theme.Colors.Text
+	bump(streakChip, if streak >= 5 then 1.2 else 1.1)
 end
 
 -- Build ----------------------------------------------------------------------------------------
 
 local function build()
-	candyPanel = panel("Candy", 270, 1);
-	(candyPanel:FindFirstChild("Icon") :: TextLabel).Text = "🍬"
-	candyLabel = create("TextLabel", {
-		Name = "Amount",
-		Position = UDim2.fromOffset(60, 4),
-		Size = UDim2.fromOffset(200, 34),
-		BackgroundTransparency = 1,
-		FontFace = Theme.Fonts.Heading,
-		Text = "0",
-		TextColor3 = Theme.Colors.Text,
-		TextSize = 32,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
-		Parent = candyPanel,
-	})
-	boxBar = ProgressBar.new({
-		size = UDim2.fromOffset(198, 18),
-		position = UDim2.fromOffset(60, 40),
-		color = Theme.Colors.Info,
-		textSize = 12,
-		parent = candyPanel,
-	})
-
-	clockPanel = panel("Night", 210, 3);
-	(clockPanel:FindFirstChild("Icon") :: TextLabel).Text = "🌙"
-	clockLabel = create("TextLabel", {
-		Name = "Time",
-		Position = UDim2.fromOffset(60, 4),
-		Size = UDim2.fromOffset(140, 32),
-		BackgroundTransparency = 1,
-		FontFace = Theme.Fonts.Heading,
-		Text = "6:00 PM",
-		TextColor3 = Theme.Colors.Text,
-		TextSize = 26,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
-		Parent = clockPanel,
-	})
-	clockSub = create("TextLabel", {
-		Name = "Sub",
-		Position = UDim2.fromOffset(60, 38),
-		Size = UDim2.fromOffset(140, 20),
-		BackgroundTransparency = 1,
-		FontFace = Theme.Fonts.BodyHeavy,
-		Text = "Night 1",
-		TextColor3 = Theme.Colors.TextDim,
-		TextSize = 15,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
-		Parent = clockPanel,
-	})
-
-	bucketPanel = panel("Bucket", 250, 2);
-	(bucketPanel:FindFirstChild("Icon") :: TextLabel).Text = "🎃"
-	bucketLabel = create("TextLabel", {
-		Name = "Amount",
-		Position = UDim2.fromOffset(60, 4),
-		Size = UDim2.fromOffset(180, 34),
-		BackgroundTransparency = 1,
-		FontFace = Theme.Fonts.Heading,
-		Text = "0 / 15",
-		TextColor3 = Theme.Colors.Text,
-		TextSize = 28,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
-		Parent = bucketPanel,
-	})
-	bucketBar = ProgressBar.new({
-		size = UDim2.fromOffset(178, 18),
-		position = UDim2.fromOffset(60, 40),
-		textSize = 12,
-		parent = bucketPanel,
-	})
-
-	create("Frame", {
-		Name = "Top",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 6),
-		Size = UDim2.fromOffset(0, 66),
+	local cluster = create("Frame", {
+		Name = "Cluster",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -16),
+		Size = UDim2.fromOffset(0, 30),
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
 		create("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
-			Padding = UDim.new(0, 10),
+			Padding = UDim.new(0, 6),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
-		candyPanel,
-		bucketPanel,
-		clockPanel,
 		Parent = gui,
 	})
 
-	streakPill = create("TextLabel", {
-		Name = "Streak",
-		Position = UDim2.new(0.5, 222, 0, 82),
-		Size = UDim2.fromOffset(160, 34),
-		BackgroundColor3 = Theme.Colors.Panel,
-		FontFace = Theme.Fonts.Heading,
-		Text = "",
-		TextColor3 = Theme.Colors.OrangeLight,
-		TextSize = 20,
-		Visible = false,
-		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
-		create("UIStroke", {
-			Name = "Outline",
-			Color = Theme.Colors.Orange,
-			Thickness = 2.5,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		}),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
-		create("UIScale", { Name = "Bump" }),
-		Parent = gui,
-	})
+	candyChip = chip("Candy", 1, Images.Candy, "C")
+	candyLabel = chipText(candyChip, "0")
+	candyChip.Parent = cluster
 
+	bagChip = chip("Bag", 2, Images.Bag, "B")
+	bagLabel = chipText(bagChip, "0/15")
+	bagFill = create("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Theme.Colors.Text,
+		BorderSizePixel = 0,
+	})
+	create("Frame", {
+		Name = "Bar",
+		LayoutOrder = 2,
+		Size = UDim2.fromOffset(46, 4),
+		BackgroundColor3 = Theme.Colors.Text,
+		BackgroundTransparency = 0.8,
+		BorderSizePixel = 0,
+		bagFill,
+		Parent = bagChip,
+	})
+	bagChip.Parent = cluster
+
+	local livesChip = chip("Lives", 3)
+	for index = 1, Lives.MAX do
+		local heart = icon(Images.Life, "♥")
+		heart.LayoutOrder = index
+		heart.Size = UDim2.fromOffset(16, 16)
+		heart.Parent = livesChip
+		hearts[index] = heart
+	end
+	livesChip.Parent = cluster
+
+	local soulsChip = chip("Souls", 4, Images.Soul, "S")
+	soulsLabel = chipText(soulsChip, "0")
+	soulsChip.Parent = cluster
+
+	clockChip = chip("Clock", 5)
+	clockLabel = chipText(clockChip, "6:00 PM  ·  NIGHT 1")
+	clockLabel.TextSize = 15
+	clockChip.Parent = cluster
+
+	-- Next goal, one quiet line above the cluster; streak above that.
+	goalFill = create("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Theme.Colors.Text,
+		BorderSizePixel = 0,
+	})
 	goalLabel = create("TextLabel", {
 		Name = "Text",
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
-		FontFace = Theme.Fonts.Heading,
-		TextColor3 = Theme.Colors.Text,
-		TextSize = 19,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2.5 }),
+		FontFace = Theme.Fonts.Hud,
+		Text = "",
+		TextColor3 = Theme.Colors.TextDim,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.5 }),
 	})
-	local goalFrame = create("Frame", {
+	create("Frame", {
 		Name = "Goal",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 78),
-		Size = UDim2.fromOffset(420, 44),
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -54),
+		Size = UDim2.fromOffset(420, 24),
 		BackgroundTransparency = 1,
-		goalLabel,
-		Parent = gui,
-	})
-	goalBar = ProgressBar.new({
-		size = UDim2.new(0.8, 0, 0, 16),
-		position = UDim2.new(0.1, 0, 0, 25),
-		textSize = 12,
-		parent = goalFrame,
-	})
-
-	local menu = create("Frame", {
-		Name = "Menu",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 0),
-		Size = UDim2.fromOffset(84, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }),
-		Parent = gui,
-	})
-	local shopButton = Button.new({
-		name = "Shop",
-		text = "🛒\nShop",
-		size = UDim2.fromOffset(84, 84),
-		color = Theme.Colors.Orange,
-		textSize = 22,
-		layoutOrder = 1,
-		parent = menu,
-		onClick = ShopController.toggle,
-	})
-	shopBadge = create("TextLabel", {
-		Name = "Badge",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(1, -6, 0, 6),
-		Size = UDim2.fromOffset(30, 30),
-		BackgroundColor3 = Theme.Colors.Slime,
-		FontFace = Theme.Fonts.Heading,
-		Text = "!",
-		TextColor3 = Theme.Colors.Stroke,
-		TextSize = 22,
 		Visible = false,
-		ZIndex = 3,
-		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
-		create(
-			"UIStroke",
-			{ Color = Theme.Colors.Stroke, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }
-		),
-		Parent = shopButton,
+		goalLabel,
+		create("Frame", {
+			Name = "Bar",
+			Position = UDim2.fromOffset(0, 20),
+			Size = UDim2.fromOffset(200, 2),
+			BackgroundColor3 = Theme.Colors.Text,
+			BackgroundTransparency = 0.8,
+			BorderSizePixel = 0,
+			goalFill,
+		}),
+		Parent = gui,
 	})
-	TweenService:Create(
-		shopBadge,
-		TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{ Rotation = 12 }
-	):Play()
+	streakChip = chip("Streak", 6)
+	streakLabel = chipText(streakChip, "")
+	streakLabel.TextSize = 15
+	streakChip.AnchorPoint = Vector2.new(0, 1)
+	streakChip.Position = UDim2.new(0, 16, 1, -84)
+	streakChip.Visible = false
+	streakChip.Parent = gui
 
-	Button.new({
-		name = "Settings",
-		text = "⚙️\nSettings",
-		size = UDim2.fromOffset(84, 84),
-		color = Theme.Colors.PanelLight,
-		textSize = 18,
-		layoutOrder = 9,
-		parent = menu,
-		onClick = SettingsController.toggle,
+	-- Crosshair dot (first person).
+	create("Frame", {
+		Name = "Crosshair",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(4, 4),
+		BackgroundColor3 = Theme.Colors.Text,
+		BackgroundTransparency = 0.35,
+		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
+		Parent = gui,
 	})
+
+	-- Menu hint bottom-right (a real button on touch screens).
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local hint = create("TextButton", {
+		Name = "MenuHint",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -16),
+		Size = UDim2.fromOffset(0, 30),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = Theme.TileTransparency,
+		AutoButtonColor = false,
+		FontFace = Theme.Fonts.Hud,
+		Text = if touch then "   MENU   " else "   [TAB]  MENU   ",
+		TextColor3 = Theme.Colors.Text,
+		TextSize = 15,
+		create("UICorner", { CornerRadius = Theme.Corner }),
+		create("UIStroke", {
+			Color = Theme.Colors.Hairline,
+			Transparency = 0.85,
+			Thickness = 1,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		}),
+		Parent = gui,
+	})
+	menuDot = create("Frame", {
+		Name = "Dot",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, -2, 0, 2),
+		Size = UDim2.fromOffset(8, 8),
+		BackgroundColor3 = Theme.Colors.Slime,
+		Visible = false,
+		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
+		Parent = hint,
+	})
+	hint.Activated:Connect(function()
+		RadialMenuController.toggle()
+	end)
 
 	popLayer = create("Frame", {
 		Name = "Pops",
@@ -535,54 +521,50 @@ end
 
 local function onDoorResult(result: any)
 	local from = doorPoint(result.houseId)
-	local color = GRADE_COLORS[result.grade] or GRADE_COLORS.GOOD
+	local color = GRADE_COLORS[result.grade] or Theme.Colors.Text
 	refreshStreak(result.streak or 0)
-	local delay = 0.15
 	if result.bowl == "caught" then
-		callout(`CAUGHT! -{Format.number(result.lost or 0)} 🍬`, Theme.Colors.Danger, from, 0.9)
+		callout(`CAUGHT  -{Format.number(result.lost or 0)}`, Theme.Colors.Danger, from, 0.9)
 		task.delay(1, function()
-			shake(bucketPanel)
+			shake(bagChip)
 			Sound.play("Miss")
 		end)
 		return
 	end
+	local delay = 0.15
 	if result.bowl == "all" then
-		callout("🤑 TAKE ALL ×12!", Theme.Colors.Slime, from, delay)
+		callout("TOOK IT ALL  ×12", Theme.Colors.Slime, from, delay)
 		delay += 0.35
 	end
 	if result.brave then
-		callout("😤 BRAVE! ×2.5", Theme.Colors.Slime, from, delay)
+		callout("BRAVE  ×2.5", Theme.Colors.Slime, from, delay)
 		delay += 0.35
 	end
 	if result.fullSize then
-		callout(`🍫 FULL-SIZE ×{Events.FULL_SIZE_MULTIPLIER}!`, Color3.fromHex("FFD23F"), from, delay)
+		callout(`FULL-SIZE BAR  ×{Events.FULL_SIZE_MULTIPLIER}`, Theme.Colors.OrangeLight, from, delay)
 		delay += 0.35
 	end
 	if (result.event or 1) > 1 then
-		callout(`🩸 ×{result.event} EVENT`, Theme.Colors.Danger, from, delay)
+		callout(`EVENT  ×{result.event}`, Theme.Colors.Danger, from, delay)
 	end
 	if result.added > 0 then
-		flyPop(`+{Format.number(result.added)} 🍬`, color, from, bucketPanel, function()
-			bump(bucketPanel)
-			Sound.play("Pop")
+		flyPop(`+{Format.number(result.added)}`, color, from, bagChip, function()
+			bump(bagChip)
+			Sound.play("Pop", { volume = 0.7 })
 		end)
-		candyShower(from, bucketPanel, math.clamp(math.ceil(result.added / 3), 2, 6))
 	end
 	if result.overflow > 0 then
 		task.delay(0.6, function()
-			local at = centreOf(bucketPanel) + Vector2.new(bucketPanel.AbsoluteSize.X / uiScale.Scale / 2 + 150, 0)
-			local label = floatingText(`OVERFLOW -{Format.number(result.overflow)} 🍬`, Theme.Colors.Danger, at, 26)
+			local at = centreOf(bagChip) - Vector2.new(0, 34)
+			local label = floatingText(`OVERFLOW  -{Format.number(result.overflow)}`, Theme.Colors.Danger, at, 16)
 			local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
 			scale.Scale = 1
-			shake(bucketPanel)
+			shake(bagChip)
 			Sound.play("Overflow")
-			TweenService
-				:Create(
-					label,
-					TweenInfo.new(1.2),
-					{ TextTransparency = 1, Position = UDim2.fromOffset(at.X, at.Y + 30) }
-				)
-				:Play()
+			TweenService:Create(label, TweenInfo.new(1.2), {
+				TextTransparency = 1,
+				Position = UDim2.fromOffset(at.X, at.Y - 24),
+			}):Play()
 			task.delay(1.2, function()
 				label:Destroy()
 			end)
@@ -592,14 +574,13 @@ end
 
 local function onStashed(moved: number, boxFull: boolean)
 	Sound.play("Stash")
-	candyShower(centreOf(bucketPanel), candyPanel, math.clamp(math.ceil(moved / 10), 4, 10))
-	task.delay(0.5, function()
-		bump(candyPanel, 1.15)
+	task.delay(0.35, function()
+		bump(candyChip, 1.15)
 		Sound.play("Coin")
-		local at = centreOf(candyPanel) - Vector2.new(candyPanel.AbsoluteSize.X / uiScale.Scale / 2 + 130, 0)
-		local label = floatingText(`+{Format.number(moved)} STASHED!`, Theme.Colors.Slime, at, 26)
+		local at = centreOf(candyChip) - Vector2.new(0, 34)
+		local label = floatingText(`+{Format.number(moved)} STASHED`, Theme.Colors.Slime, at, 16)
 		local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 		task.delay(1, function()
 			TweenService:Create(label, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
@@ -609,11 +590,14 @@ local function onStashed(moved: number, boxFull: boolean)
 		end)
 	end)
 	if boxFull then
-		shake(candyPanel)
+		shake(candyChip)
 	end
 end
 
 function HUDController.Start()
+	for _, coreGui in { Enum.CoreGuiType.PlayerList, Enum.CoreGuiType.Backpack, Enum.CoreGuiType.Health } do
+		pcall(StarterGui.SetCoreGuiEnabled, StarterGui, coreGui, false)
+	end
 	gui = create("ScreenGui", {
 		Name = "HUD",
 		ResetOnSpawn = false,
@@ -625,27 +609,33 @@ function HUDController.Start()
 	build()
 
 	shownCandy.Changed:Connect(function(value: number)
-		candyLabel.Text = Format.number(math.floor(value + 0.5))
+		candyLabel.Text = Format.commas(math.floor(value + 0.5))
 	end)
 	StateController.observe("candy", function()
 		refreshCandy()
 		refreshGoal()
-		refreshBadge()
+		refreshMenuDot()
 	end)
 	StateController.observe("rebirths", refreshCandy)
-	StateController.observe("bucket", refreshBucket)
+	StateController.observe("bucket", refreshBag)
 	StateController.observe("upgrades", function()
-		refreshBucket()
+		refreshBag()
 		refreshGoal()
-		refreshBadge()
+		refreshMenuDot()
 	end)
 	StateController.observe("neighborhoods", refreshGoal)
+	StateController.observe("lives", refreshLives)
+	StateController.observe("souls", refreshSouls)
+	refreshLives()
 
 	Net.event("DoorResult").OnClientEvent:Connect(onDoorResult)
 	Net.event("Stashed").OnClientEvent:Connect(onStashed)
 
 	task.spawn(function()
-		local state = ReplicatedStorage:WaitForChild("WorldState")
+		local state = ReplicatedStorage:WaitForChild("WorldState", 120)
+		if state == nil then
+			return
+		end
 		while true do
 			refreshClock(state)
 			task.wait(0.5)

@@ -5,6 +5,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
+local RadialMenuController = require(script.Parent.RadialMenuController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
 local Button = require(script.Parent.Parent.UI.Components.Button)
@@ -196,6 +197,13 @@ function SettingsController.Start()
 	toggleRow(list, 4, "Reduce flashing", "reduceFlash")
 	toggleRow(list, 5, "PSX effects", "psx")
 
+	RadialMenuController.register({
+		id = "Settings",
+		label = "SETTINGS",
+		order = 9,
+		glyph = "⚙️",
+		onSelect = SettingsController.toggle,
+	})
 	StateController.observe("settings", function(settings: any)
 		if type(settings) == "table" then
 			for key, value in settings do

@@ -83,6 +83,13 @@ function CostumeLine.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		popScale,
 		bubble,
 		options,
+		create("TextButton", {
+			Name = "MouseUnlock",
+			Size = UDim2.fromOffset(0, 0),
+			BackgroundTransparency = 1,
+			Text = "",
+			Modal = true, -- the answers need a free cursor in first person
+		}),
 		Parent = parent,
 	})
 	local timer = ProgressBar.new({

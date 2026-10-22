@@ -32,7 +32,7 @@ function Button.new(options: Options): TextButton
 		Size = options.size,
 		Position = options.position or UDim2.new(),
 		AnchorPoint = options.anchor or Vector2.zero,
-		BackgroundColor3 = options.color or Theme.Colors.Orange,
+		BackgroundColor3 = options.color or Theme.Colors.PanelLight,
 		AutoButtonColor = false,
 		FontFace = Theme.Fonts.Heading,
 		Text = options.text,
@@ -44,11 +44,11 @@ function Button.new(options: Options): TextButton
 		create("UICorner", { CornerRadius = Theme.Corner }),
 		create("UIStroke", {
 			Name = "Outline",
-			Color = Theme.Colors.Stroke,
+			Color = Theme.Colors.Hairline,
+			Transparency = 0.75,
 			Thickness = Theme.StrokeThickness,
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		}),
-		create("UIStroke", { Name = "TextStroke", Color = Theme.Colors.Stroke, Thickness = 2 }),
 	})
 	local hovering = false
 	button.MouseEnter:Connect(function()

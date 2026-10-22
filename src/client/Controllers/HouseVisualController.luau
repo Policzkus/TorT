@@ -293,7 +293,10 @@ function HouseVisualController.Start()
 		track(door)
 	end
 	task.spawn(function()
-		watchFullSize(ReplicatedStorage:WaitForChild("WorldState"))
+		local state = ReplicatedStorage:WaitForChild("WorldState", 120)
+		if state then
+			watchFullSize(state)
+		end
 	end)
 
 	-- Trick houses: a porch light that can't make up its mind.

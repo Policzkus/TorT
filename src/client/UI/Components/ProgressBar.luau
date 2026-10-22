@@ -37,7 +37,7 @@ function ProgressBar.new(options: Options): ProgressBar
 		Name = "Fill",
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = options.color or Theme.Colors.Orange,
-		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
+		create("UICorner", { CornerRadius = UDim.new(0, 2) }),
 	})
 	local label = create("TextLabel", {
 		Name = "Label",
@@ -48,7 +48,6 @@ function ProgressBar.new(options: Options): ProgressBar
 		TextColor3 = Theme.Colors.Text,
 		TextSize = options.textSize or 14,
 		ZIndex = 2,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
 	})
 	local frame = create("Frame", {
 		Name = options.name or "ProgressBar",
@@ -57,9 +56,10 @@ function ProgressBar.new(options: Options): ProgressBar
 		AnchorPoint = options.anchor or Vector2.zero,
 		BackgroundColor3 = options.background or Theme.Colors.PanelDark,
 		LayoutOrder = options.layoutOrder or 0,
+		BackgroundTransparency = 0.2,
 		ClipsDescendants = true,
-		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+		create("UICorner", { CornerRadius = UDim.new(0, 2) }),
+		create("UIStroke", { Color = Theme.Colors.Hairline, Transparency = 0.8, Thickness = 1 }),
 		fill,
 		label,
 		Parent = options.parent,

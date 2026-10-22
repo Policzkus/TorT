@@ -7,11 +7,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Images = require(Shared.Config.Images)
 local Upgrades = require(Shared.Config.Upgrades)
 local Format = require(Shared.Modules.Format)
 local Formulas = require(Shared.Modules.Formulas)
 local Net = require(Shared.Modules.Net)
 local NotificationController = require(script.Parent.NotificationController)
+local RadialMenuController = require(script.Parent.RadialMenuController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
 local Button = require(script.Parent.Parent.UI.Components.Button)
@@ -240,6 +242,13 @@ function ShopController.Start()
 			end
 		end)
 	end
+	RadialMenuController.register({
+		id = "Shop",
+		label = "UPGRADES",
+		order = 1,
+		icon = Images.Candy,
+		onSelect = ShopController.open,
+	})
 	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
 		local parent = prompt.Parent
 		if parent and CollectionService:HasTag(parent, "ShopStand") then
