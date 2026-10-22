@@ -3,6 +3,96 @@
 > **How to use:** tell Claude: **"Execute PROMPT.md — start Phase 0"** (later: "continue PROMPT.md").
 > Claude: read this whole file at the start of every session, then read `docs/PROGRESS.md` to see where we are.
 > Version 1 — written 2026-10-22. **Hard deadline: public launch Fri Oct 30, 2026; Halloween event Sat Oct 31.**
+> **Version 2 direction — 2026-10-22 evening: read §V2 below first. It overrides every older section it conflicts with.**
+
+---
+
+## V2 · Direction update from the user (2026-10-22) — overrides older sections
+
+### V2.1 What the user asked for (their words, lightly cleaned up)
+
+> "Every neighbourhood must be its own map you teleport to using the bus. These maps should be big and highly
+> detailed. Everything should look impressive. It must make you feel scared and immersed in the world. Everything
+> should be in first person. The game should have a lot of costumes you can buy using candies. Candies let you buy
+> costumes, skins for items and crates that can drop you boosts and souls. With candies you can boost your player
+> stats (new buckets etc.). Souls (new currency) you use to go to new neighbourhoods and buy skins. With Robux you can
+> buy candies, costumes (costumes should be very expensive so people buy them with Robux, except for a few first
+> ones), lives and skins. There are a limited amount of lives; when you die you lose them. If you run out of lives you
+> lose 50% of your progress. Costumes you bought stay after rebirth. Costumes give you like 5% more candy. We need very
+> unique, very shock-value, eerie, creepy character designs (PSX style: stretched thin limbs, small uncanny heads,
+> blurry low-poly textures). These characters are the ones in the doors of houses; every one of them should vary.
+> When you first join you have no costume and you barely get any candy, so you need to buy one. Make 4 character
+> models you start with when you don't have a costume. The game is up to 4 players: like horror games, you are alone
+> with your friends on the server, not with other people. Put PSX-style effects on the camera. The game must be
+> replayable: every playthrough should differ. Story is just an addition to the gameplay. Make a minimalistic HUD
+> (reference: Watch Dogs: small monochrome icons in a corner, a contextual radial menu). We need separate maps for
+> the inside of open buildings: a normal house with random loot spawns and a random layout."
+
+### V2.2 Decisions (user's answers to Claude's questions, 2026-10-22)
+
+- **Servers: Lobby + private runs.** Everyone joins a public **lobby** (shop, costumes, crates, party up with friends,
+  leaderboards). **Start** teleports the party (1–4) to its own **reserved server of the same place** ("run" mode,
+  `TeleportService:ReserveServer` + `TeleportAsync`; the server picks its mode from the reserved-server/teleport data).
+  No strangers ever share a run. Teleports can't run in Studio, so Studio boots straight into run mode (lobby mode
+  toggled by a dev flag), and the lobby↔run hop gets tested live.
+- **Dying: inside houses only.** Streets are tense but safe (door jumpscares never kill). You die when a homeowner
+  catches you while looting an open house: −1 life and your carried bucket is dropped (lost).
+- **Out of lives: lose 50% of your banked candy**, then lives refill. Upgrades, souls, neighbourhoods and costumes
+  are kept.
+- **Maturity: Moderate (13+).** Go all-in on creepy PSX horror (uncanny homeowners, intense jumpscares). Still no gore
+  or blood. Fill in the maturity questionnaire accordingly in Phase 7.
+
+### V2.3 Design calls Claude made for the user (overridable; logged in PROGRESS.md)
+
+- **A run = one Night** (18 min, Witching Hour finale) in a private server. At Dawn the party gets a results screen
+  and returns to the lobby; anything still in your bucket at Dawn is banked. Every run rerolls house models per lot,
+  house types, homeowners, open houses, interior layouts and loot, so every playthrough differs.
+- **First person everywhere** (`CameraMode = LockFirstPerson`), with a first-person view of your hands holding the
+  bucket/flashlight. Friends see your full character, costume and bucket.
+- **PSX camera:** low saturation, crushed contrast, heavy fog, slight blur, a film-grain/dither + vignette overlay,
+  gentle head-bob and handheld jitter, FOV ~70. A Settings toggle tones it down.
+- **Minimal HUD:** small monochrome icons bottom-left (candy, bucket fill, lives, souls, clock), a contextual radial
+  menu for interactions/menus (Watch Dogs-style), tiny toasts. This replaces the chunky cartoon HUD; menus become
+  clean, dark and minimal.
+- **Starter characters:** 4 base kid characters (picked in the lobby on first join, free). With **no costume**,
+  homeowners give almost nothing (×0.15 candy), so the first costume is cheap and the tutorial buys it.
+- **Costumes:** lots of them (target 30+ at launch). Each gives **+5% candy** (rarer ones more) and has a preference
+  tag (Classic/Spooky/Cute/Funny: matching the homeowner's preference gives +40%). The first ~4 are cheap in candy;
+  the rest get steeply more expensive in candy, with a Robux price as the shortcut. **Costumes persist through
+  rebirth.**
+- **Currencies:** **Candy** (earned) buys stat upgrades/buckets, costumes, item skins and **crates**. **Souls** come
+  from crates, rebirth and rare events, and buy **neighbourhood access** (replacing candy gate prices) and skins.
+  **Robux** buys candy packs, costumes, lives and skins.
+- **Crates** (bought with candy, odds always shown) drop boosts (potions), souls and skins. They're CS-style reels
+  like §3.10, which become the crate opening. Robux-bought random items stay gated by `PolicyService`.
+- **Lives:** 3 max, +1 every 20 min of real time up to the max, Robux packs for more. Death: −1 life, carried candy
+  lost, respawn at the street's bus stop after a short "you fainted" fade. Out of lives → −50% banked candy, lives
+  refill.
+- **Homeowners:** a large roster of uncanny PSX characters (AI meshes plus per-house random scale/colour/stretch
+  variations so no two doors look alike). They appear in the doorway when you knock, and the same characters stalk
+  you inside open houses.
+- **Neighbourhood maps:** each neighbourhood is its own big, detailed map (bus stop arrival, winding streets, side
+  alleys, props, fog, story notes), built far apart in the same run place and reached only by the bus. **House
+  models get scarier every neighbourhood (3+ unique models each).**
+- **Interiors:** looting an open house teleports you to a separate interior map: a normal house with a procedurally
+  generated layout (room templates) and random loot spawns, plus the homeowner hunting you.
+- **Story (light):** found notes and Witching Hour hints about why the town's homeowners changed. Optional; never
+  blocks play.
+- **Scope vs the Oct 30 deadline:** the run loop, first person/PSX, lobby/party, costumes, lives/death, interiors and
+  **Cardboard Court, Maple Lane and Pumpkin Hollow as full maps** are P0. Raven Ridge, Mansion Hill and Blackwood
+  Estates ship as fast as possible after (weekly updates are acceptable, as in §7).
+
+### V2.4 Revised phase plan (replaces the dates in §6 from Phase 2 on)
+
+| Phase | Target | Build |
+|---|---|---|
+| 2 · Doors come alive | ✅ Oct 22 | (done: mini-games, house types, night cycle, jumpscares, settings) |
+| 2.5 · Horror pivot | Fri Oct 23 | First person + PSX camera, minimal HUD + radial menu, lobby/run modes and party teleport, starter characters + no-costume penalty, lives + death, souls currency, uncanny homeowners in doorways, 3 AI house models per neighbourhood |
+| 3 · Maps & heists | Sat–Sun Oct 24–25 | Separate big maps per neighbourhood (N1–N3) + bus between them, interior maps (random layout + loot), homeowner AI, caught = death, escape |
+| 4 · Progression | Mon Oct 26 | Costume shop (30+), crates (CS reel) with boosts/souls/skins, item skins, souls shop/neighbourhood access, rebirth (costumes kept), economy sim pass |
+| 5 · Retention & social | Tue Oct 27 | Tutorial, daily rewards, quests, run results screen, lobby leaderboards, codes, story notes |
+| 6 · Money & polish | Wed Oct 28 | Robux: candy packs, costumes, lives, skins, passes; receipts; sound/VFX/perf pass |
+| 7–8 | Oct 29–30 | Release candidate, launch (unchanged) |
 
 ---
 

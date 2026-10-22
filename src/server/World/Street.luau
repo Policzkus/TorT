@@ -7,7 +7,9 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local HouseModels = require(ReplicatedStorage.Shared.Config.HouseModels)
 local World = require(ReplicatedStorage.Shared.Config.World)
+local MeshLibrary = require(ReplicatedStorage.Shared.Modules.MeshLibrary)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local Assets = require(script.Parent.Assets)
 local Parts = require(script.Parent.Parts)
@@ -64,12 +66,73 @@ local function setupDoor(info: HouseInfo)
 	CollectionService:AddTag(door, "Door")
 end
 
+-- Widest a house may be so neighbouring lots never overlap.
+local MAX_HOUSE_WIDTH = 34
+
+-- An AI-generated house (Config/HouseModels) on this lot: the mesh shell with its front at the lot
+-- line, an invisible knock zone where the porch is, a porch light and a path to the sidewalk.
+-- Returns nil if none of the neighbourhood's models loaded.
+local function meshHouse(
+	parent: Instance,
+	neighborhood: any,
+	lot: CFrame,
+	rng: Rng.Rng,
+	yard: number
+): (Model?, BasePart?)
+	local names = HouseModels[neighborhood.id]
+	if names == nil or #names == 0 then
+		return nil, nil
+	end
+	local order = table.clone(names)
+	rng:shuffle(order)
+	for _, name in order do
+		local shell = MeshLibrary.get(name)
+		if shell then
+			local house = Instance.new("Model")
+			house.Name = name
+			if shell.Size.X > MAX_HOUSE_WIDTH then
+				shell.Size *= MAX_HOUSE_WIDTH / shell.Size.X
+			end
+			shell.Name = "Shell"
+			shell.Anchored = true
+			shell.CanCollide = true
+			shell.CFrame = lot * CFrame.new(0, shell.Size.Y / 2, shell.Size.Z / 2)
+			shell.Parent = house
+			local door =
+				Parts.block(house, "Door", Vector3.new(5, 7.5, 1), lot * CFrame.new(0, 3.75, 1), "1A1210", M.Wood, {
+					Transparency = 1,
+					CanCollide = false,
+					CastShadow = false,
+				})
+			local porch =
+				Parts.block(house, "PorchLight", Vector3.one * 0.4, lot * CFrame.new(2.6, 7, -0.6), "FFE0A0", M.Neon, {
+					Transparency = 1,
+					CanCollide = false,
+					CanQuery = false,
+				})
+			Parts.light(porch, 18, 1.4, "FFB070")
+			Parts.block(
+				house,
+				"Path",
+				Vector3.new(4, 0.12, yard),
+				lot * CFrame.new(0, 0.06, -yard / 2),
+				"6E6A64",
+				M.Concrete
+			)
+			house.Parent = parent
+			return house, door
+		end
+	end
+	return nil, nil
+end
+
 local function placeHouse(
 	parent: Instance,
 	neighborhood: any,
 	index: number,
 	lot: CFrame,
 	rng: Rng.Rng,
+	variantRng: Rng.Rng,
 	yard: number
 ): HouseInfo?
 	local id = string.format("%s_%02d", neighborhood.id, index)
@@ -86,6 +149,12 @@ local function placeHouse(
 				`[World] ReplicatedStorage.Assets.Houses.{neighborhood.style} has no BasePart named Door; using procedural`
 			)
 			custom:Destroy()
+		end
+	end
+	if house == nil then
+		local meshModel, meshDoor = meshHouse(parent, neighborhood, lot, variantRng, yard)
+		if meshModel and meshDoor then
+			house, door = meshModel, meshDoor
 		end
 	end
 	if house == nil then
@@ -136,7 +205,9 @@ local function handmadeHouses(neighborhood: any): { HouseInfo }?
 end
 
 function Street.build(parent: Instance, neighborhood: any, start: CFrame): StreetInfo
-	local rng = Rng.new(neighborhood.seed)
+	local rng = Rng.new(neighborhood.seed) -- layout and props: identical every server
+	-- Which house model stands on which lot changes every run, so no two playthroughs look alike.
+	local variantRng = Rng.new(Random.new():NextInteger(1, 2147483646))
 	local folder = Instance.new("Folder")
 	folder.Name = neighborhood.id
 	local colors = neighborhood.colors
@@ -220,7 +291,7 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 			local z = World.ENTRANCE_MARGIN + World.LOT_SPACING * (slot + 0.5) + (if side > 0 then 10 else 0)
 			local facing = CFrame.Angles(0, if side > 0 then math.rad(90) else math.rad(-90), 0)
 			local lot = at(side * World.HOUSE_SETBACK, 0, z) * facing
-			local info = placeHouse(housesFolder, neighborhood, i + 1, lot, rng, yard)
+			local info = placeHouse(housesFolder, neighborhood, i + 1, lot, rng, variantRng, yard)
 			if info then
 				table.insert(houses, info)
 			end

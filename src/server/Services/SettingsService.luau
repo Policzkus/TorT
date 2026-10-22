@@ -31,6 +31,9 @@ function SettingsService.Start()
 			if type(incoming.reduceFlash) == "boolean" then
 				settings.reduceFlash = incoming.reduceFlash
 			end
+			if type(incoming.psx) == "boolean" then
+				settings.psx = incoming.psx
+			end
 		end)
 	end, { rate = 1, burst = 4 })
 end

@@ -271,7 +271,7 @@ function DataService.Start()
 	end)
 
 	task.spawn(function()
-		local deadline = os.clock() + 15
+		local deadline = os.clock() + 40 -- ProfileStore retries transient Roblox errors for a while
 		while ProfileStore.DataStoreState == "NotReady" and os.clock() < deadline do
 			task.wait(0.5)
 		end

@@ -53,6 +53,7 @@ local Template: Types.PlayerData = {
 		sfx = 1,
 		jumpscare = "Full",
 		reduceFlash = false,
+		psx = true,
 	},
 
 	firstJoin = 0,

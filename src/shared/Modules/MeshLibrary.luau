@@ -34,7 +34,9 @@ function MeshLibrary.preload()
 		pending += 1
 		task.spawn(function()
 			local ok, part = pcall(function()
-				return AssetService:CreateMeshPartAsync(`rbxassetid://{cfg.mesh}`)
+				return AssetService:CreateMeshPartAsync(`rbxassetid://{cfg.mesh}`, {
+					CollisionFidelity = (Enum.CollisionFidelity :: any)[cfg.collision or "Default"],
+				})
 			end)
 			if ok and part then
 				part.Name = name

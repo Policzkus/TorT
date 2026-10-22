@@ -24,7 +24,7 @@ local JUMPSCARE_INFO = {
 local SettingsController = {}
 
 local panel: Panel.Panel
-local current = { music = 0.5, sfx = 1, jumpscare = "Full", reduceFlash = false }
+local current = { music = 0.5, sfx = 1, jumpscare = "Full", reduceFlash = false, psx = true }
 local refreshers: { () -> () } = {}
 local saveQueued = false
 
@@ -155,8 +155,8 @@ local function jumpscareRow(parent: Instance, order: number)
 	end)
 end
 
-local function flashRow(parent: Instance, order: number)
-	local frame = row(parent, order, "Reduce flashing")
+local function toggleRow(parent: Instance, order: number, label: string, key: "reduceFlash" | "psx")
+	local frame = row(parent, order, label)
 	local toggle = Button.new({
 		name = "Toggle",
 		text = "",
@@ -167,13 +167,13 @@ local function flashRow(parent: Instance, order: number)
 		textSize = 19,
 		parent = frame,
 		onClick = function()
-			current.reduceFlash = not current.reduceFlash
+			current[key] = not current[key]
 			save()
 		end,
 	})
 	table.insert(refreshers, function()
-		toggle.Text = if current.reduceFlash then "ON" else "OFF"
-		toggle.BackgroundColor3 = if current.reduceFlash then Theme.Colors.Slime else Theme.Colors.PanelDark
+		toggle.Text = if current[key] then "ON" else "OFF"
+		toggle.BackgroundColor3 = if current[key] then Theme.Colors.Slime else Theme.Colors.PanelDark
 	end)
 end
 
@@ -182,7 +182,7 @@ function SettingsController.toggle()
 end
 
 function SettingsController.Start()
-	panel = Panel.new({ name = "SettingsPanel", title = "⚙ Settings", size = Vector2.new(600, 420) })
+	panel = Panel.new({ name = "SettingsPanel", title = "⚙ Settings", size = Vector2.new(600, 494) })
 	local list = create("Frame", {
 		Name = "List",
 		Size = UDim2.fromScale(1, 1),
@@ -193,7 +193,8 @@ function SettingsController.Start()
 	volumeRow(list, 1, "🎵 Music", "music")
 	volumeRow(list, 2, "🔊 Sounds", "sfx")
 	jumpscareRow(list, 3)
-	flashRow(list, 4)
+	toggleRow(list, 4, "Reduce flashing", "reduceFlash")
+	toggleRow(list, 5, "PSX effects", "psx")
 
 	StateController.observe("settings", function(settings: any)
 		if type(settings) == "table" then

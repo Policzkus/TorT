@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
+local MeshLibrary = require(ReplicatedStorage.Shared.Modules.MeshLibrary)
 local Builder = require(script.Parent.Parent.World.Builder)
 local Lighting = require(script.Parent.Parent.World.Lighting)
 local Street = require(script.Parent.Parent.World.Street)
@@ -36,6 +37,9 @@ function WorldService.Init()
 			leftover:Destroy()
 		end
 	end
+	-- The AI house meshes must exist before the streets are built (a few seconds at boot).
+	MeshLibrary.preload()
+	MeshLibrary.waitReady(15)
 	info = Builder.build(Workspace)
 end
 

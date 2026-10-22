@@ -62,6 +62,7 @@ export type PlayerData = {
 		sfx: number,
 		jumpscare: string, -- "Full" | "Reduced" | "Off"
 		reduceFlash: boolean,
+		psx: boolean, -- PSX camera grade, blur and grain
 	},
 
 	firstJoin: number,
