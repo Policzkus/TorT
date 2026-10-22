@@ -22,11 +22,13 @@
 > unique, very shock-value, eerie, creepy character designs (PSX style: stretched thin limbs, small uncanny heads,
 > blurry low-poly textures). These characters are the ones in the doors of houses; every one of them should vary.
 > When you first join you have no costume and you barely get any candy, so you need to buy one. Make 4 character
-> models you start with when you don't have a costume. The game is up to 4 players: like horror games, you are alone
+> models you start with when you don't have a costume. The game is up to 4 players (figure out how it should work; see
+> V2.2): like horror games, you are alone
 > with your friends on the server, not with other people. Put PSX-style effects on the camera. The game must be
 > replayable: every playthrough should differ. Story is just an addition to the gameplay. Make a minimalistic HUD
 > (reference: Watch Dogs: small monochrome icons in a corner, a contextual radial menu). We need separate maps for
-> the inside of open buildings: a normal house with random loot spawns and a random layout."
+> the inside of open buildings: a normal house with random loot spawns and a random layout. Make sure to do the best
+> you can."
 >
 > Later the same day: "I need whole new character models for costumes and for starters. You don't play as your own
 > Roblox character in this game."
