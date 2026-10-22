@@ -7,6 +7,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
 local TextChatService = game:GetService("TextChatService")
 
 local Admins = require(ReplicatedStorage.Shared.Config.Admins)
@@ -176,7 +177,31 @@ function AdminService.run(player: Player, text: string): (boolean, string)
 	return ok, message
 end
 
+-- Studio only: the command bar and the Studio MCP get their own copy of every ModuleScript, so
+-- they can't reach live profiles through require(). They call this instead:
+--   game.ServerStorage.DevBridge:Invoke("/candy 5k")      -> ok, message (runs as the first player)
+--   game.ServerStorage.DevBridge:Invoke("data")           -> copy of the first player's data
+local function createDevBridge()
+	local bridge = Instance.new("BindableFunction")
+	bridge.Name = "DevBridge"
+	bridge.OnInvoke = function(text: string, playerName: string?): (any, any)
+		local player = if playerName then findPlayer(Players:GetPlayers()[1], playerName) else Players:GetPlayers()[1]
+		if player == nil then
+			return false, "No player in the server"
+		end
+		if text == "data" then
+			return DataService.get(player)
+		end
+		return AdminService.run(player, text)
+	end
+	bridge.Parent = ServerStorage
+end
+
 function AdminService.Start()
+	if RunService:IsStudio() then
+		createDevBridge()
+	end
+
 	if TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService then
 		Players.PlayerAdded:Connect(function(player)
 			player.Chatted:Connect(function(message)
