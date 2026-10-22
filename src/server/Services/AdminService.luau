@@ -11,6 +11,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local TextChatService = game:GetService("TextChatService")
 
 local Admins = require(ReplicatedStorage.Shared.Config.Admins)
+local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local DataService = require(script.Parent.DataService)
 local NotifyService = require(script.Parent.NotifyService)
@@ -86,7 +87,8 @@ local function numberCommand(key: string, mode: "add" | "set", label: string): C
 			local target = requireTarget(admin, args[2])
 			local value
 			if mode == "add" then
-				value = DataService.increment(target, key, amount)
+				local current = (DataService.get(target) :: any)[key]
+				value = DataService.increment(target, key, math.max(amount, -current))
 			else
 				DataService.set(target, key, amount)
 				value = amount
@@ -101,6 +103,43 @@ commands.setcandy = numberCommand("candy", "set", "set banked candy")
 commands.bucket = numberCommand("bucket", "add", "add carried candy")
 commands.souls = numberCommand("souls", "add", "add souls")
 commands.setrebirths = numberCommand("rebirths", "set", "set rebirth count")
+
+commands.unlock = {
+	usage = "/unlock <neighborhoodId|all> [player] - unlock streets without paying",
+	run = function(admin, args)
+		local target = requireTarget(admin, args[2])
+		local which = args[1]
+		local unlocked = {}
+		DataService.mutate(target, "neighborhoods", function(owned)
+			for _, neighborhood in Neighborhoods.list do
+				if which == "all" or string.lower(neighborhood.id) == string.lower(which or "") then
+					owned[neighborhood.id] = true
+					table.insert(unlocked, neighborhood.name)
+				end
+			end
+		end)
+		if #unlocked == 0 then
+			error(`No neighborhood '{which}' (use an id like MapleLane, or 'all')`, 0)
+		end
+		return `{target.Name} unlocked {table.concat(unlocked, ", ")}`
+	end,
+}
+
+commands.upgrade = {
+	usage = "/upgrade <track> <level> [player] - set an upgrade level (bucketTier, charm, sneakers)",
+	run = function(admin, args)
+		local target = requireTarget(admin, args[3])
+		local track, level = args[1], requireAmount(args[2])
+		local data = DataService.get(target) :: any
+		if type(track) ~= "string" or data.upgrades[track] == nil then
+			error(`No upgrade track '{track}'`, 0)
+		end
+		DataService.mutate(target, "upgrades", function(upgrades)
+			upgrades[track] = math.max(0, math.floor(level))
+		end)
+		return `{target.Name} {track} = {math.floor(level)}`
+	end,
+}
 
 commands.data = {
 	usage = "/data [key] [player] - print saved data to the Output window",

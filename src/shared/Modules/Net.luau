@@ -17,9 +17,21 @@ local EVENTS: { [string]: string } = {
 	StateSync = "S→C partial player-data snapshot: (changes: {[key]: value}, isFull: boolean)",
 	StateRequest = "C→S ask for a full snapshot (sent once the client is listening)",
 	Notify = "S→C toast: (text: string, kind: string?)",
+	Celebrate = "S→C big moment banner: (kind: string, payload: table) e.g. 'unlock'",
+	-- Doors and mini-games
+	MinigameStart = "S→C play a mini-game: (challenge: {id, kind, difficulty, seed, context})",
+	MinigameSubmit = "C→S raw input for a challenge: (id: number, taps: {number})",
+	DoorResult = "S→C candy from a door: (result: DoorService.DoorResult)",
+	-- Bucket and bank
+	Stashed = "S→C bucket poured into the Candy Box: (moved: number, boxFull: boolean, dropoffId: string)",
+	-- Travel
+	BusTravel = "C→S ride the bus: (destination: 'Hub' | neighborhoodId)",
+	Teleported = "S→C the character was just moved (fade back in)",
 }
 
-local FUNCTIONS: { [string]: string } = {}
+local FUNCTIONS: { [string]: string } = {
+	BuyUpgrade = "C→S buy the next level of a shop track: (trackId) -> (ok: boolean, message: string)",
+}
 
 type Options = {
 	-- Sustained requests per second per player, and the burst allowed on top.

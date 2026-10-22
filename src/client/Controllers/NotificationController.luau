@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
+local Scale = require(script.Parent.Parent.UI.Scale)
 local create = require(script.Parent.Parent.UI.create)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -93,10 +94,11 @@ function NotificationController.Init()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 	})
+	Scale.attach(gui)
 	container = create("Frame", {
 		Name = "Container",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 12),
+		Position = UDim2.new(0.5, 0, 0, 128), -- below the HUD's top bar and goal
 		Size = UDim2.fromScale(0.9, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
