@@ -30,8 +30,11 @@ local lineLabel: TextLabel
 local lastFullScare = -math.huge
 local busy = false
 
-local function monster(): BasePart
-	local mesh = MeshLibrary.get("Ghost")
+-- The house's own homeowner lunges at you (the ghost if the house has none).
+local function monster(door: BasePart): BasePart
+	local house = door:FindFirstAncestorOfClass("Model")
+	local ownerModel = house and house:GetAttribute("OwnerModel")
+	local mesh = (if type(ownerModel) == "string" then MeshLibrary.get(ownerModel) else nil) or MeshLibrary.get("Ghost")
 	if mesh then
 		mesh.Anchored = true
 		mesh.CanCollide = false
@@ -117,7 +120,7 @@ local function fullScare(door: BasePart, gentle: boolean, reduceFlash: boolean, 
 	local opened = hinge * CFrame.Angles(0, math.rad(-105), 0) * hinge:Inverse() * original
 	TweenService:Create(door, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { CFrame = opened }):Play()
 
-	local ghost = monster()
+	local ghost = monster(door)
 	local start = door.CFrame * CFrame.new(0, 0.4, 1.2)
 	ghost.CFrame = start
 	ghost.Parent = Workspace

@@ -12,6 +12,7 @@ local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local Parts = require(script.Parent.Parent.World.Parts)
+local HomeownerService = require(script.Parent.HomeownerService)
 local WorldEventsService = require(script.Parent.WorldEventsService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -162,6 +163,7 @@ function HouseService.reroll()
 			owner = rng:pick(Dialogue.ORDER),
 			preference = rng:pick(HouseTypes.PREFERENCES),
 		})
+		HomeownerService.roll(house.model)
 	end
 	HouseService.Rerolled:Fire()
 end

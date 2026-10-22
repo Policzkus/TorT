@@ -10,8 +10,9 @@
 | 0 · Foundation | ✅ done, verified in Studio through the MCP | 2026-10-22 |
 | 1 · Core loop | ✅ code done and verified in Studio. Waiting on the user's 10-minute Checkpoint A | 2026-10-22 |
 | 2 · Doors come alive | ✅ code done and verified in Studio (see "Phase 2 status"). Ambient scares are deferred to Phase 4 (they're N3+ and N3 isn't built yet) | 2026-10-22 |
-| 3 · Heists | ⏭ next | target Sun Oct 25 |
-| 4–8 | not started | see PROMPT.md §6 |
+| **V2 pivot** (PROMPT §V2) | 🔨 in progress: AI houses, first person, PSX camera, minimal HUD + radial menu, homeowners in doorways done. Next: starter kids + costumes, separate maps + bus + souls, crates, lobby/runs, lives/death | 2026-10-22 |
+| 3 · Maps & heists | after the pivot (see PROMPT §V2.4) | Oct 24–25 |
+| 4–8 | see PROMPT §V2.4 | |
 
 ## How to work on this project
 
@@ -63,6 +64,16 @@
 - **Settings** panel (⚙ on the HUD): music and SFX volume, jumpscare intensity, reduce flashing. Saved through the validated `SaveSettings` remote.
 - HUD additions: Night clock panel (Witching countdown, Blood Moon), Sweet Streak pill, and callouts (BRAVE!, FULL-SIZE ×10, TAKE ALL, CAUGHT!).
 - AI mesh generation: the goblin homeowner prompt was rejected by Roblox moderation, so the Ghost is the only monster for now.
+
+## V2 pivot (2026-10-22 evening) — the user's new direction is PROMPT §V2
+
+- **Houses:** 18 AI meshes (3 per neighbourhood, scarier each street) in `Config/Meshes` + `Config/HouseModels`. Each run rolls a random model per lot (`Street.meshHouse`); an invisible `Door` part at the front-centre is the knock zone, plus a `PorchLight`. Meshes wider than 34 studs are scaled down to fit the lots. Server boot now waits for the meshes (~4–9 s on a fresh server); characters spawn only after the world is built (`CharacterAutoLoads = false`, `CharacterService`), behind a client loading screen.
+- **Generating meshes:** only in Studio **edit** mode (in play mode the job fails with "Model generation should only be called from the server"). Darker wording ("desaturated, no bright colors") avoids toy-like results. A goblin prompt with "angry face… arms stretched" was rejected by moderation.
+- **First person** for everyone (`LockFirstPerson`), `CameraController` (PSX grade, blur, vignette, head-bob and handheld sway; grain is off until a seamless noise texture is found), `ViewmodelController` (a local copy of your bucket in view, candy mirrored). Settings → "PSX effects".
+- **Theme** is now minimal noir (near-black translucent tiles, hairline borders, SpecialElite typewriter headings, BuilderSans HUD). **HUD**: bottom-left chips (candy, bag + bar, lives, souls, clock), next-goal line, streak chip, crosshair dot, `[TAB] MENU` hint. **Radial menu** (`RadialMenuController.register`): Tab/Q/DPad-Up/MENU button; Shop = "UPGRADES", Settings. Windows use a `Modal` button to free the mouse in first person. Roblox's player list, backpack and health bar are hidden.
+- **Homeowners:** 5 uncanny AI figures (`Config/Homeowners.ROSTER`), rolled per house at Dawn with random stretch/scale/tilt (`HomeownerService.roll`). They slide out of the doorway when someone knocks, twitch while the mini-game runs, and go back inside after (server-side, so friends see them). The jumpscare uses the house's own homeowner (ghost fallback).
+- **Lives** are in player data (`lives`, `livesRefillAt`, `Config/Lives`) and on the HUD. Death comes with interiors (Phase 3).
+- UI icons: `Config/Images` (image ids resolved from Creator Store decals via `InsertService:LoadAsset` in edit mode).
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)
 

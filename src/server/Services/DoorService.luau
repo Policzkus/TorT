@@ -15,6 +15,7 @@ local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local CandyService = require(script.Parent.CandyService)
 local DataService = require(script.Parent.DataService)
+local HomeownerService = require(script.Parent.HomeownerService)
 local HouseService = require(script.Parent.HouseService)
 local MinigameService = require(script.Parent.MinigameService)
 local NotifyService = require(script.Parent.NotifyService)
@@ -183,13 +184,18 @@ local function knock(player: Player, houseId: string)
 	difficulty = math.clamp(difficulty, Minigames.DIFFICULTY_MIN, Minigames.DIFFICULTY_MAX)
 	local kind = pickMinigame(neighborhood, houseType)
 	local context = { houseId = houseId, personality = HouseService.owner(houseId), houseType = houseType }
-	MinigameService.issue(player, kind, difficulty, function(grade)
+	HomeownerService.appear(houseId)
+	local issued = MinigameService.issue(player, kind, difficulty, function(grade)
+		HomeownerService.leave(houseId)
 		finish(player, houseId, houseType, grade)
 		-- Every Nerve Hold ends with the jumpscare (the client tones it down per Settings).
 		if grade and kind == "NerveHold" then
 			Net.event("Jumpscare"):FireClient(player, houseId, "monster")
 		end
 	end, context)
+	if issued == nil then
+		HomeownerService.leave(houseId)
+	end
 end
 
 local function takeFromBowl(player: Player, houseId: string, mode: string)

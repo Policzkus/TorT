@@ -22,6 +22,18 @@ local meshes: { [string]: Mesh } = {
 	-- Boxy cartoon sheet ghost, arms up, screaming mouth (jumpscare monster).
 	Ghost = { mesh = 105282263287818, texture = 72144604826180, size = { 4, 3.615, 1.886 }, collision = "Box" },
 
+	-- Homeowners in the doorways (PSX uncanny; heights normalised to ~7.5 studs).
+	Owner_Cardigan = { mesh = 110342999988230, texture = 127878523963013, size = { 3, 7.67, 1.6 }, collision = "Box" },
+	Owner_Nightgown = {
+		mesh = 127687999129495,
+		texture = 86212640620879,
+		size = { 2.65, 7.25, 4.16 },
+		collision = "Box",
+	},
+	Owner_Lanky = { mesh = 125298729762873, texture = 139517769524169, size = { 3.9, 7.84, 3.22 }, collision = "Box" },
+	Owner_Bathrobe = { mesh = 98223054872920, texture = 86103850659105, size = { 4.2, 7.43, 2.97 }, collision = "Box" },
+	Owner_Grinner = { mesh = 134976304923085, texture = 80638457446594, size = { 5.46, 7, 4.4 }, collision = "Box" },
+
 	-- Houses (front faces -Z, door roughly front-centre). Scarier every neighbourhood.
 	CardboardCourt_A = { mesh = 139857200522321, texture = 85835037275708, size = { 16.1, 15.5, 20.8 } }, -- dented trailer
 	MapleLane_A = { mesh = 124962910036920, texture = 114034936887052, size = { 18.5, 26, 20.1 } }, -- crooked brick cottage
