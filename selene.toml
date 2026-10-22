@@ -1,0 +1,6 @@
+std = "roblox"
+exclude = ["src/server/Packages/*"]
+
+[lints]
+# UI uses create(className, { Prop = x, childA, childB }) on purpose.
+mixed_table = "allow"
