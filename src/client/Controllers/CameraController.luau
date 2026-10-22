@@ -124,6 +124,20 @@ function CameraController.Start()
 	end)
 	applySetting()
 	RunService:BindToRenderStep("PSXCamera", Enum.RenderPriority.Camera.Value + 1, onRender)
+	-- Costume swaps replace the character in place (CharacterService); Roblox only re-targets the
+	-- camera for characters it spawned itself, so follow every new one here.
+	local function follow(character: Model)
+		local humanoid = character:WaitForChild("Humanoid", 10)
+		local camera = Workspace.CurrentCamera
+		if humanoid and camera and Players.LocalPlayer.Character == character then
+			camera.CameraSubject = humanoid
+			camera.CameraType = Enum.CameraType.Custom
+		end
+	end
+	Players.LocalPlayer.CharacterAdded:Connect(follow)
+	if Players.LocalPlayer.Character then
+		task.spawn(follow, Players.LocalPlayer.Character)
+	end
 	-- Film grain: jump the tiled noise to a random offset ~20 times a second.
 	task.spawn(function()
 		while true do

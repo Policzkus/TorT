@@ -34,6 +34,9 @@ local EVENTS: { [string]: string } = {
 
 local FUNCTIONS: { [string]: string } = {
 	BuyUpgrade = "C→S buy the next level of a shop track: (trackId) -> (ok: boolean, message: string)",
+	BuyCostume = "C→S buy a costume with candy and put it on: (costumeId) -> (ok: boolean, message: string)",
+	EquipCostume = "C→S wear an owned costume ('' = take it off): (costumeId) -> (ok: boolean, message: string)",
+	ChooseStarter = "C→S pick which starter kid you are: (starterId) -> (ok: boolean, message: string)",
 }
 
 type Options = {

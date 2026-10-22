@@ -10,7 +10,7 @@
 | 0 · Foundation | ✅ done, verified in Studio through the MCP | 2026-10-22 |
 | 1 · Core loop | ✅ code done and verified in Studio. Waiting on the user's 10-minute Checkpoint A | 2026-10-22 |
 | 2 · Doors come alive | ✅ code done and verified in Studio (see "Phase 2 status"). Ambient scares are deferred to Phase 4 (they're N3+ and N3 isn't built yet) | 2026-10-22 |
-| **V2 pivot** (PROMPT §V2) | 🔨 in progress: AI houses, first person, PSX camera, minimal HUD + radial menu, homeowners in doorways done. Next: starter kids + costumes, separate maps + bus + souls, crates, lobby/runs, lives/death | 2026-10-22 |
+| **V2 pivot** (PROMPT §V2) | 🔨 in progress: AI houses, first person, PSX camera, minimal HUD + radial menu, homeowners in doorways, own character models (4 kids + 6 costumes, wardrobe) done. Next: separate maps + bus + souls, crates, lobby/runs, lives/death, more costumes (target 30+) | 2026-10-22 |
 | 3 · Maps & heists | after the pivot (see PROMPT §V2.4) | Oct 24–25 |
 | 4–8 | see PROMPT §V2.4 | |
 
@@ -74,6 +74,12 @@
 - **Homeowners:** 5 uncanny AI figures (`Config/Homeowners.ROSTER`), rolled per house at Dawn with random stretch/scale/tilt (`HomeownerService.roll`). They slide out of the doorway when someone knocks, twitch while the mini-game runs, and go back inside after (server-side, so friends see them). The jumpscare uses the house's own homeowner (ghost fallback).
 - **Lives** are in player data (`lives`, `livesRefillAt`, `Config/Lives`) and on the HUD. Death comes with interiors (Phase 3).
 - UI icons: `Config/Images` (image ids resolved from Creator Store decals via `InsertService:LoadAsset` in edit mode).
+- **Characters (no Roblox avatars, user's call):** every starter kid and costume is its own AI character (`Config/Characters`), generated with `segmentation = explicit` into head/torso/left arm/right arm/left leg/right leg. `Modules/CharacterRig` turns the six segments into a Humanoid rig: R6 part names so "Torso"/"Right Arm" lookups keep working, Motor6Ds at neck/shoulders/hips, an R15-type Humanoid whose HipHeight puts any proportions on the ground, and a root box from hips to eyes. `CharacterAnimController` animates every rig on every client: stiff PSX swing at 14 pose-fps, idle breathing, a slightly wrong head sway, arms up in the air. `CharacterService` builds the rig and assigns `player.Character` itself, and swaps it in place when you change costume or kid (`CameraController` re-targets the camera; Roblox only does that for characters it spawned).
+  - 4 starter kids (Milo, Ivy, Theo, Nell); a new player gets a random one, switchable in the wardrobe.
+  - 6 costumes: Sheet Ghost 10, Pumpkin Head 60, Little Witch 180, Black Cat 450, Skeleton 1.5K, Vampire 6K. Each gives +5–14% candy; a tag matching the homeowner's preference gives +40%. No costume = ×0.15 door candy (`CandyService.bonuses`).
+  - Wardrobe (`CostumeController`, radial "COSTUMES"): a turning 3D preview, cards with ViewportFrames, Costumes / Your Kid tabs. Remotes: `BuyCostume`, `EquipCostume`, `ChooseStarter`. Data: `costumes`, `starter`, `equipped.costume`.
+  - **Generating characters:** generated meshes face +Z (the parts come rotated 180°) and the left/right labels are unreliable, so the config is extracted by position and rotated to face -Z: run `tools/extract_character.luau` in edit mode with the model selected. Ask for "arms hanging straight down… stylized 1999 PlayStation game character, smooth low poly, not blocky, not voxel" (the first vampire came out Minecraft-like). More than ~3–4 jobs at once fails with "Too Many Requests". Freshly published meshes and textures can render blank in Studio for a few minutes.
+  - Mesh loading is split into groups: the world builds once the "World" meshes are in (server boot ~3.5 s), and characters spawn once the "Characters" group is in.
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)
 

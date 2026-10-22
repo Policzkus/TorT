@@ -27,6 +27,9 @@
 > replayable: every playthrough should differ. Story is just an addition to the gameplay. Make a minimalistic HUD
 > (reference: Watch Dogs: small monochrome icons in a corner, a contextual radial menu). We need separate maps for
 > the inside of open buildings: a normal house with random loot spawns and a random layout."
+>
+> Later the same day: "I need whole new character models for costumes and for starters. You don't play as your own
+> Roblox character in this game."
 
 ### V2.2 Decisions (user's answers to Claude's questions, 2026-10-22)
 
@@ -54,6 +57,9 @@
 - **Minimal HUD:** small monochrome icons bottom-left (candy, bucket fill, lives, souls, clock), a contextual radial
   menu for interactions/menus (Watch Dogs-style), tiny toasts. This replaces the chunky cartoon HUD; menus become
   clean, dark and minimal.
+- **No Roblox avatars.** You always play as one of the game's own characters: every starter kid and every costume
+  is a whole character model (AI mesh cut into head/torso/arms/legs, rigged onto a custom Humanoid, with stiff
+  PSX-style procedural walk/idle animation). Wearing a costume swaps your whole character model.
 - **Starter characters:** 4 base kid characters (picked in the lobby on first join, free). With **no costume**,
   homeowners give almost nothing (×0.15 candy), so the first costume is cheap and the tutorial buys it.
 - **Costumes:** lots of them (target 30+ at launch). Each gives **+5% candy** (rarer ones more) and has a preference

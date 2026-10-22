@@ -1,0 +1,437 @@
+--!strict
+-- The game's own playable characters (PROMPT §V2.3: nobody plays as their Roblox avatar). Each one
+-- is an AI mesh (Roblox Studio generate_mesh, owner's account) generated in six segments;
+-- Modules/CharacterRig joins them into a Humanoid rig. Sizes and offsets are in studs after
+-- scaling; an offset is the segment's centre relative to the point between the feet, with the
+-- character facing -Z. eye = eye height (default: 60% up the head segment; set it when a hat makes
+-- the head segment tall).
+
+export type Segment = { mesh: number, texture: number, size: { number }, offset: { number } }
+export type Character = { segments: { [string]: Segment }, eye: number? }
+
+local characters: { [string]: Character } = {
+	-- Starter kids ----------------------------------------------------------------------------------
+	-- Skinny kid, messy brown hair, oversized blue hoodie.
+	Kid_Milo = {
+		eye = 3.8,
+		segments = {
+			Head = {
+				mesh = 75213827872370,
+				texture = 96082268006171,
+				size = { 1.741, 1.519, 1.846 },
+				offset = { -0.005, 3.841, -0.018 },
+			},
+			LeftArm = {
+				mesh = 126842007591126,
+				texture = 126111741177638,
+				size = { 0.857, 1.829, 0.702 },
+				offset = { -0.596, 2.107, -0.013 },
+			},
+			LeftLeg = {
+				mesh = 105087091476145,
+				texture = 93214259339308,
+				size = { 0.704, 1.826, 1.011 },
+				offset = { -0.389, 0.913, -0.143 },
+			},
+			RightArm = {
+				mesh = 80980647619650,
+				texture = 98307009928562,
+				size = { 0.855, 1.829, 0.702 },
+				offset = { 0.597, 2.109, -0.014 },
+			},
+			RightLeg = {
+				mesh = 110401558353046,
+				texture = 86589916844852,
+				size = { 0.706, 1.825, 1.024 },
+				offset = { 0.392, 0.913, -0.143 },
+			},
+			Torso = {
+				mesh = 79894604115879,
+				texture = 140495576578374,
+				size = { 1.317, 1.816, 1.638 },
+				offset = { 0.005, 2.356, 0.122 },
+			},
+		},
+	},
+	-- Mustard beanie, olive raincoat, rubber boots.
+	Kid_Ivy = {
+		eye = 3.6,
+		segments = {
+			Head = {
+				mesh = 134059159507083,
+				texture = 136667540271525,
+				size = { 1.933, 1.799, 1.932 },
+				offset = { -0.002, 3.701, 0 },
+			},
+			LeftArm = {
+				mesh = 137704495838602,
+				texture = 116649952306693,
+				size = { 0.76, 1.351, 0.694 },
+				offset = { -0.705, 1.965, -0.036 },
+			},
+			LeftLeg = {
+				mesh = 122432220394232,
+				texture = 85745256605379,
+				size = { 0.528, 1.32, 0.928 },
+				offset = { -0.353, 0.66, -0.183 },
+			},
+			RightArm = {
+				mesh = 74076449978935,
+				texture = 97506821075772,
+				size = { 0.761, 1.348, 0.699 },
+				offset = { 0.704, 1.965, -0.035 },
+			},
+			RightLeg = {
+				mesh = 95093945467930,
+				texture = 107341558388243,
+				size = { 0.523, 1.319, 0.923 },
+				offset = { 0.351, 0.66, -0.181 },
+			},
+			Torso = {
+				mesh = 85771389510610,
+				texture = 136604981128202,
+				size = { 1.601, 1.878, 1.714 },
+				offset = { -0.001, 1.995, 0.021 },
+			},
+		},
+	},
+	-- Chubby kid, yellow rain hat, round glasses, striped sweater.
+	Kid_Theo = {
+		eye = 3.55,
+		segments = {
+			Head = {
+				mesh = 79237757788031,
+				texture = 102525495693227,
+				size = { 2.176, 1.676, 2.156 },
+				offset = { 0, 3.662, 0 },
+			},
+			LeftArm = {
+				mesh = 71032734078144,
+				texture = 131288323949863,
+				size = { 0.776, 1.727, 0.655 },
+				offset = { -0.777, 1.953, -0.008 },
+			},
+			LeftLeg = {
+				mesh = 123378507516446,
+				texture = 109784120883345,
+				size = { 0.737, 1.667, 1.036 },
+				offset = { -0.403, 0.834, -0.149 },
+			},
+			RightArm = {
+				mesh = 79835422527042,
+				texture = 117142956580741,
+				size = { 0.777, 1.726, 0.652 },
+				offset = { 0.776, 1.951, -0.01 },
+			},
+			RightLeg = {
+				mesh = 127355990884025,
+				texture = 83932569320549,
+				size = { 0.736, 1.665, 1.032 },
+				offset = { 0.403, 0.833, -0.146 },
+			},
+			Torso = {
+				mesh = 121804099545513,
+				texture = 128492303146169,
+				size = { 1.563, 1.984, 1.511 },
+				offset = { 0.006, 2.081, 0.01 },
+			},
+		},
+	},
+	-- Freckles, backwards red cap, flannel and overalls.
+	Kid_Nell = {
+		eye = 3.25,
+		segments = {
+			Head = {
+				mesh = 91992189214665,
+				texture = 80169307451381,
+				size = { 2.084, 2.137, 2.366 },
+				offset = { 0, 3.332, 0 },
+			},
+			LeftArm = {
+				mesh = 75203402218975,
+				texture = 120473312907002,
+				size = { 0.759, 1.629, 0.67 },
+				offset = { -0.647, 1.655, 0.141 },
+			},
+			LeftLeg = {
+				mesh = 128934700793241,
+				texture = 76615733550609,
+				size = { 0.771, 1.688, 1.249 },
+				offset = { -0.37, 0.844, 0.05 },
+			},
+			RightArm = {
+				mesh = 125411469838418,
+				texture = 118490898143262,
+				size = { 0.768, 1.632, 0.67 },
+				offset = { 0.647, 1.657, 0.143 },
+			},
+			RightLeg = {
+				mesh = 90178641748637,
+				texture = 86254612394505,
+				size = { 0.774, 1.688, 1.243 },
+				offset = { 0.367, 0.845, 0.052 },
+			},
+			Torso = {
+				mesh = 91069899101924,
+				texture = 138117843459117,
+				size = { 1.242, 0.934, 1.138 },
+				offset = { -0.001, 2.065, 0.099 },
+			},
+		},
+	},
+
+	-- Costumes --------------------------------------------------------------------------------------
+	-- Dirty bed sheet with eye holes; the sheet is the "head" segment, so it sways as one piece.
+	Costume_GhostSheet = {
+		eye = 3.9,
+		segments = {
+			Head = {
+				mesh = 126684551881466,
+				texture = 78289907495288,
+				size = { 1.961, 3.916, 1.767 },
+				offset = { 0.004, 2.642, 0.031 },
+			},
+			LeftArm = {
+				mesh = 72448769341484,
+				texture = 108564588766444,
+				size = { 0.823, 1.904, 1.15 },
+				offset = { -0.901, 2.331, 0.03 },
+			},
+			LeftLeg = {
+				mesh = 88563143721083,
+				texture = 95881804375891,
+				size = { 0.673, 1.868, 1.14 },
+				offset = { -0.405, 0.935, -0.344 },
+			},
+			RightArm = {
+				mesh = 123073874267452,
+				texture = 87038493174483,
+				size = { 0.818, 1.912, 1.151 },
+				offset = { 0.903, 2.329, 0.034 },
+			},
+			RightLeg = {
+				mesh = 101164303174795,
+				texture = 139639004088114,
+				size = { 0.676, 1.87, 1.14 },
+				offset = { 0.405, 0.935, -0.343 },
+			},
+			Torso = {
+				mesh = 137337877980325,
+				texture = 76094717741476,
+				size = { 1.967, 2.588, 1.762 },
+				offset = { 0.001, 1.979, 0.028 },
+			},
+		},
+	},
+	-- Carved jack-o'-lantern over the head, patched corduroy jacket, gardening gloves.
+	Costume_PumpkinHead = {
+		eye = 3.95,
+		segments = {
+			Head = {
+				mesh = 123757647604184,
+				texture = 88921178065741,
+				size = { 1.756, 1.568, 1.721 },
+				offset = { -0.001, 4.016, 0 },
+			},
+			LeftArm = {
+				mesh = 122880108517660,
+				texture = 126634184288315,
+				size = { 0.807, 1.795, 0.739 },
+				offset = { -0.703, 2.283, -0.016 },
+			},
+			LeftLeg = {
+				mesh = 88142282944222,
+				texture = 131722852652901,
+				size = { 0.847, 2.114, 1.151 },
+				offset = { -0.381, 1.058, -0.171 },
+			},
+			RightArm = {
+				mesh = 83568039022893,
+				texture = 134821051945051,
+				size = { 0.807, 1.798, 0.746 },
+				offset = { 0.703, 2.282, -0.015 },
+			},
+			RightLeg = {
+				mesh = 91856390490005,
+				texture = 74042713105298,
+				size = { 0.852, 2.113, 1.15 },
+				offset = { 0.377, 1.056, -0.174 },
+			},
+			Torso = {
+				mesh = 129567523789737,
+				texture = 114920772646483,
+				size = { 1.32, 1.828, 1.213 },
+				offset = { 0.003, 2.638, 0.018 },
+			},
+		},
+	},
+	-- Little witch: crooked hat, ragged black dress, striped stockings.
+	Costume_Witch = {
+		eye = 3.3,
+		segments = {
+			Head = {
+				mesh = 126615365535591,
+				texture = 111790567527374,
+				size = { 2.817, 2.825, 2.79 },
+				offset = { 0, 3.688, 0 },
+			},
+			LeftArm = {
+				mesh = 125226548846884,
+				texture = 76145680596042,
+				size = { 0.829, 1.266, 0.585 },
+				offset = { -0.687, 1.92, 0.002 },
+			},
+			LeftLeg = {
+				mesh = 71200375762511,
+				texture = 132800158004983,
+				size = { 0.552, 1.266, 0.645 },
+				offset = { -0.289, 0.633, -0.123 },
+			},
+			RightArm = {
+				mesh = 89104056392056,
+				texture = 71246169789648,
+				size = { 0.83, 1.264, 0.591 },
+				offset = { 0.688, 1.921, 0.004 },
+			},
+			RightLeg = {
+				mesh = 72014007491257,
+				texture = 127137328504140,
+				size = { 0.544, 1.265, 0.643 },
+				offset = { 0.29, 0.633, -0.122 },
+			},
+			Torso = {
+				mesh = 107141737646659,
+				texture = 86084946085908,
+				size = { 1.36, 1.701, 1.327 },
+				offset = { 0, 1.647, 0.004 },
+			},
+		},
+	},
+	-- Black cat mascot suit: big ears, whiskers, curled tail.
+	Costume_BlackCat = {
+		eye = 3.55,
+		segments = {
+			Head = {
+				mesh = 137688621012957,
+				texture = 94254164912031,
+				size = { 1.983, 1.997, 1.761 },
+				offset = { 0.029, 3.801, -0.231 },
+			},
+			LeftArm = {
+				mesh = 134051818900784,
+				texture = 127886486644463,
+				size = { 0.796, 1.606, 0.631 },
+				offset = { -0.648, 2.098, -0.289 },
+			},
+			LeftLeg = {
+				mesh = 120083595058647,
+				texture = 100527841059161,
+				size = { 0.734, 1.858, 0.954 },
+				offset = { -0.342, 0.929, -0.332 },
+			},
+			RightArm = {
+				mesh = 94747466585200,
+				texture = 92285018897671,
+				size = { 0.819, 1.608, 0.628 },
+				offset = { 0.689, 2.1, -0.288 },
+			},
+			RightLeg = {
+				mesh = 80841496922934,
+				texture = 122794035676610,
+				size = { 0.768, 1.862, 0.952 },
+				offset = { 0.38, 0.932, -0.337 },
+			},
+			Torso = {
+				mesh = 138758289563210,
+				texture = 136015422802317,
+				size = { 1.809, 2.206, 2.049 },
+				offset = { -0.195, 1.877, 0.087 },
+			},
+		},
+	},
+	-- Little vampire: slicked hair, waistcoat, red-lined cape.
+	Costume_Vampire = {
+		eye = 3.75,
+		segments = {
+			Head = {
+				mesh = 133762386698097,
+				texture = 90046138619200,
+				size = { 1.901, 1.713, 1.91 },
+				offset = { 0, 3.844, -0.206 },
+			},
+			LeftArm = {
+				mesh = 103961965745849,
+				texture = 129464731494596,
+				size = { 0.835, 1.603, 0.79 },
+				offset = { -0.731, 1.952, -0.198 },
+			},
+			LeftLeg = {
+				mesh = 113432359455332,
+				texture = 93979385569226,
+				size = { 0.725, 1.754, 0.899 },
+				offset = { -0.38, 0.877, -0.265 },
+			},
+			RightArm = {
+				mesh = 119716425191805,
+				texture = 121276529939149,
+				size = { 0.835, 1.61, 0.78 },
+				offset = { 0.735, 1.951, -0.194 },
+			},
+			RightLeg = {
+				mesh = 127368241057079,
+				texture = 138928136103331,
+				size = { 0.718, 1.754, 0.902 },
+				offset = { 0.383, 0.877, -0.264 },
+			},
+			Torso = {
+				mesh = 131928789609936,
+				texture = 129495721963764,
+				size = { 2.906, 2.913, 2.016 },
+				offset = { 0, 1.837, 0.153 },
+			},
+		},
+	},
+	-- Skeleton bodysuit and a big cracked skull mask.
+	Costume_Skeleton = {
+		segments = {
+			Head = {
+				mesh = 120305539583716,
+				texture = 138175936022481,
+				size = { 2.148, 2.025, 2.163 },
+				offset = { 0, 3.488, 0 },
+			},
+			LeftArm = {
+				mesh = 124242256225977,
+				texture = 118636128052493,
+				size = { 1.003, 1.706, 0.764 },
+				offset = { -0.955, 1.596, -0.053 },
+			},
+			LeftLeg = {
+				mesh = 97465681346623,
+				texture = 72525191894834,
+				size = { 0.686, 1.347, 0.91 },
+				offset = { -0.516, 0.674, -0.177 },
+			},
+			RightArm = {
+				mesh = 130561368605829,
+				texture = 106927115752026,
+				size = { 1.008, 1.703, 0.767 },
+				offset = { 0.953, 1.596, -0.053 },
+			},
+			RightLeg = {
+				mesh = 114865731205745,
+				texture = 72661740754604,
+				size = { 0.682, 1.348, 0.906 },
+				offset = { 0.514, 0.674, -0.176 },
+			},
+			Torso = {
+				mesh = 132199006507509,
+				texture = 118222182900775,
+				size = { 1.632, 1.807, 1.608 },
+				offset = { -0.001, 1.67, -0.028 },
+			},
+		},
+	},
+}
+
+return characters

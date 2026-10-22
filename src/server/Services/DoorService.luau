@@ -34,6 +34,8 @@ export type DoorResult = {
 	brave: boolean, -- held through a trick house's Nerve Hold
 	fullSize: boolean, -- got the Full-Size Bar ×10
 	event: number, -- event multiplier applied (Witching Hour, Blood Moon)
+	liked: boolean?, -- the homeowner's preference matched your costume's tag
+	costumed: boolean?, -- false: no costume, so the homeowner barely gave anything
 	bowl: string?, -- "one" | "all" | "caught"
 	lost: number?, -- candy lost when caught
 }
@@ -138,7 +140,13 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 	local streak = updateStreak(player, grade)
 	local event = CandyService.eventMultiplier(player)
 	local base = random:NextNumber(neighborhood.candy.min, neighborhood.candy.max) * typeMultiplier * fullSize
-	local amount = Formulas.doorCandy(base, grade, Formulas.streakBonus(streak), CandyService.bonuses(player), event)
+	local bonuses = CandyService.bonuses(player)
+	local costume = CandyService.costume(player)
+	local liked = costume ~= nil and costume.tag == HouseService.preference(houseId)
+	if liked then
+		bonuses.preference = HouseTypes.PREFERENCE_BONUS
+	end
+	local amount = Formulas.doorCandy(base, grade, Formulas.streakBonus(streak), bonuses, event)
 	local added, overflow = CandyService.addToBucket(player, amount)
 	local readyAt = startCooldown(player, houseId)
 
@@ -162,6 +170,8 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 		brave = brave,
 		fullSize = fullSize > 1,
 		event = event,
+		liked = liked,
+		costumed = costume ~= nil,
 	}
 	Net.event("DoorResult"):FireClient(player, result)
 	if fullSize > 1 then

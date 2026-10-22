@@ -39,7 +39,7 @@ function WorldService.Init()
 	end
 	-- The AI house meshes must exist before the streets are built (a few seconds at boot).
 	MeshLibrary.preload()
-	MeshLibrary.waitReady(15)
+	MeshLibrary.waitReady(15, "World")
 	info = Builder.build(Workspace)
 end
 

@@ -29,6 +29,8 @@ export type PlayerData = {
 	soulPerks: { [string]: number },
 	neighborhoods: { [string]: boolean },
 
+	starter: string, -- Config/Costumes starter kid ("" until picked)
+	costumes: { [string]: boolean }, -- owned costumes (kept through rebirth)
 	rareCandy: { [string]: number }, -- [caseId] = count
 	inventory: { [string]: InventoryItem }, -- [uid] = item
 	equipped: {

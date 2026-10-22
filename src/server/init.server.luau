@@ -29,5 +29,6 @@ Loader.run(script.Services, {
 	"StashService",
 	"SettingsService",
 	"CharacterService",
+	"CostumeService",
 	"AdminService",
 }, "Server")

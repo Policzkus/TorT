@@ -3,6 +3,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Costumes = require(ReplicatedStorage.Shared.Config.Costumes)
 local Formulas = require(ReplicatedStorage.Shared.Modules.Formulas)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local DataService = require(script.Parent.DataService)
@@ -12,16 +13,26 @@ local CandyService = {}
 
 CandyService.Stashed = Signal.new() -- (player, moved: number, boxFull: boolean)
 
--- Summed bonus per category for door candy (PROMPT §3.7). Later phases add costumes, familiars,
--- party/friends, potions and passes here.
+-- The costume the player is wearing, if any.
+function CandyService.costume(player: Player): Costumes.Costume?
+	local data = DataService.get(player)
+	local costumeId = data and data.equipped.costume
+	return if costumeId then Costumes.costumes[costumeId] else nil
+end
+
+-- Summed bonus per category for door candy (PROMPT §3.7). Later phases add familiars,
+-- party/friends, potions and passes here. No costume → homeowners barely give anything (§V2.3).
 function CandyService.bonuses(player: Player): Formulas.Bonuses
 	local data = DataService.get(player)
 	if data == nil then
 		return {}
 	end
+	local costumeId = data.equipped.costume
+	local costume = if costumeId then Costumes.costumes[costumeId] else nil
 	return {
 		charm = Formulas.charmBonus(data.upgrades.charm),
 		rebirth = Formulas.rebirthBonus(data.rebirths),
+		costume = if costume then costume.bonus else Costumes.NO_COSTUME_CANDY - 1,
 	}
 end
 

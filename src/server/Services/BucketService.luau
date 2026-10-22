@@ -63,7 +63,7 @@ local function attach(player: Player)
 	if data == nil or character == nil then
 		return
 	end
-	MeshLibrary.waitReady(8)
+	MeshLibrary.waitReady(8, "World")
 	local tier = data.upgrades.bucketTier
 	local current = equipped[player]
 	if current and current.tier == tier and current.model.Parent == character then

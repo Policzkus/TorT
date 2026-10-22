@@ -24,6 +24,8 @@ local Template: Types.PlayerData = {
 	soulPerks = {},
 	neighborhoods = { CardboardCourt = true },
 
+	starter = "",
+	costumes = {},
 	rareCandy = {},
 	inventory = {},
 	equipped = { familiars = {} },
