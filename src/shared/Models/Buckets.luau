@@ -6,10 +6,14 @@
 --   back  - worn on the back (origin = centre of the side touching the character)
 --   tow   - dragged on the ground behind (origin = ground point under the front)
 --   float - hovers behind the character (origin like tow)
+-- A spec with `mesh` uses that AI-generated mesh (Config/Meshes via MeshLibrary) and falls back
+-- to its part-built `parts` if the mesh didn't load.
 -- Swap-in: ReplicatedStorage.Assets.Buckets.<ModelName> is used instead if it exists (it needs a
 -- part named Handle; Candy1..N parts are optional).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local MeshLibrary = require(script.Parent.Parent.Modules.MeshLibrary)
 
 type PartSpec = {
 	name: string,
@@ -23,8 +27,17 @@ type PartSpec = {
 	light: { range: number, brightness: number, color: string }?,
 }
 
+-- A real mesh in place of `parts`, with its own candy slots (no `scale` applied).
+type MeshSpec = {
+	name: string, -- Config/Meshes key
+	at: CFrame,
+	candy: { CFrame },
+	candySize: number,
+}
+
 type ModelSpec = {
 	mount: "hand" | "back" | "tow" | "float",
+	mesh: MeshSpec?,
 	scale: number?, -- multiplies every size and offset (hand-held buckets must stay small)
 	parts: { PartSpec },
 	candy: { CFrame }, -- where candy pieces appear, filled in order
@@ -73,6 +86,12 @@ local SPECS: { [string]: ModelSpec } = {
 	},
 	PlasticPumpkin = {
 		mount = "hand",
+		mesh = {
+			name = "PlasticPumpkin",
+			at = c(0, -0.62, 0), -- handle top at the origin, carved face towards -Z
+			candy = ring(6, 0.24, -0.45),
+			candySize = 0.26,
+		},
 		scale = 0.62,
 		candySize = 0.36,
 		parts = {
@@ -380,6 +399,12 @@ function Buckets.build(modelName: string): Model
 	if custom and custom:IsA("Model") and custom:FindFirstChild("Handle") then
 		local clone = custom:Clone()
 		clone:SetAttribute("Mount", clone:GetAttribute("Mount") or Buckets.mount(modelName))
+		clone.PrimaryPart = clone:FindFirstChild("Handle") :: BasePart
+		for _, descendant in clone:GetDescendants() do
+			if descendant:IsA("BasePart") then
+				finish(descendant) -- a swapped-in model must never collide or weigh anything
+			end
+		end
 		return clone
 	end
 
@@ -409,7 +434,20 @@ function Buckets.build(modelName: string): Model
 		w.Parent = part
 	end
 
-	for _, partSpec in spec.parts do
+	local meshSpec = spec.mesh
+	local meshPart = if meshSpec then MeshLibrary.get(meshSpec.name) else nil
+	local candySlots, candySize = spec.candy, spec.candySize * k
+	if meshPart and meshSpec then
+		meshPart.Name = "Body"
+		meshPart.CFrame = meshSpec.at
+		finish(meshPart)
+		weld(meshPart)
+		meshPart.Parent = model
+		k = 1
+		candySlots, candySize = meshSpec.candy, meshSpec.candySize
+	end
+
+	for _, partSpec in if meshPart then {} else spec.parts do
 		local className = if partSpec.shape == "wedge" then "WedgePart" else "Part"
 		local part = Instance.new(className) :: BasePart
 		part.Name = partSpec.name
@@ -436,11 +474,11 @@ function Buckets.build(modelName: string): Model
 		part.Parent = model
 	end
 
-	for index, at in spec.candy do
+	for index, at in candySlots do
 		local candy = Instance.new("Part")
 		candy.Name = "Candy" .. index
 		candy.Shape = Enum.PartType.Ball
-		candy.Size = Vector3.one * spec.candySize * k
+		candy.Size = Vector3.one * candySize
 		candy.CFrame = scaled(at)
 		candy.Color = Color3.fromHex(CANDY_COLORS[(index - 1) % #CANDY_COLORS + 1])
 		candy.Material = M.SmoothPlastic
@@ -449,7 +487,7 @@ function Buckets.build(modelName: string): Model
 		weld(candy)
 		candy.Parent = model
 	end
-	model:SetAttribute("CandySlots", #spec.candy)
+	model:SetAttribute("CandySlots", #candySlots)
 	return model
 end
 

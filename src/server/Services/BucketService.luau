@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Formulas = require(ReplicatedStorage.Shared.Modules.Formulas)
+local MeshLibrary = require(ReplicatedStorage.Shared.Modules.MeshLibrary)
 local Buckets = require(ReplicatedStorage.Shared.Models.Buckets)
 local DataService = require(script.Parent.DataService)
 
@@ -62,6 +63,7 @@ local function attach(player: Player)
 	if data == nil or character == nil then
 		return
 	end
+	MeshLibrary.waitReady(8)
 	local tier = data.upgrades.bucketTier
 	local current = equipped[player]
 	if current and current.tier == tier and current.model.Parent == character then
@@ -69,6 +71,7 @@ local function attach(player: Player)
 	end
 	detach(player)
 	local model = Buckets.build(Formulas.bucketTier(tier).model)
+	model.Name = "Bucket" -- swapped-in assets keep their own name otherwise
 	local mount = model:GetAttribute("Mount") :: string
 	local anchor, frame = mountFrame(character, mount)
 	if anchor == nil or frame == nil then
@@ -99,6 +102,10 @@ local function watch(player: Player)
 	if player.Character then
 		attach(player)
 	end
+end
+
+function BucketService.Init()
+	MeshLibrary.preload()
 end
 
 function BucketService.Start()

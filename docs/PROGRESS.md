@@ -44,6 +44,8 @@
 - Client UI is code-built: `UI/Components/{Button,Panel,ProgressBar}`, `UI/Scale` (UIScale from a 1100×620 reference, clamped 0.6–1.15). One Panel open at a time.
 - Sounds: `Config/Sounds` (verified IDs from DailySoundsFX and ProSoundEffects, load-tested), `SoundController.play(name)`.
 - Admin additions: `/unlock <id|all>`, `/upgrade <track> <level>`; `ServerStorage.DevBridge` for the MCP.
+- **AI meshes (user's choice, 2026-10-22):** models are generated in Studio with the MCP `generate_mesh` tool (assets land on the owner's account), then their MeshId/TextureID go into `Config/Meshes`. `Modules/MeshLibrary` builds them on the server at boot with `AssetService:CreateMeshPartAsync` and clones them; anything that fails to load falls back to the part-built version. Nothing depends on saving the place file. A freshly generated mesh can fail to load in the *first* play session after generation (it works in the next one).
+- First AI mesh: the Plastic Pumpkin bucket (tier 2). The procedural block version stays as the fallback.
 - Economy changes vs PROMPT (all logged in docs/ECONOMY.md): candy per door ×~2, Maple Lane 150, door cooldown 90 s, 3 drop-offs per street, Charm/Sneakers cost growth lowered so every price ≤ 50% of the box.
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)
@@ -69,5 +71,5 @@ Verified in Studio through the MCP: world builds (32 houses, 7 drop-offs), knock
 
 ## Next up
 
-1. **Quality pass requested by the user** ("10× better: UI, models, sounds"): art direction for models, a juicier UI, more sounds and music.
+1. The user asked for proof that real models are possible, then to continue with the plan ("give me one high quality model … and continue with the prompt"). Done (the pumpkin bucket). **From now on every feature ships with real art, juicy UI and sound** (see the memory note). The remaining 11 bucket tiers, houses and props get AI meshes as each phase touches them.
 2. Checkpoint A: the user plays 10 minutes from a fresh profile (the test profile was reset).
