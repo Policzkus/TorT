@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
+local Assets = require(script.Parent.Assets)
 local Parts = require(script.Parent.Parts)
 
 type Rng = Rng.Rng
@@ -300,6 +301,24 @@ end
 export type TreeKind = "autumn" | "dead" | "pine"
 
 function Props.tree(parent: Instance, base: CFrame, rng: Rng, kind: TreeKind): Model
+	-- The Blender dead trees from the yard set (art/scripts/yard.py) when they've been imported:
+	-- either shape, turned and sized at random, with an invisible trunk to bump into.
+	local blender = if kind ~= "pine" then Assets.find("Yard", if rng:chance(0.5) then "Tree" else "Tree2") else nil
+	if blender and blender:IsA("PVInstance") then
+		local m = model(parent, "Tree")
+		local tree = blender:Clone()
+		tree.Parent = m
+		m.WorldPivot = tree:GetPivot()
+		m:PivotTo(base * CFrame.Angles(0, rng:range(0, math.pi * 2), 0))
+		m:ScaleTo(rng:range(0.85, 1.3))
+		Parts.block(m, "Trunk", Vector3.new(2, 8, 2), base * CFrame.new(0, 4, 0), "3A3036", M.Wood, {
+			Transparency = 1,
+			CanQuery = false,
+			CanTouch = false,
+			CastShadow = false,
+		})
+		return m
+	end
 	local m = model(parent, "Tree")
 	local height = rng:range(9, 14)
 	local trunkColor = if kind == "dead" then "3A3036" else "4A3020"
