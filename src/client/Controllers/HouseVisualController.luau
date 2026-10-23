@@ -2,7 +2,8 @@
 -- Draws each house's "tells" from the attributes HouseService sets (PROMPT §3.5), all locally:
 --   homeowner + preference badge over the door, dark windows for Lights Off, a flickering porch
 --   light for Trick houses, string lights + extra pumpkins for Decorated houses, and the gold
---   beam over the Full-Size Bar house (from ReplicatedStorage.WorldState).
+--   beam over the Full-Size Bar house (from ReplicatedStorage.WorldState). Jack-o'-lantern candles
+--   on the Blender houses flicker.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,6 +29,7 @@ type Tracked = {
 
 local tracked: { [Model]: Tracked } = {}
 local tricky: { [Model]: boolean } = {}
+local candles: { [PointLight]: number } = {} -- jack-o'-lantern candles and their steady brightness
 local beam: Model? = nil
 
 local function save(entry: Tracked, instance: Instance, property: string)
@@ -70,6 +72,23 @@ local function lightsOff(entry: Tracked)
 			save(entry, descendant, "Material")
 			descendant.Color = Color3.fromHex("161A26")
 			descendant.Material = Enum.Material.Glass
+		elseif
+			descendant:IsA("BasePart") and (descendant.Name == "LanternGlow" or descendant.Name == "PumpkinGlow")
+		then
+			-- The Blender house's lantern and jack-o'-lantern candles go out.
+			save(entry, descendant, "Color")
+			save(entry, descendant, "Material")
+			descendant.Color = Color3.fromHex("1A1612")
+			descendant.Material = Enum.Material.SmoothPlastic
+		elseif descendant:IsA("SurfaceGui") and descendant.Parent and descendant.Parent:GetAttribute("Lit") then
+			-- A lit window room (Victorian.windowRooms) turns into a dark one.
+			save(entry, descendant, "LightInfluence")
+			descendant.LightInfluence = 1
+			local image = descendant:FindFirstChildWhichIsA("ImageLabel")
+			if image then
+				save(entry, image, "ImageColor3")
+				image.ImageColor3 = Color3.fromRGB(70, 70, 76)
+			end
 		elseif descendant:IsA("PointLight") then
 			save(entry, descendant, "Enabled")
 			descendant.Enabled = false
@@ -300,9 +319,28 @@ function HouseVisualController.Start()
 		end
 	end)
 
-	-- Trick houses: a porch light that can't make up its mind.
+	-- Candles in the Blender house's jack-o'-lanterns (lights in a part named "PumpkinLight").
+	local function watchCandle(instance: Instance)
+		local holder = instance.Parent
+		if instance:IsA("PointLight") and holder and holder.Name == "PumpkinLight" then
+			candles[instance] = instance.Brightness
+		end
+	end
+	Workspace.DescendantAdded:Connect(watchCandle)
+	for _, instance in Workspace:GetDescendants() do
+		watchCandle(instance)
+	end
+
+	-- Trick houses: a porch light that can't make up its mind. Candles gutter everywhere.
 	while true do
 		task.wait(0.12)
+		for light, steady in candles do
+			if light.Parent == nil then
+				candles[light] = nil
+			else
+				light.Brightness = steady * (0.65 + math.random() * 0.45)
+			end
+		end
 		for model in tricky do
 			for _, light in porchLights(model) do
 				if math.random() < 0.3 then

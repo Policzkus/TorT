@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import victorian  # noqa: E402
 
 SIZE = 1024
-FLAT = {"Glass", "Glow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Curtain", "Wallpaper"}
+FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Curtain", "Wallpaper"}
 OUT = victorian.EXPORT
 # --only A,B: bake just these groups and reuse the other PNGs from the last export.
 ONLY = set(victorian.ARGS[victorian.ARGS.index("--only") + 1].split(",")) if "--only" in victorian.ARGS else None
@@ -41,7 +41,7 @@ def atlas_uvs(obj):
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
-def bake(obj, reuse=False):
+def bake(obj, out, size=SIZE, reuse=False):
     """Bakes the object's maps, or with `reuse` loads the PNGs a previous export left behind
     (the atlas UVs come out the same for the same mesh)."""
     scene = bpy.context.scene
@@ -53,12 +53,12 @@ def bake(obj, reuse=False):
     passes = (("color", "DIFFUSE", "sRGB"), ("normal", "NORMAL", "Non-Color"), ("rough", "ROUGHNESS", "Non-Color"))
     if reuse:
         for kind, _, space in passes:
-            img = bpy.data.images.load(str(OUT / f"{obj.name}_{kind}.png"))
+            img = bpy.data.images.load(str(out / f"{obj.name}_{kind}.png"))
             img.colorspace_settings.name = space
             images[kind] = img
         passes = ()
     for kind, bake_type, space in passes:
-        img = bpy.data.images.new(f"{obj.name}_{kind}", SIZE, SIZE, alpha=False)
+        img = bpy.data.images.new(f"{obj.name}_{kind}", size, size, alpha=False)
         img.colorspace_settings.name = space
         target = nodes.new("ShaderNodeTexImage")
         target.image = img
@@ -75,7 +75,7 @@ def bake(obj, reuse=False):
             scene.render.bake.use_pass_indirect = False
             scene.render.bake.use_pass_color = True
         bpy.ops.object.bake(type=bake_type, margin=6, uv_layer="Atlas", use_clear=True)
-        path = OUT / f"{obj.name}_{kind}.png"
+        path = out / f"{obj.name}_{kind}.png"
         img.filepath_raw = str(path)
         img.file_format = "PNG"
         img.save()
@@ -106,24 +106,25 @@ def bake(obj, reuse=False):
     obj.data.uv_layers["Atlas"].active_render = True
 
 
-def main():
-    OUT.mkdir(parents=True, exist_ok=True)
-    merged, *_ = victorian.build()
+def export(merged, out, filename, flat=(), only=None, sizes=None):
+    """Bakes every textured mesh in `merged` and writes them all to one FBX in `out`. `sizes` picks
+    a smaller atlas for small pieces; `only` re-bakes just those meshes and reuses the rest."""
+    out.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.samples = 12
     scene.cycles.use_denoising = False
     for name, obj in merged.items():
-        if name in FLAT:
+        if name in flat:
             # Plain colours: drop the tiling UVs, keep one UV map for the importer.
             obj.data.uv_layers.remove(obj.data.uv_layers["Tile"])
             continue
-        reuse = ONLY is not None and name not in ONLY and (OUT / f"{name}_color.png").exists()
-        bake(obj, reuse=reuse)
+        reuse = only is not None and name not in only and (out / f"{name}_color.png").exists()
+        bake(obj, out, size=(sizes or {}).get(name, SIZE), reuse=reuse)
     bpy.ops.object.select_all(action="DESELECT")
     bpy.ops.export_scene.fbx(
-        filepath=str(OUT / "Victorian.fbx"),
+        filepath=str(out / filename),
         use_selection=False,
         object_types={"MESH"},
         apply_unit_scale=True,
@@ -135,7 +136,12 @@ def main():
         mesh_smooth_type="FACE",
         use_mesh_modifiers=True,
     )
-    print("EXPORTED", OUT / "Victorian.fbx", len(merged), "meshes")
+    print("EXPORTED", out / filename, len(merged), "meshes")
+
+
+def main():
+    merged, *_ = victorian.build()
+    export(merged, OUT, "Victorian.fbx", FLAT, ONLY)
 
 
 if __name__ == "__main__":

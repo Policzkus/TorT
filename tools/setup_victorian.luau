@@ -65,8 +65,10 @@ local function look(name: string, props: { [string]: any })
 		end
 	end
 end
-look("Glass", { Material = Enum.Material.Glass, Color = Color3.fromRGB(28, 34, 34), Transparency = 0.55, Reflectance = 0.1 })
-look("Glow", { Material = Enum.Material.Neon, Color = Color3.fromRGB(110, 62, 30) })
+-- Glass is SmoothPlastic: Roblox's Glass material hides the window-room images behind it.
+look("Glass", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(40, 48, 50), Transparency = 0.7, Reflectance = 0.08 })
+look("LanternGlow", { Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 160, 80), Transparency = 0.2 })
+look("PumpkinGlow", { Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 130, 40), Transparency = 0.15 })
 look("Interior", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(4, 4, 5) })
 look("Silhouette", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(2, 2, 2) })
 look("Curtain", { Material = Enum.Material.Fabric, Color = Color3.fromRGB(70, 60, 56) })
@@ -80,12 +82,12 @@ for _, d in imported:GetDescendants() do
 		d.Anchored = true
 		d.CanCollide = false -- invisible boxes below do the colliding
 		d.CanTouch = false
-		d.CastShadow = d.Name ~= "Glass" and d.Name ~= "Glow"
+		d.CastShadow = d.Name ~= "Glass" and d.Name ~= "LanternGlow" and d.Name ~= "PumpkinGlow"
 	end
 end
 
--- 4. Lights: the porch lantern (HouseVisualController flickers "PorchLight"), the lit bay room and
--- the attic where someone stands.
+-- 4. Lights: the porch lantern (HouseVisualController flickers "PorchLight") and a candle in each
+-- jack-o'-lantern. The lit rooms behind the windows come from Victorian.windowRooms per lot.
 local function lightPart(name: string, cframe: CFrame, range: number, brightness: number, color: Color3)
 	local p = Instance.new("Part")
 	p.Name = name
@@ -100,8 +102,11 @@ local function lightPart(name: string, cframe: CFrame, range: number, brightness
 	return p
 end
 lightPart("PorchLight", at(DOOR.x - 3.2, -1.2, FOUND + 6.9), 16, 0.9, Color3.fromRGB(255, 170, 96))
-lightPart("RoomLight", at(-9, -2.2, FOUND + 5.5), 14, 0.8, Color3.fromRGB(255, 140, 70))
-lightPart("AtticLight", at(-9, -2.0, EAVE + 4), 12, 0.7, Color3.fromRGB(255, 120, 60))
+local step1 = FOUND - FOUND / 4
+for _, spot in { at(DOOR.x - 2.05, -10.58, step1 + 0.4), at(DOOR.x + 3.0, -1.0, FOUND + 0.32) } do
+	local candle = lightPart("PumpkinLight", spot, 7, 0.8, Color3.fromRGB(255, 130, 50))
+	candle:FindFirstChildWhichIsA("PointLight").Shadows = false
+end
 
 -- 5. Doors: each slab (+ its brass) becomes a hinged model (tag "Hinged"; HingeController swings
 -- them, HomeownerController opens the front one). The knock zone is an invisible "Door" box.
@@ -179,27 +184,40 @@ for side, name in { [-1] = "CellarDoorL", [1] = "CellarDoorR" } do
 	end
 end
 
--- 6. Invisible collision: floors and steps you can walk on, walls you can't walk through.
-local function collider(sizeVec: Vector3, cframe: CFrame)
+-- 6. Invisible collision: floors and steps you can walk on, walls you can't walk through. Each is
+-- { size in Blender axes (x, y, z), centre in Blender coordinates, yaw in degrees }.
+local function collider(size: Vector3, centre: Vector3, yaw: number?)
 	local p = Instance.new("Part")
 	p.Name = "Collision"
 	p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch = true, true, true, false
 	p.Transparency = 1
-	p.Size = sizeVec
-	p.CFrame = cframe
+	p.Size = Vector3.new(size.X, size.Z, size.Y)
+	p.CFrame = rot * CFrame.Angles(0, math.rad(yaw or 0), 0) + at(centre.X, centre.Y, centre.Z).Position
 	p.Parent = imported
 end
-collider(Vector3.new(30, EAVE, 24), rot + at(0, 12, EAVE / 2).Position) -- main block
-collider(Vector3.new(12, EAVE, 4), rot + at(-9, -2, EAVE / 2).Position) -- bay
-for _, a in { 0, math.pi / 4 } do -- tower (two squares make an octagon)
-	collider(Vector3.new(10.8, 33.6, 10.8), rot * CFrame.Angles(0, a, 0) + at(10.5, -1.2, 16.8).Position)
+collider(Vector3.new(30, 24, EAVE), Vector3.new(0, 12, EAVE / 2)) -- main block
+collider(Vector3.new(12, 4, EAVE), Vector3.new(-9, -2, EAVE / 2)) -- bay
+-- Tower: four strips, one per pair of opposite faces (two squares would make a star that sticks
+-- out past the walls and blocks the porch).
+local side = 2 * 5.4 * math.tan(math.pi / 8) + 0.1
+for k = 0, 3 do
+	collider(Vector3.new(side, 10.8, 33.6), Vector3.new(10.5, -1.2, 16.8), k * 45)
 end
-collider(Vector3.new(19.6, FOUND, 10), rot + at(6.8, -5, FOUND / 2).Position) -- porch deck
+collider(Vector3.new(19.6, 10, FOUND), Vector3.new(6.8, -5, FOUND / 2)) -- porch deck
 for s = 1, 3 do
 	local top = FOUND - s * FOUND / 4
-	collider(Vector3.new(5.4, top, 1.15), rot + at(DOOR.x, -10 - (s - 0.5) * 1.15, top / 2).Position)
+	collider(Vector3.new(5.4, 1.15, top), Vector3.new(DOOR.x, -10 - (s - 0.5) * 1.15, top / 2)) -- front steps
+	collider(Vector3.new(5, 1, top), Vector3.new(-8, 28 + (s - 0.5), top / 2)) -- back steps
 end
-collider(Vector3.new(6, FOUND, 4), rot + at(-8, 26, FOUND / 2).Position) -- back stoop
+collider(Vector3.new(6, 4, FOUND), Vector3.new(-8, 26, FOUND / 2)) -- back stoop
+-- Porch railings and the two end posts (the gap at the steps stays open).
+collider(Vector3.new(11.6, 0.5, 3.4), Vector3.new(10.4, -9.5, FOUND + 1.7))
+collider(Vector3.new(0.5, 5.1, 3.4), Vector3.new(-2.6, -6.95, FOUND + 1.7))
+collider(Vector3.new(0.5, 5.7, 3.4), Vector3.new(16.2, -6.65, FOUND + 1.7))
+for _, x in { -2.6, 4.6 } do
+	collider(Vector3.new(0.9, 0.9, 10.2), Vector3.new(x, -9.5, FOUND + 5.1))
+end
+collider(Vector3.new(4.8, 6, 1.2), Vector3.new(17.1, 6, 0.6)) -- storm-cellar curb
 
 -- 7. File it as the street template.
 local assets = ReplicatedStorage:FindFirstChild("Assets") or Instance.new("Folder")

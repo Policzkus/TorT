@@ -86,7 +86,10 @@ local function track(instance: Instance)
 		onOpenChanged(hinge)
 	end)
 	if model:GetAttribute("Open") == true then
-		onOpenChanged(hinge)
+		-- Already open when it streamed in: just put it there, no creak.
+		hinge.angle = (model:GetAttribute("OpenAngle") :: number?) or 90
+		hinge.to = hinge.angle
+		model:PivotTo(hinge.closed * CFrame.Angles(0, math.rad(hinge.angle), 0))
 	end
 end
 

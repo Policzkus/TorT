@@ -144,6 +144,57 @@ def slab(grp, low, high, width, thickness, name="Slab", bevel=0.05):
     return box(grp, (width, up.length, thickness), (0, 0, 0), bevel=bevel, name=name, matrix=m)
 
 
+def torus(grp, center, major, minor, matrix, segments=10, sides=4):
+    """A ring standing in the XZ plane (scroll rings in ironwork)."""
+    bm = bmesh.new()
+    rings = []
+    for i in range(segments):
+        a = 2 * math.pi * i / segments
+        c = Vector((math.cos(a) * major, 0, math.sin(a) * major))
+        out = Vector((math.cos(a), 0, math.sin(a)))
+        ring = []
+        for j in range(sides):
+            b = 2 * math.pi * j / sides
+            p = c + out * math.cos(b) * minor + Vector((0, 1, 0)) * math.sin(b) * minor
+            ring.append(bm.verts.new(p))
+        rings.append(ring)
+    for i in range(segments):
+        a, b2 = rings[i], rings[(i + 1) % segments]
+        for j in range(sides):
+            k = (j + 1) % sides
+            bm.faces.new((a[j], a[k], b2[k], b2[j]))
+    bmesh.ops.transform(bm, matrix=matrix @ Matrix.Translation(Vector(center)), verts=bm.verts)
+    return mesh_object("Ring", bm, grp)
+
+
+def spear(grp, x, z, matrix=Matrix()):
+    lathe(grp, [(0.0, 0.0), (0.12, 0.06), (0.17, 0.26), (0.06, 0.5), (0.0, 0.62)], (x, 0, z), segments=4, matrix=matrix)
+
+
+def tube(grp, points, radii, sides=1):
+    """A smooth tapered tube through `points`: a Bezier spline with a radius per point."""
+    cu = bpy.data.curves.new("Branch", "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth = 1.0
+    cu.bevel_resolution = sides
+    cu.resolution_u = 3 if sides > 0 else 2
+    cu.use_fill_caps = True
+    sp = cu.splines.new("BEZIER")
+    sp.bezier_points.add(len(points) - 1)
+    for bp, p, r in zip(sp.bezier_points, points, radii):
+        bp.co = p
+        bp.handle_left_type = bp.handle_right_type = "AUTO"
+        bp.radius = r
+    obj = bpy.data.objects.new("Branch", cu)
+    bpy.context.scene.collection.objects.link(obj)
+    deps = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(obj.evaluated_get(deps))
+    bpy.data.objects.remove(obj, do_unlink=True)
+    mobj = bpy.data.objects.new("Branch", me)
+    group(grp).objects.link(mobj)
+    return mobj
+
+
 def cut(target, cutters):
     """Boolean-subtract boxes (objects) from `target`, then delete the cutters."""
     coll = bpy.data.collections.new(target.name + "_cut")
@@ -233,7 +284,7 @@ def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, cur
         )
     else:
         box(glass, (w - 0.2, 0.05, h - 0.2), (x, inset + 0.1, y + h / 2), matrix=frame)
-    box("Glow" if lit else "Interior", (w + 2, 0.1, h + 2), (x, T + 2.4, y + h / 2), matrix=frame)
+    box("Interior", (w + 2, 0.1, h + 2), (x, T + 2.4, y + h / 2), matrix=frame)
     if curtains:
         cw = w * rng.uniform(0.28, 0.42)
         box("Curtain", (cw, 0.12, h * 0.95), (x - w / 2 + cw / 2, T + 0.8, y + h / 2), matrix=frame)
@@ -452,7 +503,7 @@ def bay_roof():
     box("Silhouette", (0.35, 0.1, 0.4), (0.1, T + 1.0, 2.25), matrix=af)
     head = af @ frame_matrix((0.32, T + 1.0, 2.85), (0, 0.4, 0))
     lathe("Silhouette", [(0.0, -0.55), (0.4, -0.45), (0.48, 0.0), (0.4, 0.45), (0.0, 0.55)], (0, 0, 0), segments=10, matrix=head)
-    box("Glow", (3.6, 0.1, 5.0), (0, T + 2.4, 2.1), matrix=af)
+    box("Interior", (3.6, 0.1, 5.0), (0, T + 2.4, 2.1), matrix=af)
 
 
 def tower():
@@ -583,7 +634,7 @@ def porch():
     lf = frame_matrix((DOOR["x"] - 3.2, -0.6, FOUND + 6.9))
     box("Iron", (0.9, 0.9, 0.3), (0, 0, 0.75), bevel=0.05, matrix=lf)
     box("Iron", (0.15, 0.8, 0.15), (0, 0.35, 0.95), matrix=lf)
-    box("Glow", (0.6, 0.6, 1.1), (0, 0, 0), matrix=lf)
+    box("LanternGlow", (0.6, 0.6, 1.1), (0, 0, 0), matrix=lf)
     for sx in (-0.3, 0.3):
         for sy in (-0.3, 0.3):
             box("Iron", (0.08, 0.08, 1.2), (sx, sy, 0), matrix=lf)
@@ -620,13 +671,275 @@ def cellar():
     return hinges
 
 
-def gutter():
-    # A gutter along the right eave that has come loose and hangs down at one end.
+def bar(grp, a, b, w, h, bevel=0.04):
+    """A beam of cross-section w x h from point a to point b (h stays as upright as it can)."""
+    a, b = Vector(a), Vector(b)
+    d = b - a
+    x = d.normalized()
+    up = Vector((0, 0, 1)) if abs(x.z) < 0.95 else Vector((0, 1, 0))
+    y = up.cross(x).normalized()
+    z = x.cross(y)
+    m = Matrix((x, y, z)).transposed().to_4x4()
+    m.translation = (a + b) / 2
+    return box(grp, (d.length + 0.02, w, h), (0, 0, 0), bevel=bevel, matrix=m)
+
+
+def downspout(top, wall_y, out, bottom=0.5):
+    """A downspout from a gutter at `top` back to the wall and down it, kicking out at the foot.
+    `out` is the direction away from the wall (+1/-1 along Y)."""
+    top = Vector(top)
+    elbow = Vector((top.x, wall_y + out * 0.35, top.z - 1.0))
+    bar("Iron", top, elbow, 0.36, 0.36)
+    foot = Vector((top.x, wall_y + out * 0.35, bottom + 0.5))
+    bar("Iron", elbow, foot, 0.36, 0.36)
+    bar("Iron", foot, foot + Vector((0, out * 1.1, -0.45)), 0.36, 0.36)
+    for z in (foot.z + 3, (foot.z + elbow.z) / 2, elbow.z - 1.5):
+        box("Iron", (0.5, 0.5, 0.12), (top.x, wall_y + out * 0.35, z))  # straps
+
+
+def gutters():
+    """Gutters along the back eave and the porch roof with downspouts; the back one has torn away at
+    its left end and hangs down the wall."""
     over = 1.4
     slope = (RIDGE_Z - EAVE) / (RIDGE_Y - MAIN["y0"])
-    z = EAVE - over * slope - 0.4
-    box("Iron", (0.5, 18, 0.45), (MAIN["x1"] + 0.6, MAIN["y1"] - 9.5, z), rot=(math.radians(-6), 0, 0), bevel=0.06)
-    box("Iron", (0.4, 0.4, 14), (MAIN["x1"] + 0.6, MAIN["y1"] + 0.6, z - 7.5), rot=(math.radians(8), math.radians(4), 0), bevel=0.06)
+    z = EAVE - over * slope - 0.35
+    gy = MAIN["y1"] + over + 0.3
+    bar("Iron", (-9.5, gy, z), (16.2, gy, z), 0.55, 0.45, bevel=0.08)
+    bar("Iron", (-9.5, gy, z), (-16.0, gy + 0.5, z - 3.6), 0.55, 0.45, bevel=0.08)
+    downspout((15.4, gy, z), MAIN["y1"], 1)
+    # A broken-off downspout stub under the torn end, its lower half lying in the weeds.
+    bar("Iron", (-14.6, MAIN["y1"] + 0.35, 14.0), (-14.6, MAIN["y1"] + 0.35, 6.0), 0.36, 0.36)
+    bar("Iron", (-13.4, MAIN["y1"] + 1.5, 0.2), (-15.6, MAIN["y1"] + 4.8, 0.25), 0.36, 0.36)
+    # Porch roof: a fascia board to give the roof edge some weight, and a gutter under it.
+    x0, x1, y0 = PORCH["x0"], PORCH["x1"], PORCH["y"]
+    roof_low, roof_high = FOUND + 10.2, FOUND + 11.4
+    cx, w = (x0 + x1) / 2, x1 - x0
+    box("PorchTrim", (w + 1.0, 0.3, 0.85), (cx, y0 - 0.85, roof_low + 0.1), bevel=0.05)
+    box("PorchTrim", (w + 1.1, 0.5, 0.18), (cx, y0 - 0.8, roof_low + 0.6), bevel=0.04)  # drip edge
+    for x in (x0 - 0.5, x1 + 0.5):
+        bar("PorchTrim", (x, y0 - 0.85, roof_low + 0.15), (x, -0.2, roof_high + 0.15), 0.3, 0.85)
+    gz = roof_low - 0.05
+    bar("Iron", (x0 - 0.5, y0 - 1.25, gz), (x1 + 0.7, y0 - 1.25, gz), 0.5, 0.42, bevel=0.07)
+    top = Vector((x1 + 0.45, y0 - 1.25, gz))
+    bar("Iron", top, top + Vector((0, 0, -(gz - 0.6))), 0.34, 0.34)
+    bar("Iron", Vector((top.x, top.y, 0.6)), Vector((top.x, top.y - 1.1, 0.15)), 0.34, 0.34)
+
+
+def back_entry():
+    """Stone steps down from the back stoop, an iron handrail, and a little hood over the door."""
+    bx = -8.0
+    stoop_y = MAIN["y1"] + 4
+    for s_ in range(1, 4):
+        top = FOUND - s_ * FOUND / 4
+        box("Stone", (5.0, 1.0, top), (bx, stoop_y + (s_ - 0.5) * 1.0, top / 2), rot=(0, 0, math.radians((s_ - 2) * 1.2)), bevel=0.06)
+    rail_x = bx - 2.8
+    for y, z0 in ((MAIN["y1"] + 0.6, FOUND), (stoop_y + 2.8, 0.0)):
+        box("Iron", (0.14, 0.14, 3.2), (rail_x, y, z0 + 1.6))
+        lathe("Iron", [(0.12, 0), (0.12, 0.1), (0.05, 0.25), (0.0, 0.32)], (rail_x, y, z0 + 3.2), segments=6)
+    bar("Iron", (rail_x, MAIN["y1"] + 0.4, FOUND + 3.0), (rail_x, stoop_y, FOUND + 3.0), 0.16, 0.12)
+    bar("Iron", (rail_x, stoop_y, FOUND + 3.0), (rail_x, stoop_y + 3.0, 3.0), 0.16, 0.12)
+    # Hood: a shed roof on two scrolled brackets above the door casing.
+    hz = FOUND + DOOR["h"] + 1.5 + 1.4
+    slab("Roof", (bx, MAIN["y1"] + 3.0, hz), (bx, MAIN["y1"] + 0.1, hz + 1.3), 6.6, 0.4)
+    box("Trim", (6.7, 0.25, 0.55), (bx, MAIN["y1"] + 3.1, hz - 0.05), bevel=0.04)
+    for side in (-1, 1):
+        prism(
+            "Trim",
+            [(0, 0), (2.7, 0), (2.5, -0.35), (1.6, -0.6), (0.7, -1.2), (0.25, -1.9), (0, -2.3)],
+            0.25,
+            frame_matrix((bx + side * 2.9 + 0.125, MAIN["y1"], hz - 0.05), (0, 0, math.pi / 2)),
+        )
+
+
+def cresting():
+    """Cast-iron cresting along the main ridge: spear tips and rings on a rail, finials at the ends."""
+    top = RIDGE_Z + 0.83
+    x0, x1 = MAIN["x0"] - 0.4, MAIN["x1"] + 0.4
+    bar("Iron", (x0, RIDGE_Y, top + 0.15), (x1, RIDGE_Y, top + 0.15), 0.12, 0.12, bevel=0.02)
+    bar("Iron", (x0, RIDGE_Y, top + 0.75), (x1, RIDGE_Y, top + 0.75), 0.1, 0.1, bevel=0.02)
+    n = 36
+    for i in range(n + 1):
+        x = x0 + (x1 - x0) * i / n
+        if i in (12, 13):
+            continue  # a stretch has snapped off
+        box("Iron", (0.09, 0.09, 0.95), (x, RIDGE_Y, top + 0.5))
+        spear("Iron", 0, 0, matrix=Matrix.Translation((x, RIDGE_Y, top + 0.97)) @ Matrix.Scale(0.8, 4))
+        if i < n:
+            torus("Iron", (x + (x1 - x0) / n / 2, RIDGE_Y, top + 0.45), 0.2, 0.035, Matrix(), segments=10, sides=4)
+    for x in (x0 - 0.3, x1 + 0.3):
+        lathe("Iron", [(0.2, 0), (0.2, 0.3), (0.32, 0.5), (0.12, 0.8), (0.1, 1.8), (0.25, 2.1), (0.1, 2.4), (0.0, 3.1)], (x, RIDGE_Y, top - 0.2), segments=8)
+
+
+detail = random.Random(21)  # the newer details roll their own dice so the older pieces keep their shapes
+
+
+def creeper(base, height, sideways, runners=(), radius=0.2):
+    """A dead creeper: a woody stem climbing from `base` (wobbling `sideways`, a unit vector along
+    the wall) and runners that wander off it. `runners` are (height, end offset, droop) in world
+    space; each runner leaves the stem at that height and ends at stem point + offset."""
+    base = Vector(base)
+    sideways = Vector(sideways)
+    pts, radii = [], []
+    z = 0.0
+    while z < height:
+        pts.append(base + sideways * detail.uniform(-0.25, 0.25) + Vector((0, 0, z)))
+        radii.append(radius * (1 - 0.65 * z / height))
+        z += detail.uniform(1.1, 1.8)
+    tube("Vines", pts, radii)
+    for h, off, droop in runners:
+        start = base + Vector((0, 0, h))
+        off = Vector(off)
+        tip = start + off
+        n = 8
+        run, rr = [], []
+        for i in range(n + 1):
+            t = i / n
+            wave = math.sin(t * math.pi * 3 + h) * 0.35 * min(1.0, off.length / 4)
+            run.append(start + off * t + Vector((0, 0, droop * math.sin(t * math.pi) + wave * t)))
+            rr.append(max(0.03, radius * 0.5 * (1 - 0.8 * t)))
+        tube("Vines", run, rr, sides=0)
+        # A few curling tendrils off each runner.
+        for t in (0.35, 0.7):
+            p = start.lerp(tip, t) + Vector((0, 0, droop * 0.6))
+            curl = Vector((detail.uniform(-0.4, 0.4), detail.uniform(-0.4, 0.4), detail.uniform(-0.6, 0.6)))
+            tube("Vines", [p, p + curl * 0.6, p + curl + Vector((0, 0, -0.25))], [0.05, 0.04, 0.02], sides=0)
+
+
+def spiral_vine(x, y, z0, z1, r=0.5, turns=2.5):
+    pts, radii = [], []
+    n = int(turns * 8)
+    for i in range(n + 1):
+        t = i / n
+        a = t * turns * 2 * math.pi + 0.6 + detail.uniform(-0.25, 0.25)
+        rr = r + detail.uniform(-0.05, 0.08)
+        pts.append(Vector((x + math.cos(a) * rr, y + math.sin(a) * rr, z0 + (z1 - z0) * (t + detail.uniform(-0.02, 0.02)))))
+        radii.append(0.095 * (1 - 0.45 * t))
+    tube("Vines", pts, radii, sides=0)
+    return pts[-1]
+
+
+def vines():
+    # Up the bay's front corner, spreading over the side wall (there's room between its windows).
+    creeper(
+        (BAY["x0"] - 0.6, BAY["y"] - 0.6, 0.2),
+        22.0,
+        (0.7, -0.7, 0),
+        runners=[
+            (4.0, (-0.1, 6.0, 1.5), -0.6),
+            (9.5, (-0.1, 7.5, -2.0), 0.8),
+            (14.0, (-0.1, 5.5, 3.0), -0.5),
+            (18.5, (-0.1, 4.5, -1.5), 0.6),
+            (7.0, (1.3, -0.1, 2.5), 0.3),
+            (12.5, (1.2, -0.1, -1.8), -0.3),
+        ],
+        radius=0.22,
+    )
+    # Up the tower's front-left corner, hugging it (the windows sit close either side).
+    lean = frame_matrix((TOWER["x"], TOWER["y"], 0), (math.radians(-1.4), math.radians(2.0), 0))
+    corner = lean @ frame_matrix((0, 0, 0), (0, 0, -math.pi / 8))
+    r = TOWER["apothem"] / math.cos(math.pi / 8) + 0.55
+    pts, radii = [], []
+    z = FOUND
+    while z < TOWER["eave"] - 2:
+        p = corner @ Vector((detail.uniform(-0.25, 0.25), -r, z))
+        pts.append(p)
+        radii.append(0.18 * (1 - 0.6 * (z - FOUND) / (TOWER["eave"] - FOUND)))
+        z += detail.uniform(1.2, 1.9)
+    tube("Vines", pts, radii)
+    for h in (6.0, 10.5, 15.0, 21.0, 26.0):
+        side = detail.choice((-1, 1))
+        start = corner @ Vector((0, -r, FOUND + h))
+        tip = corner @ Vector((side * 1.1, -r + 0.2, FOUND + h + detail.uniform(-1.4, 1.4)))
+        tube("Vines", [start, start.lerp(tip, 0.5) + Vector((0, 0, 0.3)), tip], [0.08, 0.06, 0.03], sides=0)
+    # Round two porch posts and a little way along the beam.
+    post_y = PORCH["y"] + 0.5
+    roof_low = FOUND + 10.2
+    for x, along in ((PORCH["x0"] + 0.4, 1), (PORCH["x1"] - 0.4, -1)):
+        end = spiral_vine(x, post_y, FOUND, roof_low - 1.4, r=0.48, turns=2.6)
+        beam_y = post_y - 0.45
+        pts = [end, Vector((x + along * 0.6, beam_y, roof_low - 1.1))]
+        for i in range(1, 5):
+            pts.append(Vector((x + along * (0.6 + i * 1.2), beam_y, roof_low - 1.0 + detail.uniform(-0.35, 0.35))))
+        tube("Vines", pts, [0.08, 0.07, 0.06, 0.05, 0.04, 0.03], sides=0)
+        for p in pts[2::2]:
+            tube("Vines", [p, p + Vector((detail.uniform(-0.3, 0.3), -0.1, -1.2)), p + Vector((detail.uniform(-0.5, 0.5), -0.15, -2.1))], [0.04, 0.03, 0.02], sides=0)
+
+
+def pumpkin(loc, size, yaw, carved=False, rotten=False):
+    """A ribbed pumpkin. A carved one is hollow with a face cut through it and a candle glow inside;
+    a rotten one has slumped and caved in on one side."""
+    bm = bmesh.new()
+    segs, rings = 20, 10
+    grid = []
+    for j in range(1, rings):
+        phi = -math.pi / 2 + j / rings * math.pi
+        row = []
+        for i in range(segs):
+            a = 2 * math.pi * i / segs
+            rib = 0.9 + 0.1 * abs(math.cos(a * 5))
+            rr = math.cos(phi) * size * rib
+            zz = (math.sin(phi) * 0.62 + 0.62) * size
+            if rotten:
+                zz *= 0.85
+                zz -= max(0.0, math.cos(a - 0.6)) * max(0.0, math.sin(phi)) * 0.35 * size
+                rr *= 1.08
+            row.append(bm.verts.new((math.cos(a) * rr, math.sin(a) * rr, zz)))
+        grid.append(row)
+    for j in range(len(grid) - 1):
+        for i in range(segs):
+            k = (i + 1) % segs
+            bm.faces.new((grid[j][i], grid[j][k], grid[j + 1][k], grid[j + 1][i]))
+    low = bm.verts.new((0, 0, 0.02 * size))
+    high = bm.verts.new((0, 0, (1.18 if not rotten else 0.8) * size))
+    for i in range(segs):
+        k = (i + 1) % segs
+        bm.faces.new((low, grid[0][k], grid[0][i]))
+        bm.faces.new((high, grid[-1][i], grid[-1][k]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    for f in bm.faces:
+        f.smooth = True
+    m = frame_matrix(loc, (0, 0, yaw))
+    bmesh.ops.transform(bm, matrix=m, verts=bm.verts)
+    shell = mesh_object("Pumpkin", bm, "Pumpkin")
+    if carved:
+        inner = lathe("_cutters", [(0.01, size * 0.22), (size * 0.66, size * 0.35), (size * 0.74, size * 0.62), (size * 0.58, size * 0.95), (0.01, size * 1.05)], (0, 0, 0), segments=12, matrix=m)
+        face = m @ Matrix.Translation((0, -size * 1.4, size * 0.62))
+        cutters = [inner]
+        for ex in (-0.32, 0.32):
+            eye = [((ex - 0.14) * size, 0.08 * size), ((ex + 0.14) * size, 0.08 * size), ((ex + ex * 0.3) * size, 0.34 * size)]
+            cutters.append(prism("_cutters", eye, size * 1.2, face))
+        mouth = [(-0.42, -0.06), (-0.27, -0.14), (-0.18, -0.06), (-0.06, -0.16), (0.06, -0.06), (0.17, -0.16), (0.28, -0.08), (0.42, -0.04), (0.3, -0.3), (0.0, -0.37), (-0.3, -0.3)]
+        cutters.append(prism("_cutters", [(x * size, z * size) for x, z in reversed(mouth)], size * 1.2, face))
+        cut(shell, cutters)
+        lathe("PumpkinGlow", [(0.01, size * 0.3), (size * 0.35, size * 0.4), (size * 0.4, size * 0.6), (size * 0.3, size * 0.8), (0.01, size * 0.85)], (0, 0, 0), segments=8, matrix=m)
+    stem = (1.15 if not rotten else 0.75) * size
+    tube("Vines", [m @ Vector((0, 0, stem - 0.1)), m @ Vector((0.05, 0.02, stem + 0.2 * size)), m @ Vector((0.18 * size, 0.05, stem + 0.3 * size))], [0.12 * size, 0.1 * size, 0.07 * size], sides=0)
+
+
+def clutter():
+    """Things left on the porch and steps: jack-o'-lanterns (one guttering on the top step, one by
+    the door), a rotten one slumped on a lower step, and an iron urn of dead stalks."""
+    step1 = FOUND - FOUND / 4
+    step2 = FOUND - 2 * FOUND / 4
+    y0 = PORCH["y"]
+    pumpkin((DOOR["x"] - 2.05, y0 - 0.58, step1), 0.62, math.radians(-15), carved=True)
+    pumpkin((DOOR["x"] + 2.1, y0 - 1.72, step2), 0.55, math.radians(30), rotten=True)
+    pumpkin((DOOR["x"] + 3.0, -1.0, FOUND), 0.5, math.radians(20), carved=True)
+    pot = frame_matrix((PORCH["x0"] + 1.4, y0 + 1.0, FOUND), (0, 0, 0.4))
+    lathe(
+        "Iron",
+        [(0.45, 0), (0.45, 0.12), (0.2, 0.25), (0.14, 0.5), (0.3, 0.6), (0.55, 0.75), (0.68, 1.05), (0.72, 1.2), (0.62, 1.22), (0.01, 1.1)],
+        (0, 0, 0),
+        segments=14,
+        matrix=pot,
+    )
+    for i in range(5):
+        a = i * 1.3
+        d = Vector((math.cos(a), math.sin(a), 0))
+        p0 = pot @ Vector((d.x * 0.2, d.y * 0.2, 1.1))
+        p1 = pot @ Vector((d.x * 0.35, d.y * 0.35, 2.0 + detail.uniform(-0.3, 0.3)))
+        p2 = pot @ Vector((d.x * (0.8 + detail.uniform(0, 0.4)), d.y * 0.9, 1.7 + detail.uniform(-0.6, 0.2)))
+        tube("Vines", [p0, p1, p2], [0.05, 0.035, 0.02], sides=0)
 
 
 # Materials ---------------------------------------------------------------------------------------
@@ -804,7 +1117,12 @@ def build_materials():
     glass.node_tree.nodes["Principled BSDF"].inputs["Alpha"].default_value = 0.4
     glass.surface_render_method = "BLENDED"
     MATERIALS["Glass"] = glass
-    MATERIALS["Glow"] = textured("Glow", None, tint=(0.25, 0.1, 0.03, 1), rough=0.9, emission=((1.0, 0.5, 0.2, 1), 1.6))
+    glow = textured("Glow", None, tint=(0.25, 0.1, 0.03, 1), rough=0.9, emission=((1.0, 0.5, 0.2, 1), 1.6))
+    MATERIALS["LanternGlow"] = MATERIALS["PumpkinGlow"] = glow
+    MATERIALS["Vines"] = textured("Vines", "bark_willow", tint=(0.32, 0.3, 0.29, 1), dirt=0.5)
+    UV_RULES["Vines"] = (2.0, "vertical")
+    MATERIALS["Pumpkin"] = textured("Pumpkin", "concrete_wall_006", paint=(0.62, 0.22, 0.03, 1), rough=0.75, dirt=0.8, moss=0.55)
+    UV_RULES["Pumpkin"] = (1.5, "vertical")
     MATERIALS["Silhouette"] = textured("Silhouette", None, tint=(0.005, 0.005, 0.005, 1), rough=1.0)
     MATERIALS["Curtain"] = textured("Curtain", None, tint=(0.3, 0.26, 0.24, 1), rough=1.0)
     iron = textured("Iron", None, tint=(0.05, 0.05, 0.055, 1), rough=0.55, metal=0.8)
@@ -892,6 +1210,9 @@ def setup_render(name, night):
         "corner": ((34, -40, 12), (2, 4, 15)),
         "porch": ((-2, -24, 6), (2, -4, 8)),
         "back": ((-28, 58, 14), (0, 12, 14)),
+        "steps": ((-2, -19, 4.5), (1.5, -9, 2.6)),
+        "bay": ((-30, -16, 8), (-14, 2, 12)),
+        "roof": ((-20, -30, 44), (0, 12, 36)),
     }
     if night:
         bg.inputs["Color"].default_value = (0.004, 0.005, 0.008, 1)
@@ -949,7 +1270,11 @@ def build():
     tower()
     porch()
     cellar_hinges = cellar()
-    gutter()
+    gutters()
+    back_entry()
+    cresting()
+    vines()
+    clutter()
     # Remove leftover cutter collection if any.
     if "_cutters" in GROUPS:
         for obj in list(GROUPS["_cutters"].objects):
@@ -981,4 +1306,7 @@ if __name__ == "__main__":
     merged, *_ = build()
     if "--render" in ARGS:
         name = ARGS[ARGS.index("--render") + 1]
-        render(name, night="--night" in ARGS, views=("front", "corner", "porch") if "--night" not in ARGS else ("front", "porch"))
+        views = ("front", "corner", "porch") if "--night" not in ARGS else ("front", "porch")
+        if "--views" in ARGS:
+            views = ARGS[ARGS.index("--views") + 1].split(",")
+        render(name, night="--night" in ARGS, views=views)

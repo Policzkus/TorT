@@ -1056,9 +1056,19 @@ local function yard(
 	end
 	-- Wrought-iron fence with spear tops, stone pillars at a gate left hanging open.
 	local gateW = 4.4
+	-- An invisible wall so nobody walks through the bars (the bars themselves are decoration).
+	local function blocker(parent: Instance, size: Vector3, cframe: CFrame): BasePart
+		local collider = b:part("Collision", size, cframe, "dark", parent)
+		collider.Transparency = 1
+		collider.CanQuery = false
+		collider.CanTouch = false
+		collider.CastShadow = false
+		return collider
+	end
 	local function fence(xa: number, xb: number)
 		local len = math.abs(xb - xa)
 		local cx = (xa + xb) / 2
+		blocker(b.house, Vector3.new(len, 4.6, 0.4), at(cx, 2.3, fenceZ))
 		b:decor("FenceRail", Vector3.new(len, 0.15, 0.15), at(cx, 3.6, fenceZ), "iron")
 		b:decor("FenceRail", Vector3.new(len, 0.15, 0.15), at(cx, 0.6, fenceZ), "iron")
 		for i = 0, math.floor(len / 0.8) do
@@ -1096,8 +1106,10 @@ local function yard(
 	end
 	b:decor("GateRail", Vector3.new(gateW, 0.18, 0.18), at(DOOR.x, 3.9, fenceZ), "iron", gate)
 	local gateRail = b:part("Slab", Vector3.new(gateW, 0.18, 0.18), at(DOOR.x, 0.7, fenceZ), "iron", gate)
-	Parts.prompt(gateRail, "Open", "Gate", 8)
-	gate:PivotTo(gate:GetPivot() * CFrame.Angles(0, math.rad(-28 * m), 0)) -- left ajar, into the yard
+	Parts.prompt(gateRail, "Close", "Gate", 8)
+	blocker(gate, Vector3.new(gateW - 0.2, 4.2, 0.3), at(DOOR.x, 2.3, fenceZ)) -- swings with the gate
+	-- Left standing open (so the path is free); anyone can swing it shut.
+	gate:SetAttribute("Open", true)
 
 	-- A dead tree, a leaning mailbox and two small graves under the bay window.
 	Props.tree(b.house, at(-(half - 2), 0, fenceZ + 2.2), b.rng, "dead")
@@ -1111,14 +1123,246 @@ local function yard(
 	end
 end
 
+-- The yard set modelled in Blender (art/scripts/yard.py, filed by tools/setup_yard.luau): an iron
+-- fence whose panels stretch to fit the lot, stone pillars and an arched gate left hanging open, a
+-- stepping stone, a dead tree, a mailbox, and two graves under the bay window. Works in the lot's
+-- own frame (x across, -z toward the street), where the imported house's door is at x = -DOOR.x.
+local function blenderYard(b: Builder, set: Instance, yardDepth: number, lotWidth: number)
+	local function at(x: number, y: number, z: number): CFrame
+		return b.base * CFrame.new(x, y, z)
+	end
+	local function place(name: string, cframe: CFrame, parent: Instance?): PVInstance
+		local piece = (set:FindFirstChild(name) :: PVInstance):Clone()
+		piece:PivotTo(cframe)
+		piece.Parent = parent or b.house
+		return piece
+	end
+	local function spin(amount: number): CFrame
+		return CFrame.Angles(0, b.rng:range(-amount, amount), 0)
+	end
+	local function blocker(parent: Instance, size: Vector3, cframe: CFrame, shape: Enum.PartType?): BasePart
+		local collider = b:part("Collision", size, cframe, "dark", parent)
+		collider.Transparency = 1
+		collider.CanQuery = false
+		collider.CanTouch = false
+		collider.CastShadow = false
+		if shape then
+			collider.Shape = shape
+		end
+		return collider
+	end
+	local doorX = -DOOR.x
+	local fenceZ = -(yardDepth - 0.6)
+	local half = lotWidth / 2 - 1
+	local gateW = 4.4
+	local pillarX = gateW / 2 + 0.85
+	b:decor("Lawn", Vector3.new(half * 2, 0.1, yardDepth - 1), at(0, 0.06, fenceZ / 2), "lawn")
+
+	-- Stepping stones from the steps to the gate.
+	local z, i = PORCH.z - 4.3, 0
+	while z > fenceZ + 0.6 do
+		local flip = if i % 2 == 0 then 0 else math.pi
+		place(
+			if i % 2 == 0 then "Flag1" else "Flag2",
+			at(doorX + b.rng:range(-0.3, 0.3), 0.02, z) * spin(0.4) * CFrame.Angles(0, flip, 0)
+		)
+		z -= 2.1 + b.rng:range(0.1, 0.4)
+		i += 1
+	end
+
+	-- The fence: panels stretched to share each run evenly, posts between them.
+	local template = set:FindFirstChild("FencePanel") :: MeshPart
+	local stretch = template:GetAttribute("StretchAxis") :: Vector3
+	local length = template:GetAttribute("Length") :: number
+	local function fence(xa: number, xb: number, firstPost: boolean, lastPost: boolean)
+		local run = xb - xa
+		blocker(b.house, Vector3.new(run, 4.6, 0.4), at((xa + xb) / 2, 2.3, fenceZ))
+		local n = math.max(1, math.floor(run / length + 0.5))
+		local w = run / n
+		for k = 0, n - 1 do
+			-- Turning some panels round keeps the baked rust from repeating.
+			local turn = if b.rng:chance(0.5) then math.pi else 0
+			local panel = place("FencePanel", at(xa + (k + 0.5) * w, 0, fenceZ) * CFrame.Angles(0, turn, 0)) :: MeshPart
+			panel.Size += panel.Size * stretch * (w / length - 1)
+		end
+		for k = 0, n do
+			if (k > 0 and k < n) or (k == 0 and firstPost) or (k == n and lastPost) then
+				place("FencePost", at(xa + k * w, 0, fenceZ) * spin(0.05))
+			end
+		end
+	end
+	fence(-half, doorX - pillarX - 0.75, true, false) -- no post against the pillars
+	fence(doorX + pillarX + 0.75, half, false, true)
+	for _, side in { -1, 1 } do
+		place("Pillar", at(doorX + side * pillarX, 0, fenceZ) * spin(0.03))
+	end
+	-- The gate hangs from one pillar and stands open into the yard; anyone can swing it shut.
+	local gate = hinged(b, "Gate", at(doorX + gateW / 2, 2.3, fenceZ), 70, true)
+	local leaf = place("Gate", at(doorX + gateW / 2, 0, fenceZ), gate) :: BasePart
+	leaf.Name = "Panel" -- where HingeController plays its creak
+	Parts.prompt(leaf, "Close", "Gate", 8)
+	blocker(gate, Vector3.new(gateW - 0.2, 4.2, 0.3), at(doorX, 2.3, fenceZ)) -- swings with the gate
+	gate:SetAttribute("Open", true)
+
+	-- A dead tree by the fence, a mailbox by the gate, two graves under the bay window.
+	local treeAt = at(half - 2.5, 0, fenceZ + 2.5)
+	place(if b.rng:chance(0.5) then "Tree" else "Tree2", treeAt * CFrame.Angles(0, b.rng:range(0, 2 * math.pi), 0))
+	blocker(
+		b.house,
+		Vector3.new(8, 2, 2),
+		treeAt * CFrame.new(0, 4, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Enum.PartType.Cylinder
+	)
+	place("Mailbox", at(doorX - pillarX - 1.7, 0, fenceZ + 1.2) * spin(0.15))
+	place("Grave1", at(7.5, 0, -10.2) * spin(0.3))
+	place("Grave2", at(10.8, 0, -10.8) * spin(0.3))
+end
+
 -- Dresses the lot around the imported Blender model (ReplicatedStorage.Assets.Houses.Victorian,
--- art/scripts/victorian.py): the same yard as the built version. The model's x runs the other way
--- (its front door is at x = -1.5), so this mirrors x.
+-- art/scripts/victorian.py): the Blender yard set if it's been imported, else the built yard. The
+-- model's x runs the other way (its front door is at x = -1.5), so the built yard mirrors x.
+-- Windows of the imported model -----------------------------------------------------------------
+-- Rooms rendered in Blender (art/scripts/rooms.py) shown behind the glass: lit ones glow at night
+-- (LightInfluence 0), dark ones (dust sheets, furniture) only show in a flashlight.
+local LIT_ROOMS = {
+	{ image = "rbxassetid://122268043054776", light = Color3.fromRGB(255, 160, 90) }, -- lamp
+	{ image = "rbxassetid://126946836008023", light = Color3.fromRGB(150, 180, 255) }, -- TV
+	{ image = "rbxassetid://114275148305282", light = Color3.fromRGB(255, 190, 120) }, -- bare bulb, figure
+	{ image = "rbxassetid://122550572189554", light = Color3.fromRGB(255, 140, 70) }, -- candle
+}
+local ATTIC_ROOM = { image = "rbxassetid://106918002247257", light = Color3.fromRGB(255, 150, 80) }
+local DARK_ROOMS = { "rbxassetid://96184684858098", "rbxassetid://102427378023340" }
+local MODEL_WALL = 0.9 -- victorian.py's wall thickness
+
+-- In victorian.py's coordinates (x right, y back from the street, z up): the centre of the
+-- opening on the wall's outer face, its size, and which way it faces.
+type WindowSpec = { x: number, y: number, z: number, w: number, h: number, out: Vector3, attic: boolean? }
+
+local function blenderWindows(): { WindowSpec }
+	local list: { WindowSpec } = {}
+	local function add(x: number, y: number, z: number, w: number, h: number, out: Vector3, attic: boolean?)
+		table.insert(list, { x = x, y = y, z = z, w = w, h = h, out = out, attic = attic })
+	end
+	local f1, f2 = FOUND + 2.4 + 3, FOUND + STORY + 2.4 + 3
+	local front, back, left, right =
+		Vector3.new(0, -1, 0), Vector3.new(0, 1, 0), Vector3.new(-1, 0, 0), Vector3.new(1, 0, 0)
+	-- Bay: the big window, two upstairs; the window over the door is boarded up.
+	add(-9, -4, FOUND + 2.2 + 3.3, 7, 6.6, front)
+	add(-12, -4, FOUND + STORY + 2.2 + 3.1, 2.8, 6.2, front)
+	add(-6, -4, FOUND + STORY + 2.2 + 3.1, 2.8, 6.2, front)
+	-- Sides and back (boarded ones left out).
+	add(-15, 6, f1, 3, 6, left)
+	add(-15, 17, f1, 3, 6, left)
+	add(-15, 17, f2, 3, 6, left)
+	add(15, 11, f1, 3, 6, right)
+	add(15, 11, f2, 3, 6, right)
+	add(15, 19, f1, 3, 6, right)
+	add(0, 24, f1, 3, 6, back)
+	add(-8, 24, f2, 3, 6, back)
+	add(0, 24, f2, 3, 6, back)
+	-- The tower, which leans (victorian.py: Rz(0) Ry(2°) Rx(-1.4°) about its base).
+	local ax, ay = math.rad(-1.4), math.rad(2.0)
+	local function lean(p: Vector3): Vector3
+		local v = p - Vector3.new(TOWER.x, TOWER.z, 0)
+		v = Vector3.new(v.X, v.Y * math.cos(ax) - v.Z * math.sin(ax), v.Y * math.sin(ax) + v.Z * math.cos(ax))
+		v = Vector3.new(v.X * math.cos(ay) + v.Z * math.sin(ay), v.Y, -v.X * math.sin(ay) + v.Z * math.cos(ay))
+		return v + Vector3.new(TOWER.x, TOWER.z, 0)
+	end
+	local floors = {
+		{ z = FOUND + 2.6 + 2.8, w = 2.4, h = 5.6 },
+		{ z = FOUND + STORY + 2.6 + 2.8, w = 2.4, h = 5.6 },
+		{ z = FOUND + 2 * STORY + 1.4 + 2.1, w = 2, h = 4.2 },
+	}
+	for _, k in { 0, 1, 7, 2 } do
+		local theta = k * math.pi / 4
+		local n = Vector3.new(math.sin(theta), -math.cos(theta), 0)
+		for i, fl in floors do
+			local boarded = (k == 1 and i == 1) or (k == 2 and i == 2)
+			if not boarded then
+				local c = lean(Vector3.new(TOWER.x, TOWER.z, fl.z) + n * TOWER.apothem)
+				add(c.X, c.Y, c.Z, fl.w, fl.h, n)
+			end
+		end
+	end
+	add(-9, -4, EAVE + 1.9 + 2.1, 2.6, 4.2, front, true) -- the attic, where someone stands
+	return list
+end
+local WINDOWS = blenderWindows()
+
+local function windowRooms(house: Model, base: CFrame, rng: Rng.Rng)
+	local function toWorld(p: Vector3): Vector3
+		return (base * CFrame.new(-p.X, p.Z, p.Y)).Position
+	end
+	-- Which windows have a light on: one to three, plus the attic on some houses.
+	local candidates = {}
+	for i, win in WINDOWS do
+		if not win.attic then
+			table.insert(candidates, i)
+		end
+	end
+	rng:shuffle(candidates)
+	local lit: { [number]: boolean } = {}
+	for n = 1, rng:int(1, 3) do
+		lit[candidates[n]] = true
+	end
+	for i, win in WINDOWS do
+		local isLit = if win.attic then rng:chance(0.4) else lit[i] == true
+		local outward = (base.Rotation * Vector3.new(-win.out.X, 0, win.out.Y)).Unit
+		local face = toWorld(Vector3.new(win.x, win.y, win.z))
+		-- Just in front of the black backing inside the room (and behind the curtains).
+		local centre = face - outward * (MODEL_WALL + 2.2)
+		local plane = Instance.new("Part")
+		plane.Name = "WindowRoom"
+		plane.Anchored, plane.CanCollide, plane.CanQuery, plane.CanTouch, plane.CastShadow =
+			true, false, false, false, false
+		plane.Transparency = 1
+		plane.Size = Vector3.new(win.w + 1.4, win.h + 1.4, 0.05)
+		plane.CFrame = CFrame.lookAt(centre, centre + outward)
+		local room = if win.attic then ATTIC_ROOM else LIT_ROOMS[rng:int(1, #LIT_ROOMS)]
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 24
+		gui.LightInfluence = if isLit then 0 else 1
+		gui.Brightness = if isLit then 1.15 else 1
+		gui.Parent = plane
+		local image = Instance.new("ImageLabel")
+		image.Size = UDim2.fromScale(1, 1)
+		image.BackgroundTransparency = 1
+		image.ScaleType = Enum.ScaleType.Crop
+		image.ResampleMode = Enum.ResamplerMode.Pixelated
+		image.Image = if isLit then room.image else DARK_ROOMS[rng:int(1, #DARK_ROOMS)]
+		image.ImageColor3 = if isLit then Color3.new(1, 1, 1) else Color3.fromRGB(120, 120, 125)
+		image.Parent = gui
+		if isLit then
+			-- Light spilling out through the glass onto the porch and the yard.
+			local light = Instance.new("PointLight")
+			light.Range = if win.attic then 14 else 12
+			light.Brightness = 0.7
+			light.Color = room.light
+			light.Shadows = true
+			local holder = Instance.new("Attachment")
+			holder.Parent = plane
+			holder.WorldPosition = face + outward * 0.8
+			light.Parent = holder
+			plane:SetAttribute("Lit", true)
+		end
+		plane.Parent = house
+	end
+end
+
 function Victorian.dressLot(house: Model, base: CFrame, rng: Rng.Rng, yardDepth: number, lotWidth: number)
 	local b = newBuilder(house, base, rng)
-	yard(b, function(x: number, y: number, z: number): CFrame
-		return base * CFrame.new(-x, y, z)
-	end, yardDepth, lotWidth, -1)
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local set = assets and assets:FindFirstChild("Yard")
+	if set then
+		blenderYard(b, set, yardDepth, lotWidth)
+	else
+		yard(b, function(x: number, y: number, z: number): CFrame
+			return base * CFrame.new(-x, y, z)
+		end, yardDepth, lotWidth, -1)
+	end
+	windowRooms(house, base, rng)
 end
 
 function Victorian.build(
