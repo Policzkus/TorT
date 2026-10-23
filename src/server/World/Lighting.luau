@@ -30,11 +30,12 @@ end
 function Lighting.apply()
 	local cfg = World.LIGHTING
 	LightingService.ClockTime = cfg.clockTime
+	LightingService.GeographicLatitude = cfg.latitude
 	LightingService.Brightness = cfg.brightness
 	LightingService.ExposureCompensation = cfg.exposure
 	LightingService.GlobalShadows = true
-	LightingService.EnvironmentDiffuseScale = 0.15
-	LightingService.EnvironmentSpecularScale = 0.35
+	LightingService.EnvironmentDiffuseScale = cfg.diffuseScale
+	LightingService.EnvironmentSpecularScale = cfg.specularScale
 
 	local sky = ensure("Sky", "NightSky") :: Sky
 	sky.MoonAngularSize = cfg.moonSize

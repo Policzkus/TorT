@@ -17,17 +17,24 @@ return {
 	FAR_AWAY_Y = -5000,
 
 	-- Global lighting (zones tint on top of this, client-side).
+	-- The moon hangs about 40 degrees up over the far end of each street (the latitude tilts it down
+	-- the street at midnight), so it rakes light along the house sides and roofs instead of only
+	-- lighting the tops of things from straight overhead. The fronts read from the cool moonlit
+	-- ambient (per zone, in Config/Neighborhoods) and the warm lights: lanterns, lit windows, lamps.
 	LIGHTING = {
 		clockTime = 0,
-		brightness = 2.2, -- moonlight
-		exposure = 0,
-		moonSize = 20,
+		latitude = -26.5,
+		brightness = 3, -- moonlight
+		exposure = 0.4,
+		diffuseScale = 0.5, -- EnvironmentDiffuseScale: the night sky's fill
+		specularScale = 0.6,
+		moonSize = 18,
 		starCount = 1200,
 		bloomIntensity = 0.9,
 		bloomSize = 26,
 		bloomThreshold = 1.1,
 		fogOffset = 0.25,
-		fogGlare = 0,
-		fogHaze = 1.4,
+		fogGlare = 0.4,
+		fogHaze = 1.6,
 	},
 }

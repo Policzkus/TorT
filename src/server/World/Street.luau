@@ -17,6 +17,7 @@ local Parts = require(script.Parent.Parts)
 local Props = require(script.Parent.Props)
 
 local M = Enum.Material
+local MOON_FILL = Color3.fromRGB(165, 182, 220)
 
 export type HouseInfo = {
 	id: string,
@@ -224,6 +225,19 @@ local function placeHouse(
 	end
 	house.Name = "House_" .. id
 	house.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	-- Moonlight off the fog: a soft cool fill from over the sidewalk, so the yard and the house front
+	-- still read where the next house along throws its long moon shadow (World.LIGHTING). Outside
+	-- the house model, so a Lights Off house doesn't put the moon out too.
+	local fill = Parts.block(
+		parent,
+		"MoonFill_" .. id,
+		Vector3.one * 0.2,
+		lot * CFrame.new(0, 14, -(yard + 7)),
+		"000000",
+		M.SmoothPlastic,
+		{ Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false }
+	)
+	Parts.light(fill, 34, 0.65, MOON_FILL)
 	house:SetAttribute("HouseId", id)
 	local prompt = Parts.prompt(door, "Knock", "Trick or treat!", 10)
 	local info: HouseInfo =

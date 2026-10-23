@@ -16,12 +16,12 @@ local create = require(script.Parent.Parent.UI.create)
 
 local FOV = 70
 local GRADE = {
-	Saturation = -0.32,
-	Contrast = 0.24,
+	Saturation = -0.12,
+	Contrast = 0.08,
 	Brightness = 0.015,
 	TintColor = Color3.fromRGB(226, 234, 228), -- a cold, slightly sick green
 }
-local DEPTH = { FarIntensity = 0.42, FocusDistance = 12, InFocusRadius = 26, NearIntensity = 0 }
+local DEPTH = { FarIntensity = 0.12, FocusDistance = 40, InFocusRadius = 70, NearIntensity = 0 }
 local GRAIN_TRANSPARENCY = 0.9
 local GRAIN_TILE = 256
 local SCANLINE_TRANSPARENCY = 0.88
