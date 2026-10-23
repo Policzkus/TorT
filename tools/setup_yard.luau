@@ -22,12 +22,19 @@ local up = post.CFrame:VectorToWorldSpace(Vector3.yAxis)
 assert(math.abs(up.Y) > 0.99, "expected the import to keep Y up")
 local origin = CFrame.new(post.Position - Vector3.new(0, post.Size.Y / 2, 0))
 
--- Which way is Blender +X in the world? The fence panel runs from x = 0 to 4, centred on the
--- fence line.
+-- Which way is Blender +X in the world? Along the fence panel's long horizontal axis (it runs from
+-- x = 0 to 4), pointing away from the post.
 local panel = mesh("FencePanel")
-local blenderX = (panel.Position - origin.Position) * Vector3.new(1, 0, 1)
-assert(math.abs(blenderX.Magnitude - 2) < 0.05, "fence panel should sit 2 studs from the post")
-blenderX = blenderX.Unit
+local offset = (panel.Position - origin.Position) * Vector3.new(1, 0, 1)
+assert(math.abs(offset.Magnitude - 2) < 0.2, "fence panel should sit 2 studs from the post")
+local blenderX = Vector3.zero
+local sizes = { panel.Size.X, panel.Size.Y, panel.Size.Z }
+for i, axis in { panel.CFrame.RightVector, panel.CFrame.UpVector, panel.CFrame.LookVector } do
+	if math.abs(axis.Y) < 0.5 and math.abs(sizes[i] - 4) < 0.05 then
+		blenderX = if axis:Dot(offset) > 0 then axis else -axis
+	end
+end
+assert(blenderX.Magnitude > 0.5, "couldn't find the fence panel's length")
 -- Pivot frame: RightVector = Blender -X, UpVector = Y, LookVector (street) = Blender -Y.
 local right = -blenderX
 local look = Vector3.yAxis:Cross(right) -- right = look x up  =>  look = up x right
@@ -53,7 +60,7 @@ panel:SetAttribute("StretchAxis", Vector3.new(math.abs(along.X), math.abs(along.
 panel:SetAttribute("Length", 4)
 panel.Parent = folder
 
-for _, name in { "FencePost", "Gate", "Tree", "Tree2", "Flag1", "Flag2" } do
+for _, name in { "FencePost", "GateLeaf", "Tree", "Tree2", "Flag1", "Flag2" } do
 	local part = mesh(name)
 	file(part, origin, false)
 	part.Parent = folder

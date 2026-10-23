@@ -21,8 +21,29 @@ local function hingedModel(prompt: ProximityPrompt): Model?
 	return nil
 end
 
+-- The model and any siblings that share its Group attribute (the two leaves of a double gate,
+-- which open and shut together from one prompt).
+local function leaves(model: Model): { Model }
+	local list = { model }
+	local group = model:GetAttribute("Group")
+	if group ~= nil and model.Parent then
+		for _, other in model.Parent:GetChildren() do
+			if
+				other ~= model
+				and other:GetAttribute("Group") == group
+				and CollectionService:HasTag(other, "Hinged")
+			then
+				table.insert(list, other :: Model)
+			end
+		end
+	end
+	return list
+end
+
 local function setOpen(model: Model, prompt: ProximityPrompt, open: boolean)
-	model:SetAttribute("Open", open)
+	for _, leaf in leaves(model) do
+		leaf:SetAttribute("Open", open)
+	end
 	prompt.ActionText = if open then "Close" else "Open"
 	if open then
 		local stamp = os.clock()

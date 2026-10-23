@@ -1124,9 +1124,23 @@ local function yard(
 end
 
 -- The yard set modelled in Blender (art/scripts/yard.py, filed by tools/setup_yard.luau): an iron
--- fence whose panels stretch to fit the lot, stone pillars and an arched gate left hanging open, a
+-- fence whose panels stretch to fit the lot, stone pillars and an arched double gate left open, a
 -- stepping stone, a dead tree, a mailbox, and two graves under the bay window. Works in the lot's
 -- own frame (x across, -z toward the street), where the imported house's door is at x = -DOOR.x.
+local YARD_PIECES = {
+	"FencePanel",
+	"FencePost",
+	"Pillar",
+	"GateLeaf",
+	"Tree",
+	"Tree2",
+	"Mailbox",
+	"Grave1",
+	"Grave2",
+	"Flag1",
+	"Flag2",
+}
+
 local function blenderYard(b: Builder, set: Instance, yardDepth: number, lotWidth: number)
 	local function at(x: number, y: number, z: number): CFrame
 		return b.base * CFrame.new(x, y, z)
@@ -1196,13 +1210,21 @@ local function blenderYard(b: Builder, set: Instance, yardDepth: number, lotWidt
 	for _, side in { -1, 1 } do
 		place("Pillar", at(doorX + side * pillarX, 0, fenceZ) * spin(0.03))
 	end
-	-- The gate hangs from one pillar and stands open into the yard; anyone can swing it shut.
-	local gate = hinged(b, "Gate", at(doorX + gateW / 2, 2.3, fenceZ), 70, true)
-	local leaf = place("Gate", at(doorX + gateW / 2, 0, fenceZ), gate) :: BasePart
-	leaf.Name = "Panel" -- where HingeController plays its creak
-	Parts.prompt(leaf, "Close", "Gate", 8)
-	blocker(gate, Vector3.new(gateW - 0.2, 4.2, 0.3), at(doorX, 2.3, fenceZ)) -- swings with the gate
-	gate:SetAttribute("Open", true)
+	-- A double gate (the yard is too shallow for one wide leaf to clear the steps), standing open
+	-- into the yard. One prompt swings both leaves (HingeService, Group). The second leaf is the
+	-- same mesh turned round, so it opens the other way.
+	for _, side in { 1, -1 } do
+		local hinge = at(doorX + side * gateW / 2, 0, fenceZ) * CFrame.Angles(0, if side < 0 then math.pi else 0, 0)
+		local gate = hinged(b, "Gate", hinge, side * 80, true)
+		gate:SetAttribute("Group", "Gate")
+		local leaf = place("GateLeaf", hinge, gate) :: BasePart
+		leaf.Name = "Panel" -- where HingeController plays its creak
+		blocker(gate, Vector3.new(gateW / 2 - 0.2, 4.2, 0.3), hinge * CFrame.new(-gateW / 4, 2.3, 0)) -- swings with it
+		if side > 0 then
+			Parts.prompt(leaf, "Close", "Gate", 8)
+		end
+		gate:SetAttribute("Open", true)
+	end
 
 	-- A dead tree by the fence, a mailbox by the gate, two graves under the bay window.
 	local treeAt = at(half - 2.5, 0, fenceZ + 2.5)
@@ -1355,7 +1377,11 @@ function Victorian.dressLot(house: Model, base: CFrame, rng: Rng.Rng, yardDepth:
 	local b = newBuilder(house, base, rng)
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local set = assets and assets:FindFirstChild("Yard")
-	if set then
+	local complete = set ~= nil
+	for _, piece in YARD_PIECES do
+		complete = complete and set:FindFirstChild(piece) ~= nil
+	end
+	if complete then
 		blenderYard(b, set, yardDepth, lotWidth)
 	else
 		yard(b, function(x: number, y: number, z: number): CFrame
