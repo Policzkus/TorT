@@ -163,7 +163,7 @@ function HouseService.reroll()
 			owner = rng:pick(Dialogue.ORDER),
 			preference = rng:pick(HouseTypes.PREFERENCES),
 		})
-		HomeownerService.roll(house.model)
+		HomeownerService.roll(house.model, house.neighborhood)
 	end
 	HouseService.Rerolled:Fire()
 end

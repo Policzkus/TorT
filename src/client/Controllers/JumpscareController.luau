@@ -1,6 +1,6 @@
 --!strict
--- Jumpscares (PROMPT §3.19), all client-side: camera locks onto the door, the door bursts open and
--- the ghost lunges at the camera with a stinger, shake and a red flash.
+-- Jumpscares (PROMPT §3.19), all client-side: camera locks onto the door and the house's homeowner
+-- (HomeownerController) lunges at the camera with a stinger, shake and a red flash.
 -- Settings → Jumpscares: Full | Reduced (no stinger, no flash) | Off (a "BOO!" text pop).
 -- A ~45 s global cooldown keeps scares effective: anything sooner gets the gentle version.
 
@@ -11,9 +11,11 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Houses = require(Shared.Modules.Houses)
 local MeshLibrary = require(Shared.Modules.MeshLibrary)
 local Net = require(Shared.Modules.Net)
 local DoorController = require(script.Parent.DoorController)
+local HomeownerController = require(script.Parent.HomeownerController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
 local Scale = require(script.Parent.Parent.UI.Scale)
@@ -30,16 +32,31 @@ local lineLabel: TextLabel
 local lastFullScare = -math.huge
 local busy = false
 
--- The house's own homeowner lunges at you (the ghost if the house has none).
-local function monster(door: BasePart): BasePart
-	local house = door:FindFirstAncestorOfClass("Model")
-	local ownerModel = house and house:GetAttribute("OwnerModel")
-	local mesh = (if type(ownerModel) == "string" then MeshLibrary.get(ownerModel) else nil) or MeshLibrary.get("Ghost")
+-- The house's own homeowner lunges at you (the ghost if the house has none). Returns the model to
+-- move and the point on it (in its own space) that should end up right in front of your face.
+local function monster(door: BasePart): (Model, Vector3)
+	local house = Houses.of(door)
+	if house then
+		local model, root = HomeownerController.build(house)
+		if model and root then
+			model:PivotTo(CFrame.identity)
+			local head = model:FindFirstChild("Head") :: BasePart?
+			local face = if head
+				then head.Position + Vector3.new(0, 0, -head.Size.Z * 0.3)
+				else Vector3.new(0, root.Size.Y * 0.4, 0) + root.Position
+			return model, face
+		end
+	end
+	local model = Instance.new("Model")
+	model.Name = "Ghost"
+	local mesh = MeshLibrary.get("Ghost")
 	if mesh then
 		mesh.Anchored = true
 		mesh.CanCollide = false
 		mesh.CastShadow = false
-		return mesh
+		mesh.Parent = model
+		model.PrimaryPart = mesh
+		return model, Vector3.zero
 	end
 	-- Fallback: a big white blob with dark eyes.
 	local body = Instance.new("Part")
@@ -49,6 +66,8 @@ local function monster(door: BasePart): BasePart
 	body.Material = Enum.Material.SmoothPlastic
 	body.Anchored = true
 	body.CanCollide = false
+	body.Parent = model
+	model.PrimaryPart = body
 	for _, x in { -0.8, 0.8 } do
 		local eye = Instance.new("Part")
 		eye.Size = Vector3.new(0.7, 1, 0.2)
@@ -56,9 +75,9 @@ local function monster(door: BasePart): BasePart
 		eye.Anchored = true
 		eye.CanCollide = false
 		eye.CFrame = CFrame.new(x, 0.5, -1.9)
-		eye.Parent = body
+		eye.Parent = model
 	end
-	return body
+	return model, Vector3.zero
 end
 
 local function popBoo(text: string)
@@ -107,26 +126,34 @@ local function fullScare(door: BasePart, gentle: boolean, reduceFlash: boolean, 
 	local previousType = camera.CameraType
 	local previousCFrame = camera.CFrame
 	camera.CameraType = Enum.CameraType.Scriptable
-	local view = door.CFrame * CFrame.new(0, 1.2, -10)
+	local doorFrame = HomeownerController.doorFrame(door)
+	local view = doorFrame * CFrame.new(0, 0.6, -10)
 	TweenService:Create(camera, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
-		CFrame = CFrame.lookAt(view.Position, door.Position + Vector3.new(0, 0.8, 0)),
+		CFrame = CFrame.lookAt(view.Position, doorFrame.Position + Vector3.new(0, 1.8, 0)),
 	}):Play()
-	Sound.play("Creak", { speed = 1.6 })
+	Sound.play("Creak", { speed = 1.6, at = door })
 	task.wait(0.3)
 
-	-- Door bursts open (local only), swinging inward around its left edge.
-	local original = door.CFrame
-	local hinge = door.CFrame * CFrame.new(-door.Size.X / 2, 0, 0)
-	local opened = hinge * CFrame.Angles(0, math.rad(-105), 0) * hinge:Inverse() * original
-	TweenService:Create(door, TweenInfo.new(0.12, Enum.EasingStyle.Quad), { CFrame = opened }):Play()
-
-	local ghost = monster(door)
-	local start = door.CFrame * CFrame.new(0, 0.4, 1.2)
-	ghost.CFrame = start
+	-- The homeowner (from wherever they're standing, or from behind the door) lunges so its face ends
+	-- up right in front of yours.
+	local house = Houses.of(door)
+	local ghost, face = monster(door)
+	local doorway = if house then HomeownerController.current(house) else nil
+	local start = if doorway then doorway.CFrame else doorFrame * CFrame.new(0, 0.4, 1.2)
+	if house then
+		HomeownerController.hide(house, true)
+	end
+	ghost:PivotTo(start)
 	ghost.Parent = Workspace
-	local target = camera.CFrame * CFrame.new(0, -0.6, -3.6)
-	TweenService:Create(ghost, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		CFrame = CFrame.lookAt(target.Position, camera.CFrame.Position),
+	local eye = camera.CFrame.Position
+	local target = CFrame.lookAt(camera.CFrame * Vector3.new(0, -0.15, -2.4), eye) * CFrame.new(-face)
+	local lunge = Instance.new("CFrameValue")
+	lunge.Value = start
+	lunge.Changed:Connect(function(value: CFrame)
+		ghost:PivotTo(value)
+	end)
+	TweenService:Create(lunge, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Value = target,
 	}):Play()
 	if gentle then
 		Sound.play("GhostWail", { volume = 0.6, speed = 1.3 })
@@ -143,7 +170,10 @@ local function fullScare(door: BasePart, gentle: boolean, reduceFlash: boolean, 
 	task.wait(0.9)
 
 	ghost:Destroy()
-	TweenService:Create(door, TweenInfo.new(0.3), { CFrame = original }):Play()
+	lunge:Destroy()
+	if house then
+		HomeownerController.hide(house, false)
+	end
 	camera.CFrame = previousCFrame
 	camera.CameraType = previousType
 	busy = false

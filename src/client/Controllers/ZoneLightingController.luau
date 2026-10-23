@@ -32,7 +32,8 @@ local function blend(zoneId: string?)
 	if atmosphere then
 		TweenService:Create(atmosphere, BLEND, properties.atmosphere):Play()
 	end
-	local colorCorrection = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+	-- By name: the camera's own grade (CameraController's PSXGrade) is a ColorCorrectionEffect too.
+	local colorCorrection = Lighting:FindFirstChild("ZoneTint")
 	if colorCorrection then
 		TweenService:Create(colorCorrection, BLEND, properties.colorCorrection):Play()
 	end

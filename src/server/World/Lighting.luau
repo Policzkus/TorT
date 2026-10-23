@@ -33,8 +33,8 @@ function Lighting.apply()
 	LightingService.Brightness = cfg.brightness
 	LightingService.ExposureCompensation = cfg.exposure
 	LightingService.GlobalShadows = true
-	LightingService.EnvironmentDiffuseScale = 0.35
-	LightingService.EnvironmentSpecularScale = 0.6
+	LightingService.EnvironmentDiffuseScale = 0.15
+	LightingService.EnvironmentSpecularScale = 0.35
 
 	local sky = ensure("Sky", "NightSky") :: Sky
 	sky.MoonAngularSize = cfg.moonSize

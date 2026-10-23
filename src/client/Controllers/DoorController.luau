@@ -7,6 +7,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local Houses = require(ReplicatedStorage:WaitForChild("Shared").Modules.Houses)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
 local Sound = require(script.Parent.SoundController)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -61,7 +62,7 @@ end
 
 -- Lights-off and bowl houses never answer the door.
 local function answers(door: BasePart): boolean
-	local model = door:FindFirstAncestorOfClass("Model")
+	local model = Houses.of(door)
 	local houseType = model and model:GetAttribute("HouseType")
 	return houseType ~= "LightsOff" and houseType ~= "Bowl"
 end
@@ -86,7 +87,7 @@ local function track(door: Instance)
 	local houseId = door:GetAttribute("HouseId")
 	if type(houseId) == "string" and door:IsA("BasePart") then
 		doors[houseId] = door
-		local model = door:FindFirstAncestorOfClass("Model")
+		local model = Houses.of(door)
 		if model then
 			model:GetAttributeChangedSignal("HouseType"):Connect(function()
 				apply(houseId)

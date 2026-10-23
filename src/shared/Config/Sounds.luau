@@ -38,6 +38,11 @@ local sounds: { [string]: Sound } = {
 	Heartbeat = { id = 132163421525060, volume = 0.6, looped = true }, -- Daily Sounds "Fast Heartbeat"
 	Countdown = { id = 136924498052589, volume = 0.5 }, -- Daily Sounds "Countdown Beeps"
 	Slurp = { id = 109679860270937, volume = 0.6 }, -- Daily Sounds "Slurp"
+	-- Homeowners at the door
+	DoorSlam = { id = 9114129572, volume = 0.7 }, -- ProSoundEffects "Door Bang Rattle 8"
+	Thud = { id = 9116908474, volume = 0.6, speed = 0.7 }, -- ProSoundEffects "Metal Whomps Deep Pounding Impacts 13"
+	FloorCreak = { id = 9114495966, volume = 0.6 }, -- ProSoundEffects "Floor Creaks Short Med Wood Creaks 18"
+	Breath = { id = 9113586144, volume = 0.5, speed = 0.8 }, -- ProSoundEffects "Breath Exhale 17"
 }
 
 return sounds

@@ -10,7 +10,11 @@ local Sounds = require(ReplicatedStorage:WaitForChild("Shared").Config.Sounds)
 
 local SoundController = {}
 
-export type PlayOptions = { volume: number?, speed: number? }
+-- at: play from this part (3D, fades with distance) instead of everywhere.
+export type PlayOptions = { volume: number?, speed: number?, at: BasePart? }
+
+local ROLLOFF_MIN = 8
+local ROLLOFF_MAX = 90
 
 local folder: Folder? = nil
 local templates: { [string]: Sound } = {}
@@ -86,7 +90,14 @@ function SoundController.play(name: string, options: PlayOptions?)
 			sound.PlaybackSpeed = base.PlaybackSpeed * options.speed
 		end
 	end
-	sound.Parent = base.Parent
+	if options and options.at then
+		sound.RollOffMode = Enum.RollOffMode.InverseTapered
+		sound.RollOffMinDistance = ROLLOFF_MIN
+		sound.RollOffMaxDistance = ROLLOFF_MAX
+		sound.Parent = options.at
+	else
+		sound.Parent = base.Parent
+	end
 	sound.Ended:Once(function()
 		sound:Destroy()
 	end)

@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local HouseModels = require(ReplicatedStorage.Shared.Config.HouseModels)
+local Meshes = require(ReplicatedStorage.Shared.Config.Meshes)
 local World = require(ReplicatedStorage.Shared.Config.World)
 local MeshLibrary = require(ReplicatedStorage.Shared.Modules.MeshLibrary)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
@@ -42,6 +43,7 @@ export type StreetInfo = {
 
 type Style = {
 	build: (parent: Instance, base: CFrame, rng: Rng.Rng, yard: number, lotWidth: number) -> (Model, BasePart),
+	dressLot: ((house: Model, base: CFrame, rng: Rng.Rng, yard: number, lotWidth: number) -> ())?,
 }
 
 local styles: { [string]: Style } = {}
@@ -51,12 +53,21 @@ for _, module in script.Parent.HouseStyles:GetChildren() do
 	end
 end
 
-local TREE_KIND: { [string]: Props.TreeKind } = { Trailer = "dead", Cottage = "autumn" }
+local TREE_KIND: { [string]: Props.TreeKind } = { Trailer = "dead", Cottage = "autumn", Victorian = "dead" }
 
 local Street = {}
 
-function Street.length(houseCount: number): number
-	return World.ENTRANCE_MARGIN + math.ceil(houseCount / 2) * World.LOT_SPACING + World.END_MARGIN
+-- Lot spacing for a neighbourhood: its widest (scaled) house model plus a margin.
+function Street.lotSpacing(neighborhoodId: string): number
+	local sizes: { [string]: { number } } = {}
+	for name, mesh in Meshes do
+		sizes[name] = mesh.size
+	end
+	return HouseModels.lotSpacing(neighborhoodId, sizes, World.LOT_SPACING)
+end
+
+function Street.length(houseCount: number, lotSpacing: number?): number
+	return World.ENTRANCE_MARGIN + math.ceil(houseCount / 2) * (lotSpacing or World.LOT_SPACING) + World.END_MARGIN
 end
 
 local function setupDoor(info: HouseInfo)
@@ -66,11 +77,9 @@ local function setupDoor(info: HouseInfo)
 	CollectionService:AddTag(door, "Door")
 end
 
--- Widest a house may be so neighbouring lots never overlap.
-local MAX_HOUSE_WIDTH = 34
-
--- An AI-generated house (Config/HouseModels) on this lot: the mesh shell with its front at the lot
--- line, an invisible knock zone where the porch is, a porch light and a path to the sidewalk.
+-- An AI-generated house (Config/HouseModels) on this lot: the mesh shell scaled so its front door is
+-- HouseModels.DOOR_HEIGHT tall and turned so the door faces the street, an invisible knock zone on
+-- the door itself (found by raycast), a porch light beside it and a path from the sidewalk.
 -- Returns nil if none of the neighbourhood's models loaded.
 local function meshHouse(
 	parent: Instance,
@@ -79,7 +88,7 @@ local function meshHouse(
 	rng: Rng.Rng,
 	yard: number
 ): (Model?, BasePart?)
-	local names = HouseModels[neighborhood.id]
+	local names = HouseModels.MODELS[neighborhood.id]
 	if names == nil or #names == 0 then
 		return nil, nil
 	end
@@ -87,38 +96,81 @@ local function meshHouse(
 	rng:shuffle(order)
 	for _, name in order do
 		local shell = MeshLibrary.get(name)
-		if shell then
+		local mesh = Meshes[name]
+		if shell and mesh then
 			local house = Instance.new("Model")
 			house.Name = name
-			if shell.Size.X > MAX_HOUSE_WIDTH then
-				shell.Size *= MAX_HOUSE_WIDTH / shell.Size.X
-			end
+			local scale = HouseModels.scale(name, mesh.size)
+			local width, depth = HouseModels.footprint(name, mesh.size)
+			shell.Size = Vector3.new(mesh.size[1], mesh.size[2], mesh.size[3]) * scale
 			shell.Name = "Shell"
 			shell.Anchored = true
 			shell.CanCollide = true
-			shell.CFrame = lot * CFrame.new(0, shell.Size.Y / 2, shell.Size.Z / 2)
+			shell.CanQuery = true
+			shell.CFrame = lot * CFrame.new(0, shell.Size.Y / 2, depth / 2) * CFrame.Angles(0, HouseModels.yaw(name), 0)
+
+			-- Where the door is: the calibration gives x and the sill, raycasts give the exact surface.
+			local spec = HouseModels.DOORS[name]
+				or { face = "Front", x = 0, bottom = 0, height = HouseModels.DOOR_HEIGHT / shell.Size.Y, width = 0.15 }
+			local doorHeight = HouseModels.DOOR_HEIGHT
+			local doorWidth = math.clamp(spec.width * width, 3, 7)
+			local doorX = -spec.x * width -- the viewer's right is the lot's -X
+			local sill = spec.bottom * shell.Size.Y
+			shell.Parent = Workspace -- raycasts only see the workspace
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Include
+			params.FilterDescendantsInstances = { shell }
+			local surface = 1
+			local hit = Workspace:Raycast(
+				lot:PointToWorldSpace(Vector3.new(doorX, sill + doorHeight * 0.55, -4)),
+				lot:VectorToWorldSpace(Vector3.new(0, 0, depth + 4)),
+				params
+			)
+			if hit then
+				surface = lot:PointToObjectSpace(hit.Position).Z
+			end
+			local floor = Workspace:Raycast(
+				lot:PointToWorldSpace(Vector3.new(doorX, sill + 2.5, surface - 0.8)),
+				lot:VectorToWorldSpace(Vector3.new(0, -(sill + 5), 0)),
+				params
+			)
+			if floor then
+				local y = lot:PointToObjectSpace(floor.Position).Y
+				if math.abs(y - sill) < 2.5 then
+					sill = y
+				end
+			end
 			shell.Parent = house
-			local door =
-				Parts.block(house, "Door", Vector3.new(5, 7.5, 1), lot * CFrame.new(0, 3.75, 1), "1A1210", M.Wood, {
-					Transparency = 1,
-					CanCollide = false,
-					CastShadow = false,
-				})
-			local porch =
-				Parts.block(house, "PorchLight", Vector3.one * 0.4, lot * CFrame.new(2.6, 7, -0.6), "FFE0A0", M.Neon, {
-					Transparency = 1,
-					CanCollide = false,
-					CanQuery = false,
-				})
+
+			local door = Parts.block(
+				house,
+				"Door",
+				Vector3.new(doorWidth, doorHeight, 0.4),
+				lot * CFrame.new(doorX, sill + doorHeight / 2, surface - 0.25),
+				"050505",
+				M.SmoothPlastic,
+				{ Transparency = 1, CanCollide = false, CastShadow = false }
+			)
+			local porch = Parts.block(
+				house,
+				"PorchLight",
+				Vector3.one * 0.4,
+				lot * CFrame.new(doorX + doorWidth / 2 + 1.2, sill + doorHeight + 0.4, surface - 0.8),
+				"FFE0A0",
+				M.Neon,
+				{ Transparency = 1, CanCollide = false, CanQuery = false }
+			)
 			Parts.light(porch, 18, 1.4, "FFB070")
 			Parts.block(
 				house,
 				"Path",
 				Vector3.new(4, 0.12, yard),
-				lot * CFrame.new(0, 0.06, -yard / 2),
+				lot * CFrame.new(doorX, 0.06, -yard / 2),
 				"6E6A64",
 				M.Concrete
 			)
+			house:SetAttribute("DoorWidth", doorWidth)
+			house:SetAttribute("DoorHeight", doorHeight)
 			house.Parent = parent
 			return house, door
 		end
@@ -142,6 +194,11 @@ local function placeHouse(
 		local customDoor = custom:FindFirstChild("Door", true)
 		if customDoor and customDoor:IsA("BasePart") then
 			custom:PivotTo(lot)
+			-- Styles can dress the lot around an imported model (fence, gate, path, garden).
+			local style = styles[neighborhood.style] :: any
+			if style and style.dressLot then
+				style.dressLot(custom, lot, rng, yard, World.LOT_SPACING)
+			end
 			custom.Parent = parent
 			house, door = custom, customDoor
 		else
@@ -211,7 +268,8 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 	local folder = Instance.new("Folder")
 	folder.Name = neighborhood.id
 	local colors = neighborhood.colors
-	local length = Street.length(neighborhood.houses)
+	local lotSpacing = Street.lotSpacing(neighborhood.id)
+	local length = Street.length(neighborhood.houses, lotSpacing)
 	local half = World.GROUND_WIDTH / 2
 	local roadHalf = World.ROAD_WIDTH / 2
 	local walkOffset = roadHalf + World.SIDEWALK_WIDTH / 2
@@ -288,7 +346,7 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		for i = 0, neighborhood.houses - 1 do
 			local slot = i // 2
 			local side = if i % 2 == 0 then -1 else 1
-			local z = World.ENTRANCE_MARGIN + World.LOT_SPACING * (slot + 0.5) + (if side > 0 then 10 else 0)
+			local z = World.ENTRANCE_MARGIN + lotSpacing * (slot + 0.5) + (if side > 0 then lotSpacing / 4 else 0)
 			local facing = CFrame.Angles(0, if side > 0 then math.rad(90) else math.rad(-90), 0)
 			local lot = at(side * World.HOUSE_SETBACK, 0, z) * facing
 			local info = placeHouse(housesFolder, neighborhood, i + 1, lot, rng, variantRng, yard)

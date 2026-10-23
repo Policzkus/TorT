@@ -1,9 +1,14 @@
 --!strict
--- Builds a playable character from Config/Characters (PROMPT §V2.3: nobody plays as their Roblox
--- avatar). The six AI mesh segments are the body parts, with R6 names so code looking for "Torso" or
--- "Right Arm" keeps working, joined by Motor6Ds at the neck, shoulders and hips.
--- CharacterAnimController animates them. The Humanoid uses the R15 rig type, so HipHeight puts the
--- feet on the ground whatever the proportions.
+-- Builds a character from Config/Characters (PROMPT §V2.3: nobody plays as their Roblox avatar). The
+-- six AI mesh segments are the body parts, with R6 names so code looking for "Torso" or "Right Arm"
+-- keeps working, joined by Motor6Ds at the neck, shoulders and hips.
+-- Modes:
+--   "player"  - a Humanoid rig for a player (CharacterAnimController animates it). The Humanoid uses
+--               the R15 rig type, so HipHeight puts the feet on the ground whatever the proportions.
+--   "preview" - a static, anchored copy for ViewportFrames.
+--   "puppet"  - joints but no Humanoid, root anchored: a client-side figure that code poses by
+--               moving the root and setting Motor6D.Transform (the homeowners).
+-- A Morph (puppets) stretches the body: the uncanny long limbs and wrong-sized heads.
 
 local CollectionService = game:GetService("CollectionService")
 
@@ -13,6 +18,17 @@ local MeshLibrary = require(script.Parent.MeshLibrary)
 local CharacterRig = {}
 
 CharacterRig.TAG = "TorTRig"
+
+export type Mode = "player" | "preview" | "puppet"
+
+export type Morph = {
+	scale: number?, -- everything
+	stretch: number?, -- legs and torso taller
+	arms: number?, -- arm length (they hang lower)
+	head: number?, -- head size
+	thin: number?, -- body and limb thickness
+	neck: number?, -- studs of extra neck
+}
 
 local PART_NAMES: { [string]: string } = {
 	Head = "Head",
@@ -26,6 +42,8 @@ local PART_NAMES: { [string]: string } = {
 -- Default Roblox camera: the eye sits this far above the root part's centre (no automatic scaling).
 local CAMERA_HEAD_OFFSET = 2
 local ROOT_DEPTH = 1
+
+type Shape = { size: Vector3, offset: Vector3 }
 
 local function vector(values: { number }): Vector3
 	return Vector3.new(values[1], values[2], values[3])
@@ -49,42 +67,80 @@ local function top(part: BasePart): number
 	return part.Position.Y + part.Size.Y / 2
 end
 
--- A new rig with its feet at the origin, facing -Z. Nil when the meshes aren't loaded.
--- `preview` builds a static, anchored copy (for ViewportFrames) without a Humanoid.
-function CharacterRig.build(characterId: string, preview: boolean?): Model?
+-- Segment sizes and offsets after a morph (feet stay at the origin).
+local function morphed(def: Characters.Character, morph: Morph?): { [string]: Shape }
+	local shapes: { [string]: Shape } = {}
+	for segment, seg in def.segments do
+		shapes[segment] = { size = vector(seg.size), offset = vector(seg.offset) }
+	end
+	if morph == nil then
+		return shapes
+	end
+	local stretch = morph.stretch or 1
+	local arms = morph.arms or 1
+	local headScale = morph.head or 1
+	local thin = morph.thin or 1
+	local neck = morph.neck or 0
+	local scale = morph.scale or 1
+	for segment, shape in shapes do
+		local size, offset = shape.size, shape.offset
+		if segment == "Head" then
+			local bottom = (offset.Y - size.Y / 2) * stretch + neck
+			size *= headScale
+			offset = Vector3.new(offset.X, bottom + size.Y / 2, offset.Z)
+		else
+			local topY = (offset.Y + size.Y / 2) * stretch
+			local length = size.Y * stretch * (if segment == "LeftArm" or segment == "RightArm" then arms else 1)
+			size = Vector3.new(size.X * thin, length, size.Z * thin)
+			local x = if segment == "Torso" then offset.X else offset.X * (0.35 + 0.65 * thin)
+			offset = Vector3.new(x, topY - length / 2, offset.Z)
+			if segment == "LeftLeg" or segment == "RightLeg" then
+				offset = Vector3.new(x, length / 2, offset.Z) -- legs always reach the ground
+			end
+		end
+		shape.size = size * scale
+		shape.offset = offset * scale
+	end
+	return shapes
+end
+
+-- A new character with its feet at the origin, facing -Z. Nil when the meshes aren't loaded.
+function CharacterRig.build(characterId: string, mode: Mode?, morph: Morph?): Model?
 	local def = Characters[characterId]
 	if def == nil then
 		return nil
 	end
+	local kind: Mode = mode or "player"
+	local shapes = morphed(def, morph)
 	local model = Instance.new("Model")
 	model.Name = characterId
 	local parts: { [string]: BasePart } = {}
 	for segment, partName in PART_NAMES do
-		local seg = def.segments[segment]
-		local part = if seg then MeshLibrary.get(CharacterRig.meshName(characterId, segment)) else nil
-		if seg == nil or part == nil then
+		local shape = shapes[segment]
+		local part = if shape then MeshLibrary.get(CharacterRig.meshName(characterId, segment)) else nil
+		if shape == nil or part == nil then
 			model:Destroy()
 			return nil
 		end
 		part.Name = partName
-		part.Size = vector(seg.size)
-		part.CFrame = CFrame.new(vector(seg.offset))
-		part.Anchored = preview == true
+		part.Size = shape.size
+		part.CFrame = CFrame.new(shape.offset)
+		part.Anchored = kind == "preview"
 		part.Massless = true
 		part.CanCollide = false
-		part.CanTouch = not preview
-		part.CanQuery = not preview
+		part.CanTouch = kind == "player"
+		part.CanQuery = kind == "player"
 		part.Parent = model
 		parts[segment] = part
 	end
-	if preview then
+	if kind == "preview" then
 		model.WorldPivot = CFrame.identity -- between the feet, so it turns in place
 		return model
 	end
 
 	local head, torso = parts.Head, parts.Torso
 	local hip = math.max(top(parts.LeftLeg), top(parts.RightLeg))
-	local eye = def.eye or (head.Position.Y + head.Size.Y * 0.1)
+	local eye = if def.eye and morph == nil then def.eye else head.Position.Y + head.Size.Y * 0.1
 	-- The root is the collision box from the hips to just below the eyes.
 	local rootHeight = math.max(1, eye - hip - 0.4)
 	local root = Instance.new("Part")
@@ -92,7 +148,10 @@ function CharacterRig.build(characterId: string, preview: boolean?): Model?
 	root.Size = Vector3.new(math.clamp(torso.Size.X, 1.4, 2.6), rootHeight, ROOT_DEPTH)
 	root.CFrame = CFrame.new(0, hip + rootHeight / 2, 0)
 	root.Transparency = 1
-	root.CanCollide = true
+	root.CanCollide = kind == "player"
+	root.CanQuery = kind == "player"
+	root.CanTouch = false
+	root.Anchored = kind == "puppet"
 	root.Parent = model
 	model.PrimaryPart = root
 
@@ -105,6 +164,12 @@ function CharacterRig.build(characterId: string, preview: boolean?): Model?
 		joint(side .. " Shoulder", torso, arm, Vector3.new(arm.Position.X, shoulder, arm.Position.Z))
 		joint(side .. " Hip", torso, leg, Vector3.new(leg.Position.X, top(leg), leg.Position.Z))
 	end
+	model:SetAttribute("CharacterId", characterId)
+	model:SetAttribute("Height", top(head))
+	if kind == "puppet" then
+		model.WorldPivot = CFrame.identity
+		return model
+	end
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.RigType = Enum.HumanoidRigType.R15
@@ -116,8 +181,6 @@ function CharacterRig.build(characterId: string, preview: boolean?): Model?
 	humanoid.BreakJointsOnDeath = false
 	humanoid.RequiresNeck = false
 	humanoid.Parent = model
-
-	model:SetAttribute("CharacterId", characterId)
 	CollectionService:AddTag(model, CharacterRig.TAG)
 	return model
 end

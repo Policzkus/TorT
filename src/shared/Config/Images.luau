@@ -4,7 +4,8 @@
 return {
 	-- PSX camera overlay
 	Vignette = 12754479702, -- "White Vignette" (althruist), tinted black in code
-	Grain = 0, -- "static2" (108518939237205) showed tile seams; find a seamless noise texture
+	Grain = 0, -- off: "Salt and Pepper" (150468255) showed a visible tile grid in game
+	Scanlines = 101327796311819, -- "scanlines_transparent" (decal 90695458480914)
 
 	-- Minimal HUD icons (white on transparent)
 	Candy = 116802131222258, -- "Candy icon" (GUDUBIDO)

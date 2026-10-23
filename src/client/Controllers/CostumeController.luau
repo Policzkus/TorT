@@ -69,7 +69,7 @@ end
 -- Puts a static copy of a character in a viewport, framed head to toe.
 local function show(viewport: ViewportFrame, characterId: string): Model?
 	viewport:ClearAllChildren()
-	local model = CharacterRig.build(characterId, true)
+	local model = CharacterRig.build(characterId, "preview")
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 30
 	camera.Parent = viewport

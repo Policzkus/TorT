@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Houses = require(Shared.Modules.Houses)
 local Dialogue = require(Shared.Config.Dialogue)
 local Events = require(Shared.Config.Events)
 local HouseTypes = require(Shared.Config.HouseTypes)
@@ -195,7 +196,7 @@ local function track(door: Instance)
 	if not door:IsA("BasePart") then
 		return
 	end
-	local model = door:FindFirstAncestorOfClass("Model")
+	local model = Houses.of(door)
 	if model == nil or tracked[model] then
 		return
 	end
@@ -212,7 +213,7 @@ local function track(door: Instance)
 end
 
 local function untrack(door: Instance)
-	local model = door:FindFirstAncestorOfClass("Model")
+	local model = Houses.of(door)
 	if model and tracked[model] then
 		tracked[model] = nil
 		tricky[model] = nil

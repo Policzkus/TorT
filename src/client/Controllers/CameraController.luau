@@ -1,6 +1,7 @@
 --!strict
--- First-person PSX look (PROMPT §V2.3): colour grade (washed out, crushed contrast), slight blur,
--- a dark vignette, animated film grain, head-bob while walking and a gentle handheld sway.
+-- First-person PSX horror look (PROMPT §V2.3): a cold, washed-out colour grade with crushed blacks,
+-- the distance going soft (depth of field) like a low-res console, a heavy vignette, faint film
+-- grain and scanlines, head-bob while walking and a gentle handheld sway.
 -- Settings → "PSX effects" switches the heavy parts off (grade/blur/grain); the bob stays.
 
 local Lighting = game:GetService("Lighting")
@@ -15,22 +16,25 @@ local create = require(script.Parent.Parent.UI.create)
 
 local FOV = 70
 local GRADE = {
-	Saturation = -0.38,
+	Saturation = -0.32,
 	Contrast = 0.24,
-	Brightness = -0.03,
-	TintColor = Color3.fromRGB(232, 226, 212),
+	Brightness = 0.015,
+	TintColor = Color3.fromRGB(226, 234, 228), -- a cold, slightly sick green
 }
-local BLUR = 1.2
-local GRAIN_TRANSPARENCY = 0.95
-local GRAIN_TILE = 420
+local DEPTH = { FarIntensity = 0.42, FocusDistance = 12, InFocusRadius = 26, NearIntensity = 0 }
+local GRAIN_TRANSPARENCY = 0.9
+local GRAIN_TILE = 256
+local SCANLINE_TRANSPARENCY = 0.88
+local SCANLINE_TILE = 128
 local BOB_SPEED = 9 -- radians per second at walking speed 16
 local BOB_AMOUNT = Vector2.new(0.07, 0.09)
 
 local CameraController = {}
 
 local grade: ColorCorrectionEffect
-local blur: BlurEffect
+local depth: DepthOfFieldEffect
 local grain: ImageLabel
+local scanlines: ImageLabel
 local overlay: ScreenGui
 local enabled = true
 local bobTime = 0
@@ -38,9 +42,10 @@ local bobWeight = 0
 
 local function applySetting()
 	grade.Enabled = enabled
-	blur.Enabled = enabled
+	depth.Enabled = enabled
 	overlay.Enabled = true
 	grain.Visible = enabled
+	scanlines.Visible = enabled
 end
 
 -- Called by JumpscareController etc. so effects don't fight a scripted camera.
@@ -79,7 +84,14 @@ function CameraController.Init()
 		TintColor = GRADE.TintColor,
 		Parent = Lighting,
 	})
-	blur = create("BlurEffect", { Name = "PSXBlur", Size = BLUR, Parent = Lighting })
+	depth = create("DepthOfFieldEffect", {
+		Name = "PSXDepth",
+		FarIntensity = DEPTH.FarIntensity,
+		FocusDistance = DEPTH.FocusDistance,
+		InFocusRadius = DEPTH.InFocusRadius,
+		NearIntensity = DEPTH.NearIntensity,
+		Parent = Lighting,
+	})
 
 	local vignette = create("ImageLabel", {
 		Name = "Vignette",
@@ -87,7 +99,7 @@ function CameraController.Init()
 		BackgroundTransparency = 1,
 		Image = if Images.Vignette ~= 0 then "rbxassetid://" .. Images.Vignette else "",
 		ImageColor3 = Color3.new(0, 0, 0),
-		ImageTransparency = 0.1,
+		ImageTransparency = 0,
 		ScaleType = Enum.ScaleType.Stretch,
 	})
 	grain = create("ImageLabel", {
@@ -99,6 +111,16 @@ function CameraController.Init()
 		ImageTransparency = GRAIN_TRANSPARENCY,
 		ScaleType = Enum.ScaleType.Tile,
 		TileSize = UDim2.fromOffset(GRAIN_TILE, GRAIN_TILE),
+	})
+	scanlines = create("ImageLabel", {
+		Name = "Scanlines",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = if Images.Scanlines ~= 0 then "rbxassetid://" .. Images.Scanlines else "",
+		ImageColor3 = Color3.new(0, 0, 0),
+		ImageTransparency = SCANLINE_TRANSPARENCY,
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(SCANLINE_TILE, SCANLINE_TILE),
 	})
 	overlay = create("ScreenGui", {
 		Name = "PSXOverlay",
@@ -112,6 +134,7 @@ function CameraController.Init()
 			ClipsDescendants = true,
 			grain,
 		}),
+		scanlines,
 		vignette,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 	})
