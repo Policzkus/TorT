@@ -11,6 +11,7 @@ Pieces (studs, origin on the ground, the fence line along X, the street toward -
   Mailbox, MailboxPost - a rusty mailbox on a leaning wooden post
   Grave1, Grave2 - a rounded headstone and a cross, both cracked and mossy
   Flag1, Flag2 - stepping stones for the path
+  PicketPanel, PicketPost, PicketGate - a rotten white picket fence (the farmhouse's)
   Tree, Tree2 - gnarled dead trees (two shapes)
 """
 
@@ -161,6 +162,50 @@ def gate_leaf():
     box(g, (0.22, 0.3, 0.45), (w - 0.08, 0, 2.0), bevel=0.04)  # the latch box
 
 
+def picket(grp, x, height, r, lean=0.0):
+    """One pointed picket, x along the fence, leaning a little."""
+    m = frame_matrix((x, 0, 0), (r.uniform(-0.03, 0.03) + lean, 0, r.uniform(-0.04, 0.04)))
+    box(grp, (0.32, 0.1, height), (0, 0, height / 2 + 0.15), bevel=0.02, matrix=m)
+    prism(grp, [(-0.16, 0), (0.16, 0), (0, 0.32)], 0.1, m @ Matrix.Translation((0, -0.05, height + 0.15)))
+
+
+def picket_panel():
+    """A 4-stud run of rotten picket fence: two rails, pointed pickets, two missing and one snapped."""
+    g = "PicketPanel"
+    r = random.Random(17)
+    for z in (0.9, 2.9):
+        box(g, (PANEL, 0.18, 0.3), (PANEL / 2, 0.14, z), bevel=0.03)
+    n = 8
+    for i in range(n):
+        x = (i + 0.5) * PANEL / n
+        if i in (2, 6):
+            continue
+        if i == 4:
+            box(g, (0.32, 0.1, 1.6), (x, 0, 0.95), rot=(0, 0.15, 0), bevel=0.02)  # snapped off
+            continue
+        picket(g, x, 3.4 + r.uniform(-0.15, 0.1), r)
+
+
+def picket_post():
+    g = "PicketPost"
+    box(g, (0.5, 0.5, 4.0), (0, 0.12, 2.0), bevel=0.04)
+    box(g, (0.66, 0.66, 0.18), (0, 0.12, 4.08), bevel=0.04)
+    lathe(g, [(0.2, 4.15), (0.24, 4.3), (0.0, 4.6)], (0, 0.12, 0), segments=8)
+
+
+def picket_gate():
+    """One leaf of a picket gate, hinge at x = 0, 2.2 wide, with a Z brace; the second leaf is the
+    same mesh turned round."""
+    g = "PicketGate"
+    w = 2.2
+    r = random.Random(19)
+    for z in (0.8, 2.9):
+        box(g, (w, 0.16, 0.28), (w / 2, 0.14, z), bevel=0.03)
+    box(g, (math.hypot(w - 0.3, 2.0), 0.14, 0.24), (w / 2, 0.14, 1.85), rot=(0, -math.atan2(2.0, w - 0.3), 0), bevel=0.03)
+    for i in range(5):
+        picket(g, 0.2 + i * (w - 0.4) / 4, 3.5 - abs(i - 2) * 0.12, r)
+
+
 def mailbox():
     lean = frame_matrix((0, 0, 0), (math.radians(4), math.radians(-7), 0))
     box("MailboxPost", (0.36, 0.36, 3.5), (0, 0, 1.75), bevel=0.04, matrix=lean)
@@ -285,6 +330,10 @@ def build():
     for g in ("FencePanel", "FencePost", "GateLeaf"):
         M[g] = iron
         U[g] = (2.0, "vertical")
+    picket = V.textured("Picket", "distressed_painted_planks", tint=(1.3, 1.28, 1.2, 1), dirt=0.9, moss=0.25)
+    for g in ("PicketPanel", "PicketPost", "PicketGate"):
+        M[g] = picket
+        U[g] = (3.0, "vertical")
     M["Pillar"] = V.textured("PillarStone", "rustic_stone_wall", tint=(0.62, 0.65, 0.7, 1), dirt=0.6, moss=0.35)
     U["Pillar"] = (4.0, "vertical")
     M["Mailbox"] = flaking("MailboxMetal", (0.045, 0.06, 0.05, 1), amount=0.6)
@@ -302,6 +351,9 @@ def build():
     fence_post()
     pillar()
     gate_leaf()
+    picket_panel()
+    picket_post()
+    picket_gate()
     mailbox()
     graves()
     flagstones()
@@ -322,7 +374,7 @@ def build():
 def layout_for_render(merged):
     """Spread the pieces out for a preview render."""
     spots = {
-        "FencePanel": (-8, 0, 0), "FencePost": (-3.8, 0, 0), "Pillar": (-1.5, 0, 0), "GateLeaf": (0.4, 0, 0),
+        "FencePanel": (-8, 0, 0), "FencePost": (-3.8, 0, 0), "Pillar": (-1.5, 0, 0), "GateLeaf": (0.4, 0, 0), "PicketPanel": (-8, -6, 0), "PicketPost": (-3.8, -6, 0), "PicketGate": (-3.2, -6, 0),
         "Mailbox": (7.5, -1, 0), "MailboxPost": (7.5, -1, 0), "Grave1": (10.5, 1, 0), "Grave2": (13, 1, 0), "Tree": (19, 3, 0), "Tree2": (30, 6, 0), "Flag1": (1, -3, 0), "Flag2": (3.6, -3.5, 0),
     }
     for name, obj in merged.items():
@@ -334,13 +386,14 @@ VIEWS = {
     "all": ((4, -24, 7), (5, 2, 3)),
     "graves": ((10.5, -6.5, 2.4), (11.6, 1, 1.4)),
     "fence": ((-3, -8, 3.2), (-3, 0, 2.6)),
+    "picket": ((-4, -14, 3.2), (-4, -6, 2.2)),
     "tree": ((19, -20, 6), (19, 3, 8)),
     "tree2": ((30, -17, 6), (30, 6, 7)),
 }
 
 
 # Small pieces get a 512 atlas; the trees, the pillar and the lettered headstone keep 1024.
-ATLAS = {n: 512 for n in ("FencePanel", "FencePost", "GateLeaf", "Mailbox", "MailboxPost", "Grave2", "Flag1", "Flag2")}
+ATLAS = {n: 512 for n in ("FencePanel", "FencePost", "GateLeaf", "Mailbox", "MailboxPost", "Grave2", "Flag1", "Flag2", "PicketPanel", "PicketPost", "PicketGate")}
 
 
 if __name__ == "__main__":

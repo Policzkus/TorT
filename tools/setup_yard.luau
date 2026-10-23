@@ -60,6 +60,23 @@ panel:SetAttribute("StretchAxis", Vector3.new(math.abs(along.X), math.abs(along.
 panel:SetAttribute("Length", 4)
 panel.Parent = folder
 
+-- The picket fence (the farmhouse's) works the same way: its panel pivots on its middle too.
+local picket = imported:FindFirstChild("PicketPanel", true) :: MeshPart?
+if picket then
+	file(picket, origin * CFrame.new(-2, 0, 0), false)
+	local pa = picket.CFrame:VectorToObjectSpace(blenderX)
+	picket:SetAttribute("StretchAxis", Vector3.new(math.abs(pa.X), math.abs(pa.Y), math.abs(pa.Z)))
+	picket:SetAttribute("Length", 4)
+	picket.Parent = folder
+end
+for _, name in { "PicketPost", "PicketGate" } do
+	local part = imported:FindFirstChild(name, true) :: MeshPart?
+	if part then
+		file(part, origin, false)
+		part.Parent = folder
+	end
+end
+
 for _, name in { "FencePost", "GateLeaf", "Tree", "Tree2", "Flag1", "Flag2" } do
 	local part = mesh(name)
 	file(part, origin, false)

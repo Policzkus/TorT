@@ -23,6 +23,7 @@ export type Neighborhood = {
 	candy: { min: number, max: number },
 	houses: number,
 	style: string, -- World/HouseStyles/<style>
+	styles: { string }?, -- several styles alternating along the street (the first is the main one)
 	seed: number,
 	turn: number, -- degrees the road bends after this street
 	minigames: { [string]: number }, -- weights; ones not built yet are skipped
@@ -41,6 +42,7 @@ local list: { Neighborhood } = {
 		candy = { min = 3, max = 7 },
 		houses = 16,
 		style = "Victorian",
+		styles = { "Victorian", "Mansard" },
 		seed = 1101,
 		turn = 14,
 		minigames = { TimingBar = 60, CostumeLine = 40 },
@@ -65,7 +67,7 @@ local list: { Neighborhood } = {
 		unlock = { price = 150, rebirths = 0 },
 		candy = { min = 10, max = 20 },
 		houses = 16,
-		style = "Cottage",
+		style = "Farmhouse",
 		seed = 2202,
 		turn = -16,
 		minigames = { TimingBar = 40, KnockRhythm = 30, CostumeLine = 30 },

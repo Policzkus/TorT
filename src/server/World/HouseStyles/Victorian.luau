@@ -15,7 +15,9 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
-local VictorianRooms = require(script.Parent.VictorianRooms)
+local BlenderLot = require(script.Parent.Parent.BlenderLot)
+local HouseData = require(script.Parent.Parent.HouseData.Types)
+local VictorianRooms = require(script.Parent.Parent.HouseData.VictorianRooms)
 local Parts = require(script.Parent.Parent.Parts)
 local Props = require(script.Parent.Parent.Props)
 
@@ -1128,209 +1130,33 @@ end
 -- fence whose panels stretch to fit the lot, stone pillars and an arched double gate left open, a
 -- stepping stone, a dead tree, a mailbox, and two graves under the bay window. Works in the lot's
 -- own frame (x across, -z toward the street), where the imported house's door is at x = -DOOR.x.
-local YARD_PIECES = {
-	"FencePanel",
-	"FencePost",
-	"Pillar",
-	"GateLeaf",
-	"Tree",
-	"Tree2",
-	"Mailbox",
-	"Grave1",
-	"Grave2",
-	"Flag1",
-	"Flag2",
+-- The Blender model's lot, in the same shape as the generated house data (HouseData/Types).
+local BLENDER_LOT: HouseData.Data = {
+	style = "Victorian",
+	door = { x = DOOR.x, y = 0.55, sill = FOUND },
+	hinged = {},
+	colliders = {},
+	lights = {},
+	anchors = {},
+	rooms = VictorianRooms,
+	yard = {
+		fence = "Iron",
+		pathFrom = PORCH.z - 4.3,
+		tree = Vector3.new(-16.5, -13.9, 0),
+		graves = { Vector3.new(-7.5, -10.2, 0), Vector3.new(-10.8, -10.8, 0) },
+	},
 }
-
-local function blenderYard(b: Builder, set: Instance, yardDepth: number, lotWidth: number)
-	local function at(x: number, y: number, z: number): CFrame
-		return b.base * CFrame.new(x, y, z)
-	end
-	local function place(name: string, cframe: CFrame, parent: Instance?): PVInstance
-		local piece = (set:FindFirstChild(name) :: PVInstance):Clone()
-		piece:PivotTo(cframe)
-		piece.Parent = parent or b.house
-		return piece
-	end
-	local function spin(amount: number): CFrame
-		return CFrame.Angles(0, b.rng:range(-amount, amount), 0)
-	end
-	local function blocker(parent: Instance, size: Vector3, cframe: CFrame, shape: Enum.PartType?): BasePart
-		local collider = b:part("Collision", size, cframe, "dark", parent)
-		collider.Transparency = 1
-		collider.CanQuery = false
-		collider.CanTouch = false
-		collider.CastShadow = false
-		if shape then
-			collider.Shape = shape
-		end
-		return collider
-	end
-	local doorX = -DOOR.x
-	local fenceZ = -(yardDepth - 0.6)
-	local half = lotWidth / 2 - 1
-	local gateW = 4.4
-	local pillarX = gateW / 2 + 0.85
-	b:decor("Lawn", Vector3.new(half * 2, 0.1, yardDepth - 1), at(0, 0.06, fenceZ / 2), "lawn")
-
-	-- Stepping stones from the steps to the gate.
-	local z, i = PORCH.z - 4.3, 0
-	while z > fenceZ + 0.6 do
-		local flip = if i % 2 == 0 then 0 else math.pi
-		place(
-			if i % 2 == 0 then "Flag1" else "Flag2",
-			at(doorX + b.rng:range(-0.3, 0.3), 0.02, z) * spin(0.4) * CFrame.Angles(0, flip, 0)
-		)
-		z -= 2.1 + b.rng:range(0.1, 0.4)
-		i += 1
-	end
-
-	-- The fence: panels stretched to share each run evenly, posts between them.
-	local template = set:FindFirstChild("FencePanel") :: MeshPart
-	local stretch = template:GetAttribute("StretchAxis") :: Vector3
-	local length = template:GetAttribute("Length") :: number
-	local function fence(xa: number, xb: number, firstPost: boolean, lastPost: boolean)
-		local run = xb - xa
-		blocker(b.house, Vector3.new(run, 4.6, 0.4), at((xa + xb) / 2, 2.3, fenceZ))
-		local n = math.max(1, math.floor(run / length + 0.5))
-		local w = run / n
-		for k = 0, n - 1 do
-			-- Turning some panels round keeps the baked rust from repeating.
-			local turn = if b.rng:chance(0.5) then math.pi else 0
-			local panel = place("FencePanel", at(xa + (k + 0.5) * w, 0, fenceZ) * CFrame.Angles(0, turn, 0)) :: MeshPart
-			panel.Size += panel.Size * stretch * (w / length - 1)
-		end
-		for k = 0, n do
-			if (k > 0 and k < n) or (k == 0 and firstPost) or (k == n and lastPost) then
-				place("FencePost", at(xa + k * w, 0, fenceZ) * spin(0.05))
-			end
-		end
-	end
-	fence(-half, doorX - pillarX - 0.75, true, false) -- no post against the pillars
-	fence(doorX + pillarX + 0.75, half, false, true)
-	for _, side in { -1, 1 } do
-		place("Pillar", at(doorX + side * pillarX, 0, fenceZ) * spin(0.03))
-	end
-	-- A double gate (the yard is too shallow for one wide leaf to clear the steps), standing open
-	-- into the yard. One prompt swings both leaves (HingeService, Group). The second leaf is the
-	-- same mesh turned round, so it opens the other way.
-	for _, side in { 1, -1 } do
-		local hinge = at(doorX + side * gateW / 2, 0, fenceZ) * CFrame.Angles(0, if side < 0 then math.pi else 0, 0)
-		local gate = hinged(b, "Gate", hinge, side * 80, true)
-		gate:SetAttribute("Group", "Gate")
-		local leaf = place("GateLeaf", hinge, gate) :: BasePart
-		leaf.Name = "Panel" -- where HingeController plays its creak
-		blocker(gate, Vector3.new(gateW / 2 - 0.2, 4.2, 0.3), hinge * CFrame.new(-gateW / 4, 2.3, 0)) -- swings with it
-		if side > 0 then
-			Parts.prompt(leaf, "Close", "Gate", 8)
-		end
-		gate:SetAttribute("Open", true)
-	end
-
-	-- A dead tree by the fence, a mailbox by the gate, two graves under the bay window.
-	local treeAt = at(half - 2.5, 0, fenceZ + 2.5)
-	place(if b.rng:chance(0.5) then "Tree" else "Tree2", treeAt * CFrame.Angles(0, b.rng:range(0, 2 * math.pi), 0))
-	blocker(
-		b.house,
-		Vector3.new(8, 2, 2),
-		treeAt * CFrame.new(0, 4, 0) * CFrame.Angles(0, 0, math.pi / 2),
-		Enum.PartType.Cylinder
-	)
-	place("Mailbox", at(doorX - pillarX - 1.7, 0, fenceZ + 1.2) * spin(0.15))
-	place("Grave1", at(7.5, 0, -10.2) * spin(0.3))
-	place("Grave2", at(10.8, 0, -10.8) * spin(0.3))
-end
-
--- Rooms of the imported model ----------------------------------------------------------------------
--- Every window of the Blender Victorian looks into a real room (art/scripts/interiors.py). Each
--- house lights a few of them: a glowing bulb under the room's lamp shade and a warm light that
--- spills out through the glass. The rest stay dark until a flashlight finds the furniture. A few
--- rooms hold a figure; each house keeps at most one (usually in a lit room) and loses the others.
-local ROOM_LIGHTS = {
-	Color3.fromRGB(255, 176, 104), -- a lamp
-	Color3.fromRGB(255, 150, 80), -- candlelight
-	Color3.fromRGB(236, 226, 196), -- a bare bulb
-}
-
-local function roomLights(house: Model, base: CFrame, rng: Rng.Rng)
-	local candidates = {}
-	for i, room in VictorianRooms do
-		if not room.attic then
-			table.insert(candidates, i)
-		end
-	end
-	rng:shuffle(candidates)
-	local lit: { [string]: boolean } = {}
-	for n = 1, rng:int(2, 4) do
-		lit[VictorianRooms[candidates[n]].id] = true
-	end
-	-- Which figure stays: one in a lit room more often than not, sometimes one in the dark for the
-	-- flashlight to find, sometimes none.
-	local keep: string? = nil
-	local figureRooms = {}
-	for _, room in VictorianRooms do
-		if room.figure then
-			table.insert(figureRooms, room)
-		end
-	end
-	rng:shuffle(figureRooms)
-	for _, room in figureRooms do
-		if lit[room.id] and rng:chance(0.6) then
-			keep = room.id
-			break
-		end
-	end
-	if keep == nil and rng:chance(0.25) then
-		keep = figureRooms[1].id
-	end
-	for _, room in VictorianRooms do
-		local figure = house:FindFirstChild("Figure_" .. room.id, true)
-		if figure and room.id ~= keep then
-			figure:Destroy()
-		end
-		local isLit = if room.attic then rng:chance(0.4) else lit[room.id] == true
-		if isLit then
-			local color = rng:pick(ROOM_LIGHTS)
-			local bulb = Instance.new("Part")
-			bulb.Name = "RoomBulb"
-			bulb.Shape = Enum.PartType.Ball
-			bulb.Size = Vector3.one * 0.45
-			bulb.Material = Enum.Material.Neon
-			bulb.Color = color
-			bulb.Anchored, bulb.CanCollide, bulb.CanQuery, bulb.CanTouch, bulb.CastShadow =
-				true, false, false, false, false
-			bulb.CFrame = base * CFrame.new(-room.lamp.X, room.lamp.Z, room.lamp.Y)
-			local light = Instance.new("PointLight")
-			light.Range = 18
-			light.Brightness = 1.4
-			light.Color = color
-			light.Shadows = true
-			light.Parent = bulb
-			bulb.Parent = house
-		end
-	end
-end
 
 -- Dresses the lot around the imported Blender model (ReplicatedStorage.Assets.Houses.Victorian,
--- art/scripts/victorian.py): the Blender yard set if it's been imported, else the built yard, and
--- lights some of its rooms. The model's x runs the other way (its front door is at x = -1.5), so
+-- art/scripts/victorian.py): the Blender yard set and room lights (BlenderLot), or the built yard
+-- when the yard set isn't there. The model's x runs the other way (its front door is at x = -1.5), so
 -- the built yard mirrors x.
 function Victorian.dressLot(house: Model, base: CFrame, rng: Rng.Rng, yardDepth: number, lotWidth: number)
-	local b = newBuilder(house, base, rng)
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local set = assets and assets:FindFirstChild("Yard")
-	local complete = set ~= nil
-	for _, piece in YARD_PIECES do
-		complete = complete and set:FindFirstChild(piece) ~= nil
-	end
-	if complete then
-		blenderYard(b, set, yardDepth, lotWidth)
-	else
-		yard(b, function(x: number, y: number, z: number): CFrame
+	if not BlenderLot.dress(house, base, rng, yardDepth, lotWidth, BLENDER_LOT) then
+		yard(newBuilder(house, base, rng), function(x: number, y: number, z: number): CFrame
 			return base * CFrame.new(-x, y, z)
 		end, yardDepth, lotWidth, -1)
 	end
-	roomLights(house, base, rng)
 end
 
 function Victorian.build(

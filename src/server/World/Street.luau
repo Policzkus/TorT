@@ -54,9 +54,25 @@ for _, module in script.Parent.HouseStyles:GetChildren() do
 	end
 end
 
-local TREE_KIND: { [string]: Props.TreeKind } = { Trailer = "dead", Cottage = "autumn", Victorian = "dead" }
+local TREE_KIND: { [string]: Props.TreeKind } =
+	{ Trailer = "dead", Cottage = "autumn", Farmhouse = "autumn", Victorian = "dead" }
 
 local Street = {}
+
+-- Which house style stands on lot i: streets with several styles alternate them like a
+-- checkerboard (across the road and next door differ). A style whose model hasn't been imported
+-- gives way to the street's main one.
+local function lotStyle(neighborhood: any, i: number): string
+	local list = neighborhood.styles
+	if list == nil or #list < 2 then
+		return neighborhood.style
+	end
+	local name = list[((i // 2) + (i % 2)) % #list + 1]
+	if name ~= neighborhood.style and Assets.find("Houses", name) == nil then
+		return neighborhood.style
+	end
+	return name
+end
 
 -- Lot spacing for a neighbourhood: its widest (scaled) house model plus a margin.
 function Street.lotSpacing(neighborhoodId: string): number
@@ -186,26 +202,25 @@ local function placeHouse(
 	lot: CFrame,
 	rng: Rng.Rng,
 	variantRng: Rng.Rng,
-	yard: number
+	yard: number,
+	styleName: string
 ): HouseInfo?
 	local id = string.format("%s_%02d", neighborhood.id, index)
 	local house: Model, door: BasePart
-	local custom = Assets.clone("Houses", neighborhood.style)
+	local custom = Assets.clone("Houses", styleName)
 	if custom then
 		local customDoor = custom:FindFirstChild("Door", true)
 		if customDoor and customDoor:IsA("BasePart") then
 			custom:PivotTo(lot)
 			-- Styles can dress the lot around an imported model (fence, gate, path, garden).
-			local style = styles[neighborhood.style] :: any
+			local style = styles[styleName] :: any
 			if style and style.dressLot then
 				style.dressLot(custom, lot, rng, yard, World.LOT_SPACING)
 			end
 			custom.Parent = parent
 			house, door = custom, customDoor
 		else
-			warn(
-				`[World] ReplicatedStorage.Assets.Houses.{neighborhood.style} has no BasePart named Door; using procedural`
-			)
+			warn(`[World] ReplicatedStorage.Assets.Houses.{styleName} has no BasePart named Door; using procedural`)
 			custom:Destroy()
 		end
 	end
@@ -216,9 +231,9 @@ local function placeHouse(
 		end
 	end
 	if house == nil then
-		local style = styles[neighborhood.style]
+		local style = styles[styleName]
 		if style == nil then
-			warn(`[World] No house style '{neighborhood.style}' for {neighborhood.id}`)
+			warn(`[World] No house style '{styleName}' for {neighborhood.id}`)
 			return nil
 		end
 		house, door = style.build(parent, lot, rng, yard, World.LOT_SPACING)
@@ -363,7 +378,8 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 			local z = World.ENTRANCE_MARGIN + lotSpacing * (slot + 0.5) + (if side > 0 then lotSpacing / 4 else 0)
 			local facing = CFrame.Angles(0, if side > 0 then math.rad(90) else math.rad(-90), 0)
 			local lot = at(side * World.HOUSE_SETBACK, 0, z) * facing
-			local info = placeHouse(housesFolder, neighborhood, i + 1, lot, rng, variantRng, yard)
+			local info =
+				placeHouse(housesFolder, neighborhood, i + 1, lot, rng, variantRng, yard, lotStyle(neighborhood, i))
 			if info then
 				table.insert(houses, info)
 			end
