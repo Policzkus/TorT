@@ -381,8 +381,11 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		Props.lamp(props, at(x, 0.5, z) * facing)
 		lampSide = -lampSide
 	end
-	-- Decorations between the lots.
-	for _ = 1, 6 do
+	-- Decorations between the lots, unless the houses dress their own yards (the Blender Victorian
+	-- has fenced yards with pumpkins of its own, and these would land inside the fence).
+	local style = styles[neighborhood.style] :: any
+	local dressed = style ~= nil and style.dressLot ~= nil and Assets.find("Houses", neighborhood.style) ~= nil
+	for _ = 1, if dressed then 0 else 6 do
 		local side = if rng:chance(0.5) then -1 else 1
 		local z = rng:range(World.ENTRANCE_MARGIN, length - World.END_MARGIN)
 		Props.pumpkin(props, at(side * (walkOffset + World.SIDEWALK_WIDTH / 2 + 1.5), 0, z), rng:range(1.4, 2.2))

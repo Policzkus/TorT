@@ -46,6 +46,7 @@ DOOR = dict(x=1.5, w=4.2, h=7.6)
 # Scene helpers -----------------------------------------------------------------------------------
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    GROUPS.clear()
 
 
 GROUPS = {}
@@ -1155,6 +1156,11 @@ def merge_group(name):
         bpy.data.meshes.remove(me)
         bpy.data.objects.remove(obj, do_unlink=True)
     bm.normal_update()
+    # Meshes made from curves (vines, branches, stems) bring a "UVMap" of their own. Drop it: Roblox
+    # reads the first UV map, so a stray one ahead of the baked atlas leaves those faces sampling
+    # the atlas's black padding.
+    for layer in list(bm.loops.layers.uv.values()):
+        bm.loops.layers.uv.remove(layer)
     uv = bm.loops.layers.uv.new("Tile")
     for face in bm.faces:
         n = face.normal
