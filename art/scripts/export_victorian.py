@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import victorian  # noqa: E402
 
 SIZE = 1024
-FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Curtain", "Wallpaper"}
+FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale", "Figure_U1", "Figure_R5", "Figure_T3"}
 OUT = victorian.EXPORT
 # --only A,B: bake just these groups and reuse the other PNGs from the last export.
 ONLY = set(victorian.ARGS[victorian.ARGS.index("--only") + 1].split(",")) if "--only" in victorian.ARGS else None

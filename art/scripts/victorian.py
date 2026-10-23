@@ -20,6 +20,9 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import interiors  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TEX = ROOT / "textures"
 RENDERS = ROOT / "renders"
@@ -47,9 +50,11 @@ DOOR = dict(x=1.5, w=4.2, h=7.6)
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     GROUPS.clear()
+    OPENINGS.clear()
 
 
 GROUPS = {}
+OPENINGS = []  # every window and door opening as (wall frame, opening): interiors.py cuts them through the room walls
 
 
 def group(name):
@@ -254,8 +259,30 @@ def casing(frame, o, crown=True):
         box("Trim", (w + 2 * tw, d, tw), (x, -d / 2, y + h + tw / 2), bevel=0.06, matrix=frame)
 
 
+def drape(frame, x0, x1, top, bottom, depth):
+    """A pleated curtain hanging from top to bottom between x0 and x1, `depth` inside the wall
+    (frame coordinates). Two skins, front and back, so it shows from the window and the room."""
+    bm = bmesh.new()
+    n = max(4, int(abs(x1 - x0) / 0.22))
+    for skin, off in ((1, 0.0), (-1, 0.06)):
+        prev = None
+        for i in range(n + 1):
+            x = x0 + (x1 - x0) * i / n
+            y = depth + off + (0.11 if i % 2 else 0.0)
+            pair = (bm.verts.new((x, y, bottom)), bm.verts.new((x, y, top)))
+            if prev:
+                quad = (prev[0], pair[0], pair[1], prev[1])
+                bm.faces.new(quad if (skin > 0) == (x1 > x0) else tuple(reversed(quad)))
+            prev = pair
+    for f in bm.faces:
+        f.smooth = True
+    bmesh.ops.transform(bm, matrix=frame, verts=bm.verts)
+    mesh_object("Drape", bm, "Curtain")
+
+
 def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, curtains=False):
     x, y, w, h = o["x"], o["y"], o["w"], o["h"]
+    OPENINGS.append(dict(frame=frame, o=o))
     casing(frame, o)
     box("Trim", (w + 1.5, 0.95, 0.32), (x, -0.32, y - 0.16), bevel=0.06, matrix=frame)  # sill
     box("Trim", (w + 0.9, 0.3, 0.35), (x, -0.08, y - 0.5), bevel=0.04, matrix=frame)  # apron
@@ -285,12 +312,16 @@ def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, cur
         )
     else:
         box(glass, (w - 0.2, 0.05, h - 0.2), (x, inset + 0.1, y + h / 2), matrix=frame)
-    box("Interior", (w + 2, 0.1, h + 2), (x, T + 2.4, y + h / 2), matrix=frame)
     if curtains:
-        cw = w * rng.uniform(0.28, 0.42)
-        box("Curtain", (cw, 0.12, h * 0.95), (x - w / 2 + cw / 2, T + 0.8, y + h / 2), matrix=frame)
-        cw2 = w * rng.uniform(0.2, 0.35)
-        box("Curtain", (cw2, 0.12, h * 0.7), (x + w / 2 - cw2 / 2, T + 0.8, y + h * 0.62), rot=(0, 0.05, 0), matrix=frame)
+        # Heavy drapes on a rod, pooling on the floor, drawn part-way across.
+        floor = 0.0 if y < STORY else STORY
+        top = y + h + 0.9
+        cw = w * rng.uniform(0.28, 0.42) * 0.45
+        cw2 = w * rng.uniform(0.2, 0.35) * 0.45
+        drape(frame, x - w / 2 - 0.9, x - w / 2 + cw, top, floor + 0.5, T + 0.3)
+        drape(frame, x + w / 2 + 0.9, x + w / 2 - cw2, top, floor + 0.5, T + 0.3)
+        box("Iron", (w + 2.4, 0.08, 0.08), (x, T + 0.25, top + 0.05), matrix=frame)
+        box("FurnitureWood", (w + 2.6, 0.25, 0.5), (x, T + 0.15, top + 0.3), bevel=0.04, matrix=frame)  # pelmet
     if boarded:
         for i in range(3):
             zz = y + h * (0.22 + 0.28 * i) + rng.uniform(-0.3, 0.3)
@@ -322,6 +353,7 @@ def door(frame, x, y, name, hall=True):
     """Door opening trim, transom, and the door slab as its own object hinged on one side."""
     w, h = DOOR["w"], DOOR["h"]
     o = dict(x=x, y=y, w=w, h=h + 1.5)
+    OPENINGS.append(dict(frame=frame, o=o))
     casing(frame, o)
     box("Glass", (w - 0.2, 0.05, 1.1), (x, 0.55, y + h + 0.78), matrix=frame)
     box("Trim", (w, 0.4, 0.3), (x, 0.45, y + h + 0.12), matrix=frame)
@@ -371,7 +403,9 @@ def main_walls():
     up = STORY
     front = wall_frame((0, MAIN["y0"], FOUND), 0)
     fo = [dict(x=DOOR["x"], y=0, w=DOOR["w"], h=DOOR["h"] + 1.5), dict(x=DOOR["x"], y=up + 2.4, w=3.2, h=6)]
-    wall(front, 30, EAVE - FOUND, fo, "SidingFront")
+    # Open behind the bay and inside the tower (hidden by them), so their rooms run deep.
+    inside = [dict(x=-9.0, y=-0.5, w=BAY["x1"] - BAY["x0"] - 2 * T, h=EAVE - FOUND + 1), dict(x=10.3, y=-0.5, w=9.4, h=EAVE - FOUND + 1)]
+    wall(front, 30, EAVE - FOUND, fo + inside, "SidingFront")
     front_hinge = door(front, DOOR["x"], 0, "FrontDoor")
     window(front, fo[1], boarded=True, curtains=True)
 
@@ -414,7 +448,7 @@ def main_walls():
         dict(x=-8, y=up + 2.4, w=3, h=6),
     ]
     wall(back, 30, EAVE - FOUND, bko, "SidingBack")
-    back_hinge = door(back, 8, 0, "BackDoor")
+    back_hinge = door(back, 8, 0, "BackDoor", hall=False)  # opens into the kitchen (interiors.py)
     for i, o in enumerate(bko[1:]):
         window(back, o, boarded=(i in (1, 4)), curtains=(i == 2))
     box("Stone", (6, 4, FOUND), (0, 0, 0), matrix=back @ Matrix.Translation(Vector((8, -2, -FOUND / 2))))
@@ -485,6 +519,7 @@ def bay_roof():
     af = wall_frame((cx, BAY["y"], EAVE + 1.9), 0)
     o = dict(x=0, y=0, w=2.6, h=4.2)
     cut(gable, [box("_cutters", (o["w"], T * 3, o["h"]), (0, T / 2, o["h"] / 2), matrix=af)])
+    OPENINGS.append(dict(frame=af, o=o))  # so the attic room behind gets the same opening
     # Scalloped vergeboards with drops, king post and collar.
     for side in (-1, 1):
         low = Vector((cx + side * (half + over), front + 0.25, EAVE - over * rise / half - 0.1))
@@ -504,7 +539,6 @@ def bay_roof():
     box("Silhouette", (0.35, 0.1, 0.4), (0.1, T + 1.0, 2.25), matrix=af)
     head = af @ frame_matrix((0.32, T + 1.0, 2.85), (0, 0.4, 0))
     lathe("Silhouette", [(0.0, -0.55), (0.4, -0.45), (0.48, 0.0), (0.4, 0.45), (0.0, 0.55)], (0, 0, 0), segments=10, matrix=head)
-    box("Interior", (3.6, 0.1, 5.0), (0, T + 2.4, 2.1), matrix=af)
 
 
 def tower():
@@ -1269,6 +1303,7 @@ def render(name, night=False, views=("front", "corner")):
 def build():
     reset()
     build_materials()
+    interiors.materials(sys.modules[__name__])
     foundation()
     front_hinge, back_hinge = main_walls()
     main_roof()
@@ -1281,6 +1316,7 @@ def build():
     cresting()
     vines()
     clutter()
+    interiors.build(sys.modules[__name__])
     # Remove leftover cutter collection if any.
     if "_cutters" in GROUPS:
         for obj in list(GROUPS["_cutters"].objects):

@@ -15,6 +15,7 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
+local VictorianRooms = require(script.Parent.VictorianRooms)
 local Parts = require(script.Parent.Parent.Parts)
 local Props = require(script.Parent.Parent.Props)
 
@@ -1240,139 +1241,80 @@ local function blenderYard(b: Builder, set: Instance, yardDepth: number, lotWidt
 	place("Grave2", at(10.8, 0, -10.8) * spin(0.3))
 end
 
--- Dresses the lot around the imported Blender model (ReplicatedStorage.Assets.Houses.Victorian,
--- art/scripts/victorian.py): the Blender yard set if it's been imported, else the built yard. The
--- model's x runs the other way (its front door is at x = -1.5), so the built yard mirrors x.
--- Windows of the imported model -----------------------------------------------------------------
--- Rooms rendered in Blender (art/scripts/rooms.py) shown behind the glass: lit ones glow at night
--- (LightInfluence 0), dark ones (dust sheets, furniture) only show in a flashlight.
-local LIT_ROOMS = {
-	{ image = "rbxassetid://122268043054776", light = Color3.fromRGB(255, 160, 90) }, -- lamp
-	{ image = "rbxassetid://126946836008023", light = Color3.fromRGB(150, 180, 255) }, -- TV
-	{ image = "rbxassetid://114275148305282", light = Color3.fromRGB(255, 190, 120) }, -- bare bulb, figure
-	{ image = "rbxassetid://122550572189554", light = Color3.fromRGB(255, 140, 70) }, -- candle
+-- Rooms of the imported model ----------------------------------------------------------------------
+-- Every window of the Blender Victorian looks into a real room (art/scripts/interiors.py). Each
+-- house lights a few of them: a glowing bulb under the room's lamp shade and a warm light that
+-- spills out through the glass. The rest stay dark until a flashlight finds the furniture. A few
+-- rooms hold a figure; each house keeps at most one (usually in a lit room) and loses the others.
+local ROOM_LIGHTS = {
+	Color3.fromRGB(255, 176, 104), -- a lamp
+	Color3.fromRGB(255, 150, 80), -- candlelight
+	Color3.fromRGB(236, 226, 196), -- a bare bulb
 }
-local ATTIC_ROOM = { image = "rbxassetid://106918002247257", light = Color3.fromRGB(255, 150, 80) }
-local DARK_ROOMS = { "rbxassetid://96184684858098", "rbxassetid://102427378023340" }
-local MODEL_WALL = 0.9 -- victorian.py's wall thickness
 
--- In victorian.py's coordinates (x right, y back from the street, z up): the centre of the
--- opening on the wall's outer face, its size, and which way it faces.
-type WindowSpec = { x: number, y: number, z: number, w: number, h: number, out: Vector3, attic: boolean? }
-
-local function blenderWindows(): { WindowSpec }
-	local list: { WindowSpec } = {}
-	local function add(x: number, y: number, z: number, w: number, h: number, out: Vector3, attic: boolean?)
-		table.insert(list, { x = x, y = y, z = z, w = w, h = h, out = out, attic = attic })
-	end
-	local f1, f2 = FOUND + 2.4 + 3, FOUND + STORY + 2.4 + 3
-	local front, back, left, right =
-		Vector3.new(0, -1, 0), Vector3.new(0, 1, 0), Vector3.new(-1, 0, 0), Vector3.new(1, 0, 0)
-	-- Bay: the big window, two upstairs; the window over the door is boarded up.
-	add(-9, -4, FOUND + 2.2 + 3.3, 7, 6.6, front)
-	add(-12, -4, FOUND + STORY + 2.2 + 3.1, 2.8, 6.2, front)
-	add(-6, -4, FOUND + STORY + 2.2 + 3.1, 2.8, 6.2, front)
-	-- Sides and back (boarded ones left out).
-	add(-15, 6, f1, 3, 6, left)
-	add(-15, 17, f1, 3, 6, left)
-	add(-15, 17, f2, 3, 6, left)
-	add(15, 11, f1, 3, 6, right)
-	add(15, 11, f2, 3, 6, right)
-	add(15, 19, f1, 3, 6, right)
-	add(0, 24, f1, 3, 6, back)
-	add(-8, 24, f2, 3, 6, back)
-	add(0, 24, f2, 3, 6, back)
-	-- The tower, which leans (victorian.py: Rz(0) Ry(2°) Rx(-1.4°) about its base).
-	local ax, ay = math.rad(-1.4), math.rad(2.0)
-	local function lean(p: Vector3): Vector3
-		local v = p - Vector3.new(TOWER.x, TOWER.z, 0)
-		v = Vector3.new(v.X, v.Y * math.cos(ax) - v.Z * math.sin(ax), v.Y * math.sin(ax) + v.Z * math.cos(ax))
-		v = Vector3.new(v.X * math.cos(ay) + v.Z * math.sin(ay), v.Y, -v.X * math.sin(ay) + v.Z * math.cos(ay))
-		return v + Vector3.new(TOWER.x, TOWER.z, 0)
-	end
-	local floors = {
-		{ z = FOUND + 2.6 + 2.8, w = 2.4, h = 5.6 },
-		{ z = FOUND + STORY + 2.6 + 2.8, w = 2.4, h = 5.6 },
-		{ z = FOUND + 2 * STORY + 1.4 + 2.1, w = 2, h = 4.2 },
-	}
-	for _, k in { 0, 1, 7, 2 } do
-		local theta = k * math.pi / 4
-		local n = Vector3.new(math.sin(theta), -math.cos(theta), 0)
-		for i, fl in floors do
-			local boarded = (k == 1 and i == 1) or (k == 2 and i == 2)
-			if not boarded then
-				local c = lean(Vector3.new(TOWER.x, TOWER.z, fl.z) + n * TOWER.apothem)
-				add(c.X, c.Y, c.Z, fl.w, fl.h, n)
-			end
-		end
-	end
-	add(-9, -4, EAVE + 1.9 + 2.1, 2.6, 4.2, front, true) -- the attic, where someone stands
-	return list
-end
-local WINDOWS = blenderWindows()
-
-local function windowRooms(house: Model, base: CFrame, rng: Rng.Rng)
-	local function toWorld(p: Vector3): Vector3
-		return (base * CFrame.new(-p.X, p.Z, p.Y)).Position
-	end
-	-- Which windows have a light on: one to three, plus the attic on some houses.
+local function roomLights(house: Model, base: CFrame, rng: Rng.Rng)
 	local candidates = {}
-	for i, win in WINDOWS do
-		if not win.attic then
+	for i, room in VictorianRooms do
+		if not room.attic then
 			table.insert(candidates, i)
 		end
 	end
 	rng:shuffle(candidates)
-	local lit: { [number]: boolean } = {}
-	for n = 1, rng:int(1, 3) do
-		lit[candidates[n]] = true
+	local lit: { [string]: boolean } = {}
+	for n = 1, rng:int(2, 4) do
+		lit[VictorianRooms[candidates[n]].id] = true
 	end
-	for i, win in WINDOWS do
-		local isLit = if win.attic then rng:chance(0.4) else lit[i] == true
-		local outward = (base.Rotation * Vector3.new(-win.out.X, 0, win.out.Y)).Unit
-		local face = toWorld(Vector3.new(win.x, win.y, win.z))
-		-- Just in front of the black backing inside the room (and behind the curtains).
-		local centre = face - outward * (MODEL_WALL + 2.2)
-		local plane = Instance.new("Part")
-		plane.Name = "WindowRoom"
-		plane.Anchored, plane.CanCollide, plane.CanQuery, plane.CanTouch, plane.CastShadow =
-			true, false, false, false, false
-		plane.Transparency = 1
-		plane.Size = Vector3.new(win.w + 1.4, win.h + 1.4, 0.05)
-		plane.CFrame = CFrame.lookAt(centre, centre + outward)
-		local room = if win.attic then ATTIC_ROOM else LIT_ROOMS[rng:int(1, #LIT_ROOMS)]
-		local gui = Instance.new("SurfaceGui")
-		gui.Face = Enum.NormalId.Front
-		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		gui.PixelsPerStud = 24
-		gui.LightInfluence = if isLit then 0 else 1
-		gui.Brightness = if isLit then 1.15 else 1
-		gui.Parent = plane
-		local image = Instance.new("ImageLabel")
-		image.Size = UDim2.fromScale(1, 1)
-		image.BackgroundTransparency = 1
-		image.ScaleType = Enum.ScaleType.Crop
-		image.ResampleMode = Enum.ResamplerMode.Pixelated
-		image.Image = if isLit then room.image else DARK_ROOMS[rng:int(1, #DARK_ROOMS)]
-		image.ImageColor3 = if isLit then Color3.new(1, 1, 1) else Color3.fromRGB(120, 120, 125)
-		image.Parent = gui
-		if isLit then
-			-- Light spilling out through the glass onto the porch and the yard.
-			local light = Instance.new("PointLight")
-			light.Range = if win.attic then 14 else 12
-			light.Brightness = 0.7
-			light.Color = room.light
-			light.Shadows = true
-			local holder = Instance.new("Attachment")
-			holder.Parent = plane
-			holder.WorldPosition = face + outward * 0.8
-			light.Parent = holder
-			plane:SetAttribute("Lit", true)
+	-- Which figure stays: one in a lit room more often than not, sometimes one in the dark for the
+	-- flashlight to find, sometimes none.
+	local keep: string? = nil
+	local figureRooms = {}
+	for _, room in VictorianRooms do
+		if room.figure then
+			table.insert(figureRooms, room)
 		end
-		plane.Parent = house
+	end
+	rng:shuffle(figureRooms)
+	for _, room in figureRooms do
+		if lit[room.id] and rng:chance(0.6) then
+			keep = room.id
+			break
+		end
+	end
+	if keep == nil and rng:chance(0.25) then
+		keep = figureRooms[1].id
+	end
+	for _, room in VictorianRooms do
+		local figure = house:FindFirstChild("Figure_" .. room.id, true)
+		if figure and room.id ~= keep then
+			figure:Destroy()
+		end
+		local isLit = if room.attic then rng:chance(0.4) else lit[room.id] == true
+		if isLit then
+			local color = rng:pick(ROOM_LIGHTS)
+			local bulb = Instance.new("Part")
+			bulb.Name = "RoomBulb"
+			bulb.Shape = Enum.PartType.Ball
+			bulb.Size = Vector3.one * 0.45
+			bulb.Material = Enum.Material.Neon
+			bulb.Color = color
+			bulb.Anchored, bulb.CanCollide, bulb.CanQuery, bulb.CanTouch, bulb.CastShadow =
+				true, false, false, false, false
+			bulb.CFrame = base * CFrame.new(-room.lamp.X, room.lamp.Z, room.lamp.Y)
+			local light = Instance.new("PointLight")
+			light.Range = 18
+			light.Brightness = 1.4
+			light.Color = color
+			light.Shadows = true
+			light.Parent = bulb
+			bulb.Parent = house
+		end
 	end
 end
 
+-- Dresses the lot around the imported Blender model (ReplicatedStorage.Assets.Houses.Victorian,
+-- art/scripts/victorian.py): the Blender yard set if it's been imported, else the built yard, and
+-- lights some of its rooms. The model's x runs the other way (its front door is at x = -1.5), so
+-- the built yard mirrors x.
 function Victorian.dressLot(house: Model, base: CFrame, rng: Rng.Rng, yardDepth: number, lotWidth: number)
 	local b = newBuilder(house, base, rng)
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
@@ -1388,7 +1330,7 @@ function Victorian.dressLot(house: Model, base: CFrame, rng: Rng.Rng, yardDepth:
 			return base * CFrame.new(-x, y, z)
 		end, yardDepth, lotWidth, -1)
 	end
-	windowRooms(house, base, rng)
+	roomLights(house, base, rng)
 end
 
 function Victorian.build(

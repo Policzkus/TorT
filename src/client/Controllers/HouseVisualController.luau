@@ -65,6 +65,9 @@ local function porchLights(model: Model): { PointLight }
 	return lights
 end
 
+-- Glowing parts that go dark with the lights (Blender Victorian: lantern, candles, room bulbs).
+local GLOWS = { LanternGlow = true, PumpkinGlow = true, RoomBulb = true }
+
 local function lightsOff(entry: Tracked)
 	for _, descendant in entry.model:GetDescendants() do
 		if descendant:IsA("BasePart") and (descendant.Name == "Window" or descendant.Name == "PorchLight") then
@@ -72,23 +75,12 @@ local function lightsOff(entry: Tracked)
 			save(entry, descendant, "Material")
 			descendant.Color = Color3.fromHex("161A26")
 			descendant.Material = Enum.Material.Glass
-		elseif
-			descendant:IsA("BasePart") and (descendant.Name == "LanternGlow" or descendant.Name == "PumpkinGlow")
-		then
-			-- The Blender house's lantern and jack-o'-lantern candles go out.
+		elseif descendant:IsA("BasePart") and GLOWS[descendant.Name] then
+			-- The Blender house's lantern, jack-o'-lantern candles and room bulbs go out.
 			save(entry, descendant, "Color")
 			save(entry, descendant, "Material")
 			descendant.Color = Color3.fromHex("1A1612")
 			descendant.Material = Enum.Material.SmoothPlastic
-		elseif descendant:IsA("SurfaceGui") and descendant.Parent and descendant.Parent:GetAttribute("Lit") then
-			-- A lit window room (Victorian.windowRooms) turns into a dark one.
-			save(entry, descendant, "LightInfluence")
-			descendant.LightInfluence = 1
-			local image = descendant:FindFirstChildWhichIsA("ImageLabel")
-			if image then
-				save(entry, image, "ImageColor3")
-				image.ImageColor3 = Color3.fromRGB(70, 70, 76)
-			end
 		elseif descendant:IsA("PointLight") then
 			save(entry, descendant, "Enabled")
 			descendant.Enabled = false

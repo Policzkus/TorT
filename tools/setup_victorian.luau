@@ -71,8 +71,13 @@ look("LanternGlow", { Material = Enum.Material.Neon, Color = Color3.fromRGB(255,
 look("PumpkinGlow", { Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 130, 40), Transparency = 0.15 })
 look("Interior", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(4, 4, 5) })
 look("Silhouette", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(2, 2, 2) })
-look("Curtain", { Material = Enum.Material.Fabric, Color = Color3.fromRGB(70, 60, 56) })
-look("Wallpaper", { Material = Enum.Material.Fabric, Color = Color3.fromRGB(52, 46, 34) })
+-- Inside the rooms (art/scripts/interiors.py): painting canvases, pale faces and candles, and the
+-- figures that Victorian.roomLights keeps one of per house.
+look("Canvas", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(10, 8, 6) })
+look("Pale", { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(150, 138, 118) })
+for _, room in { "U1", "R5", "T3" } do
+	look("Figure_" .. room, { Material = Enum.Material.SmoothPlastic, Color = Color3.fromRGB(3, 3, 4) })
+end
 look("Iron", { Material = Enum.Material.Metal, Color = Color3.fromRGB(16, 16, 18) })
 for _, name in { "Brass_FrontDoor", "Brass_BackDoor" } do
 	look(name, { Material = Enum.Material.Metal, Color = Color3.fromRGB(70, 56, 30) })
