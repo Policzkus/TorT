@@ -219,7 +219,29 @@ for _, x in { -2.6, 4.6 } do
 end
 collider(Vector3.new(4.8, 6, 1.2), Vector3.new(17.1, 6, 0.6)) -- storm-cellar curb
 
--- 7. File it as the street template.
+-- 7. Where a Decorated house's decorations go (HouseVisualController, Assets.Decor): garlands
+-- hooked under the porch beam between the posts, and a pile of pumpkins on the lawn beside the
+-- steps. Attachments on one invisible part; each one's frame faces the street.
+local anchors = Instance.new("Part")
+anchors.Name = "DecorAnchors"
+anchors.Anchored, anchors.CanCollide, anchors.CanQuery, anchors.CanTouch = true, false, false, false
+anchors.Transparency = 1
+anchors.Size = Vector3.new(0.2, 0.2, 0.2)
+anchors.CFrame = pivot
+anchors.Parent = imported
+local function anchor(name: string, x: number, y: number, z: number, yaw: number?)
+	local a = Instance.new("Attachment")
+	a.Name = name
+	a.Parent = anchors
+	a.WorldCFrame = rot * CFrame.Angles(0, math.rad(yaw or 0), 0) + at(x, y, z).Position
+end
+-- Hook points just under the beam (its underside at FOUND + 8.9), in front of the spindles.
+for _, x in { -0.675, 2.675, 6.6, 10.5, 14.3 } do
+	anchor("Garland", x, -9.95, FOUND + 8.85)
+end
+anchor("PumpkinPile", -3.6, -12.6, 0, 15)
+
+-- 8. File it as the street template.
 local assets = ReplicatedStorage:FindFirstChild("Assets") or Instance.new("Folder")
 assets.Name = "Assets"
 assets.Parent = ReplicatedStorage

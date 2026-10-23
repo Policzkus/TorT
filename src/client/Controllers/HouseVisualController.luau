@@ -96,9 +96,36 @@ local function lightsOff(entry: Tracked)
 	end
 end
 
+-- The Blender decorations (Assets.Decor, art/scripts/decor.py) hung at the anchors a house model
+-- brings (DecorAnchors: attachments named after the piece). False if either is missing.
+local function blenderDecor(entry: Tracked, folder: Folder): boolean
+	local anchors = entry.model:FindFirstChild("DecorAnchors")
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local set = assets and assets:FindFirstChild("Decor")
+	if anchors == nil or set == nil then
+		return false
+	end
+	local placed = false
+	for _, anchor in anchors:GetChildren() do
+		local piece = if anchor:IsA("Attachment") then set:FindFirstChild(anchor.Name) else nil
+		if piece and piece:IsA("Model") then
+			local copy = piece:Clone()
+			copy:PivotTo(anchor.WorldCFrame)
+			copy.Parent = folder
+			placed = true
+		end
+	end
+	return placed
+end
+
 local function decorate(entry: Tracked)
 	local folder = Instance.new("Folder")
 	folder.Name = "Decorations"
+	if blenderDecor(entry, folder) then
+		folder.Parent = entry.model
+		entry.decor = folder
+		return
+	end
 	local door = entry.door
 	local colors = { Color3.fromHex("FF8A00"), Color3.fromHex("8A3AFF"), Color3.fromHex("7CFF4F") }
 	-- String lights along the top of the front wall, either side of the door.

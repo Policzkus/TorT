@@ -865,7 +865,7 @@ def vines():
             tube("Vines", [p, p + Vector((detail.uniform(-0.3, 0.3), -0.1, -1.2)), p + Vector((detail.uniform(-0.5, 0.5), -0.15, -2.1))], [0.04, 0.03, 0.02], sides=0)
 
 
-def pumpkin(loc, size, yaw, carved=False, rotten=False):
+def pumpkin(loc, size, yaw, carved=False, rotten=False, grp="Pumpkin", glow="PumpkinGlow", stem="Vines", tall=1.0):
     """A ribbed pumpkin. A carved one is hollow with a face cut through it and a candle glow inside;
     a rotten one has slumped and caved in on one side."""
     bm = bmesh.new()
@@ -878,7 +878,7 @@ def pumpkin(loc, size, yaw, carved=False, rotten=False):
             a = 2 * math.pi * i / segs
             rib = 0.9 + 0.1 * abs(math.cos(a * 5))
             rr = math.cos(phi) * size * rib
-            zz = (math.sin(phi) * 0.62 + 0.62) * size
+            zz = (math.sin(phi) * 0.62 + 0.62) * size * tall
             if rotten:
                 zz *= 0.85
                 zz -= max(0.0, math.cos(a - 0.6)) * max(0.0, math.sin(phi)) * 0.35 * size
@@ -890,7 +890,7 @@ def pumpkin(loc, size, yaw, carved=False, rotten=False):
             k = (i + 1) % segs
             bm.faces.new((grid[j][i], grid[j][k], grid[j + 1][k], grid[j + 1][i]))
     low = bm.verts.new((0, 0, 0.02 * size))
-    high = bm.verts.new((0, 0, (1.18 if not rotten else 0.8) * size))
+    high = bm.verts.new((0, 0, (1.18 if not rotten else 0.8) * size * tall))
     for i in range(segs):
         k = (i + 1) % segs
         bm.faces.new((low, grid[0][k], grid[0][i]))
@@ -900,10 +900,10 @@ def pumpkin(loc, size, yaw, carved=False, rotten=False):
         f.smooth = True
     m = frame_matrix(loc, (0, 0, yaw))
     bmesh.ops.transform(bm, matrix=m, verts=bm.verts)
-    shell = mesh_object("Pumpkin", bm, "Pumpkin")
+    shell = mesh_object("Pumpkin", bm, grp)
     if carved:
-        inner = lathe("_cutters", [(0.01, size * 0.22), (size * 0.66, size * 0.35), (size * 0.74, size * 0.62), (size * 0.58, size * 0.95), (0.01, size * 1.05)], (0, 0, 0), segments=12, matrix=m)
-        face = m @ Matrix.Translation((0, -size * 1.4, size * 0.62))
+        inner = lathe("_cutters", [(0.01, size * 0.22 * tall), (size * 0.66, size * 0.35 * tall), (size * 0.74, size * 0.62 * tall), (size * 0.58, size * 0.95 * tall), (0.01, size * 1.05 * tall)], (0, 0, 0), segments=12, matrix=m)
+        face = m @ Matrix.Translation((0, -size * 1.4, size * 0.62 * tall))
         cutters = [inner]
         for ex in (-0.32, 0.32):
             eye = [((ex - 0.14) * size, 0.08 * size), ((ex + 0.14) * size, 0.08 * size), ((ex + ex * 0.3) * size, 0.34 * size)]
@@ -911,9 +911,9 @@ def pumpkin(loc, size, yaw, carved=False, rotten=False):
         mouth = [(-0.42, -0.06), (-0.27, -0.14), (-0.18, -0.06), (-0.06, -0.16), (0.06, -0.06), (0.17, -0.16), (0.28, -0.08), (0.42, -0.04), (0.3, -0.3), (0.0, -0.37), (-0.3, -0.3)]
         cutters.append(prism("_cutters", [(x * size, z * size) for x, z in reversed(mouth)], size * 1.2, face))
         cut(shell, cutters)
-        lathe("PumpkinGlow", [(0.01, size * 0.3), (size * 0.35, size * 0.4), (size * 0.4, size * 0.6), (size * 0.3, size * 0.8), (0.01, size * 0.85)], (0, 0, 0), segments=8, matrix=m)
-    stem = (1.15 if not rotten else 0.75) * size
-    tube("Vines", [m @ Vector((0, 0, stem - 0.1)), m @ Vector((0.05, 0.02, stem + 0.2 * size)), m @ Vector((0.18 * size, 0.05, stem + 0.3 * size))], [0.12 * size, 0.1 * size, 0.07 * size], sides=0)
+        lathe(glow, [(0.01, size * 0.3 * tall), (size * 0.35, size * 0.4 * tall), (size * 0.4, size * 0.6 * tall), (size * 0.3, size * 0.8 * tall), (0.01, size * 0.85 * tall)], (0, 0, 0), segments=8, matrix=m)
+    top = (1.15 if not rotten else 0.75) * size * tall
+    tube(stem, [m @ Vector((0, 0, top - 0.1)), m @ Vector((0.05, 0.02, top + 0.2 * size)), m @ Vector((0.18 * size, 0.05, top + 0.3 * size))], [0.12 * size, 0.1 * size, 0.07 * size], sides=0)
 
 
 def clutter():
