@@ -1,7 +1,7 @@
 --!strict
--- The Blender farmhouse (art/scripts/farmhouse.py, imported as ReplicatedStorage.Assets.Houses.Farmhouse)
--- for Maple Lane: its lot is dressed from the generated data (HouseData/Farmhouse) with a picket
--- fence, and some of its rooms are lit. Until the model is imported the street keeps its cottages.
+-- The Blender farmhouse (art/scripts/farmhouse.py, imported as ReplicatedStorage.Assets.Houses.Farmhouse),
+-- one of the three houses on Cardboard Court: its lot is dressed from the generated data
+-- (HouseData/Farmhouse) with a picket fence, and some of its rooms are lit.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

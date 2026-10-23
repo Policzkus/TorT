@@ -41,8 +41,6 @@ D = K.Data("Mansard")
 
 def materials():
     M, U = V.MATERIALS, V.UV_RULES
-    for room in ('U2', 'M1', 'T3'):
-        M["Figure_" + room] = M["Silhouette"]
     M["Siding"] = V.textured("Stucco", "concrete_wall_006", tint=(0.66, 0.62, 0.56, 1), dirt=0.95, moss=0.25)
     U["Siding"] = (8.0, "vertical")
     M["Trim"] = M["PorchTrim"] = V.textured("MansardTrim", "distressed_painted_planks", paint=(0.62, 0.58, 0.5, 1), dirt=0.9)
@@ -339,62 +337,16 @@ def rooms():
         dict(id="M2", x0=5.6, x1=11.0, y0=1.2, y1=9.0, floor=m, ceil=mc, paper="Boards"),
         dict(id="T3", x0=-3.6, x1=3.6, y0=ty, y1=TOWER["y_back"] - T, floor=m, ceil=TOWER["top"] - 0.6, paper="WallpaperC"),
     ]
+    roles = {"G1": ("living", "y0"), "G2": ("hall", "y0"), "G3": ("living", "y0"), "G4": ("kitchen", "x0"), "G5": ("living", "x1"),
+             "U1": ("living", "y0"), "U2": ("living", "y0"), "U3": ("living", "y0"), "U4": ("living", "x0"), "U5": ("living", "x1"),
+             "M1": ("attic", "y0"), "M2": ("attic", "y0"), "T3": ("tower", "y0")}
     for room in plan:
         lamp = I.box_room(V, room)
-        D.room(room["id"], lamp, attic=room["id"] in ("M1", "M2"))
-        f, rid = room["floor"], room["id"]
-        if rid == "G1":  # drawing room: fireplace, chairs, a portrait
-            I.fireplace(V, I.at(V, -12.0 + 0.3 * U, 6.0, f, -pi / 2))
-            I.armchair(V, I.at(V, -8.6, 3.6, f, pi * 0.9))
-            I.side_table(V, I.at(V, -6.4, 5.0, f))
-            I.rug(V, I.at(V, -8.8, 6.0, f), 2.0, 1.6)
-        elif rid == "G2":  # the hall: a grand stair and a clock
-            I.stairs(V, I.at(V, 1.6, 2.0, f), steps=12)
-            I.clock(V, I.at(V, -3.5 + 0.16 * U, 6.0, f, pi / 2))
-        elif rid == "G3":  # library
-            for i, y in enumerate((3.0, 7.0)):
-                I.bookshelf(V, I.at(V, 12.0 - 0.17 * U, y, f, -pi / 2), seed=50 + i)
-            I.desk(V, I.at(V, 8.4, 5.6, f, 0))
-            I.chair(V, I.at(V, 8.4, 7.4, f, pi))
-        elif rid == "G4":  # kitchen behind the back door
-            I.stove(V, I.at(V, -11.0, 21.0 - 0.32 * U, f))
-            I.shelves(V, I.at(V, -6.0, 11.1 + 0.15 * U, f, pi), seed=9)
-            I.table(V, I.at(V, -6.5, 16.5, f, 0.1))
-        elif rid == "G5":  # dining room
-            I.table(V, I.at(V, 6.0, 16.0, f), w=2.0, d=1.0)
-            for sx in (-0.6, 0.0, 0.6):
-                I.chair(V, I.at(V, 6.0 + sx * U, 16.0 - 0.7 * U, f, 0))
-                I.chair(V, I.at(V, 6.0 + sx * U, 16.0 + 0.7 * U, f, pi))
-            I.candelabra(V, I.at(V, 6.0, 16.0, f + 0.78 * U))
-        elif rid == "U1":  # bedroom
-            I.bed(V, I.at(V, -8.6, 10.7 - 1.0 * U, f, 0))
-            I.dresser(V, I.at(V, -12.0 + 0.23 * U, 3.2, f, pi / 2))
-        elif rid == "U2":  # the room behind the tower's middle window: someone watches the street
-            I.lump(V, "Cloth", (0.8, 0.5, 0.9), I.at(V, -1.8, 7.5, f, 0.3), seed=41)
-            I.portrait(V, V.frame_matrix((0, 10.7, f + 6.2), (0, 0, pi)) @ Matrix.Scale(U, 4))
-            I.figure(V, "Figure_U2", I.at(V, 0.6, -0.4, f, 0.0))
-            D.figures.add("U2")
-        elif rid == "U3":  # nursery
-            I.crib(V, I.at(V, 9.0, 10.7 - 0.36 * U, f))
-            I.rocking_chair(V, I.at(V, 7.0, 3.6, f, -0.4), doll=True)
-        elif rid == "U4":  # dust sheets
-            I.lump(V, "Cloth", (2.0, 0.8, 0.9), I.at(V, -6.0, 16.0, f), seed=42)
-            I.lump(V, "Cloth", (0.4, 0.3, 1.8), I.at(V, -10.6, 19.4, f, 0.4), seed=43)
-        elif rid == "U5":  # bedroom
-            I.bed(V, I.at(V, 6.0, 21.0 - 1.0 * U, f, pi))
-            I.wardrobe(V, I.at(V, 12.0 - 0.3 * U, 14.0, f, -pi / 2))
-        elif rid == "M1":  # under the mansard: trunks and a dress form
-            I.crate(V, I.at(V, -9.6, 7.6, f, 0.3), s=0.5)
-            I.dress_form(V, I.at(V, -7.0, 4.0, f, 0.5))
-            I.figure(V, "Figure_M1", I.at(V, -8.4, 2.4, f, 0.1))
-            D.figures.add("M1")
-        elif rid == "M2":
-            I.lump(V, "Cloth", (0.6, 0.5, 0.8), I.at(V, 8.2, 6.0, f, -0.3), seed=44)
-            I.crate(V, I.at(V, 9.8, 3.0, f, 0.2), s=0.45)
-        elif rid == "T3":  # the tower top: a chair turned to the round window
-            I.chair(V, I.at(V, 0.4, 0.0, f, 0.1))
-            I.figure(V, "Figure_T3", I.at(V, -1.4, -1.0, f, 0.15))
-            D.figures.add("T3")
+        role, front = roles[room["id"]]
+        D.room(room, lamp, role, front)
+        if room["id"] == "G2":  # the hall keeps its grand stair and clock; the game furnishes the rest
+            I.stairs(V, I.at(V, 1.6, 2.0, room["floor"]), steps=12)
+            I.clock(V, I.at(V, -3.5 + 0.16 * U, 6.0, room["floor"], pi / 2))
 
 
 def colliders():
@@ -451,8 +403,7 @@ def build():
     return merged
 
 
-FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale",
-        "Figure_U2", "Figure_M1", "Figure_T3"}
+FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale"}
 
 if __name__ == "__main__":
     merged = build()

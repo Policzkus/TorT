@@ -41,8 +41,6 @@ D = K.Data("Farmhouse")
 
 def materials():
     M, U = V.MATERIALS, V.UV_RULES
-    for room in ('G3', 'U1', 'U2'):
-        M["Figure_" + room] = M["Silhouette"]
     M["Siding"] = V.textured("FarmSiding", "distressed_painted_planks", tint=(1.3, 1.28, 1.2, 1), dirt=0.95)
     U["Siding"] = (8.0, "vertical")  # the boards run up the wall
     trim = V.textured("FarmTrim", "distressed_painted_planks", paint=(0.07, 0.09, 0.075, 1), dirt=0.8)
@@ -242,53 +240,15 @@ def rooms():
         dict(id="U2", x0=-3.0, x1=3.0, y0=T, y1=8.0, floor=u, ceil=uc - 0.4, paper="WallpaperC"),
         dict(id="U3", x0=4.2, x1=xi1, y0=3.5, y1=14.5, floor=u, ceil=uc, paper="WallpaperA"),
     ]
+    roles = {"G1": ("living", "y0"), "G2": ("hall", "y0"), "G3": ("living", "y0"), "G4": ("living", "x0"), "G5": ("living", "x1"),
+             "K": ("kitchen", "y1"), "U1": ("living", "x0"), "U2": ("living", "y0"), "U3": ("attic", "x1")}
     for room in plan:
         lamp = I.box_room(V, room)
-        D.room(room["id"], lamp)
-        f, rid = room["floor"], room["id"]
-        if rid == "G1":  # parlour: a stove, two chairs, a portrait over a cabinet
-            I.stove(V, I.at(V, -10.6, 9.0 - 0.32 * U, f))
-            I.armchair(V, I.at(V, -8.0, 4.5, f, pi * 0.85))
-            I.rocking_chair(V, I.at(V, -4.6, 6.0, f, -pi * 0.7))
-            I.rug(V, I.at(V, -7.0, 5.2, f), 2.0, 1.4)
-            I.portrait(V, V.frame_matrix((-2.9 - 0.1, 5.0, f + 6.0), (0, 0, -pi / 2)) @ Matrix.Scale(U, 4))
-        elif rid == "G2":  # the hall: stairs up the side, a coat stand, a grandfather clock
-            I.stairs(V, I.at(V, 1.4, 1.6, f), steps=10)
-            I.clock(V, I.at(V, -2.6 + 0.16 * U, 8.6, f, pi / 2))
-        elif rid == "G3":  # sitting room with a figure at the window sometimes
-            I.armchair(V, I.at(V, 9.0, 6.4, f, pi * 1.2))
-            I.side_table(V, I.at(V, 10.6, 8.6, f))
-            I.lump(V, "Cloth", (1.9, 0.8, 0.85), I.at(V, 6.4, 8.4, f, pi), seed=31)
-            I.figure(V, "Figure_G3", I.at(V, 6.5, 2.6, f, 0.15))
-            D.figures.add("G3")
-        elif rid == "G4":  # back bedroom
-            I.bed(V, I.at(V, -7.4, 17.1 - 1.0 * U, f, 0))
-            I.dresser(V, I.at(V, -11.1 + 0.23 * U, 12.0, f, pi / 2))
-        elif rid == "G5":  # dining room
-            I.table(V, I.at(V, 4.5, 13.8, f), w=1.6, d=0.9)
-            for sx in (-0.5, 0.5):
-                I.chair(V, I.at(V, 4.5 + sx * U, 13.8 - 0.65 * U, f, 0))
-                I.chair(V, I.at(V, 4.5 + sx * U, 13.8 + 0.65 * U, f, pi))
-            I.candelabra(V, I.at(V, 4.5, 13.8, f + 0.78 * U))
-            I.portrait(V, V.frame_matrix((11.1 - 0.1, 13.6, f + 6.2), (0, 0, -pi / 2)) @ Matrix.Scale(U, 4))
-        elif rid == "K":  # kitchen in the lean-to, behind the back door
-            I.stove(V, I.at(V, -9.6, 23.1 - 0.32 * U, f))
-            I.shelves(V, I.at(V, 0.0, 19.0 + 0.15 * U, f, pi), seed=7)
-            I.table(V, I.at(V, -5.6, 21.0, f, 0.1), w=1.2, d=0.7)
-        elif rid == "U1":  # the left bedroom under the roof
-            I.bed(V, I.at(V, -7.5, 14.4 - 1.0 * U, f, 0))
-            I.wardrobe(V, I.at(V, -4.3 - 0.3 * U, 5.6, f, -pi / 2))
-            I.figure(V, "Figure_U1", I.at(V, -9.2, 7.4, f, -pi / 2 + 0.2))
-            D.figures.add("U1")
-        elif rid == "U2":  # behind the Gothic window: a nursery
-            I.crib(V, I.at(V, 0.0, 8.0 - 0.36 * U, f))
-            I.rocking_chair(V, I.at(V, -1.6, 3.4, f, -0.3), doll=True)
-            I.figure(V, "Figure_U2", I.at(V, 1.2, 2.2, f, 0.0))
-            D.figures.add("U2")
-        elif rid == "U3":  # junk and dust sheets
-            I.lump(V, "Cloth", (0.6, 0.45, 0.9), I.at(V, 8.0, 6.0, f, 0.4), seed=33)
-            I.crate(V, I.at(V, 9.5, 12.0, f, 0.2))
-            I.dress_form(V, I.at(V, 6.0, 12.6, f, 0.6))
+        role, front = roles[room["id"]]
+        D.room(room, lamp, role, front)
+        if room["id"] == "G2":  # the hall keeps its stairs and clock; the game furnishes the rest
+            I.stairs(V, I.at(V, 1.4, 1.6, room["floor"]), steps=10)
+            I.clock(V, I.at(V, -2.6 + 0.16 * U, 8.6, room["floor"], pi / 2))
 
 
 def colliders(posts, post_y):
@@ -351,8 +311,7 @@ def build():
     return merged
 
 
-FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale",
-        "Figure_G3", "Figure_U1", "Figure_U2"}
+FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale"}
 
 if __name__ == "__main__":
     merged = build()

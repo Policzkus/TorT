@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import victorian  # noqa: E402
 
 SIZE = 1024
-FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale", "Figure_U1", "Figure_R5", "Figure_T3"}
+FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron", "Brass_FrontDoor", "Brass_BackDoor", "Canvas", "Pale"}
 OUT = victorian.EXPORT
 # --only A,B: bake just these groups and reuse the other PNGs from the last export.
 ONLY = set(victorian.ARGS[victorian.ARGS.index("--only") + 1].split(",")) if "--only" in victorian.ARGS else None
@@ -43,11 +43,13 @@ def atlas_uvs(obj):
 
 def bake(obj, out, size=SIZE, reuse=False):
     """Bakes the object's maps, or with `reuse` loads the PNGs a previous export left behind
-    (the atlas UVs come out the same for the same mesh)."""
+    (the atlas UVs come out the same for the same mesh). An object with several materials (a
+    furniture piece: velvet and wood) bakes them all into the one atlas."""
     scene = bpy.context.scene
-    mat = obj.data.materials[0].copy()
-    obj.data.materials[0] = mat
-    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    mats = []
+    for i, m in enumerate(obj.data.materials):
+        mats.append(m.copy())
+        obj.data.materials[i] = mats[-1]
     atlas_uvs(obj)
     images = {}
     passes = (("color", "DIFFUSE", "sRGB"), ("normal", "NORMAL", "Non-Color"), ("rough", "ROUGHNESS", "Non-Color"))
@@ -60,15 +62,19 @@ def bake(obj, out, size=SIZE, reuse=False):
     for kind, bake_type, space in passes:
         img = bpy.data.images.new(f"{obj.name}_{kind}", size, size, alpha=False)
         img.colorspace_settings.name = space
-        target = nodes.new("ShaderNodeTexImage")
-        target.image = img
-        uv = nodes.new("ShaderNodeUVMap")
-        uv.uv_map = "Atlas"
-        links.new(uv.outputs["UV"], target.inputs["Vector"])
-        for n in nodes:
-            n.select = False
-        target.select = True
-        nodes.active = target
+        added = []
+        for mat in mats:
+            nodes, links = mat.node_tree.nodes, mat.node_tree.links
+            target = nodes.new("ShaderNodeTexImage")
+            target.image = img
+            uv = nodes.new("ShaderNodeUVMap")
+            uv.uv_map = "Atlas"
+            links.new(uv.outputs["UV"], target.inputs["Vector"])
+            for n in nodes:
+                n.select = False
+            target.select = True
+            nodes.active = target
+            added.append((nodes, target, uv))
         select_only(obj)
         if bake_type == "DIFFUSE":
             scene.render.bake.use_pass_direct = False
@@ -79,8 +85,9 @@ def bake(obj, out, size=SIZE, reuse=False):
         img.filepath_raw = str(path)
         img.file_format = "PNG"
         img.save()
-        nodes.remove(target)
-        nodes.remove(uv)
+        for nodes, target, uv in added:
+            nodes.remove(target)
+            nodes.remove(uv)
         images[kind] = img
         print("BAKED", path.name)
     # Swap in a simple material that only uses the baked maps on the atlas UVs.
@@ -101,7 +108,10 @@ def bake(obj, out, size=SIZE, reuse=False):
     bl.new(tex["normal"].outputs["Color"], nmap.inputs["Color"])
     bl.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
     bl.new(tex["rough"].outputs["Color"], bsdf.inputs["Roughness"])
-    obj.data.materials[0] = baked
+    obj.data.materials.clear()
+    obj.data.materials.append(baked)
+    for poly in obj.data.polygons:
+        poly.material_index = 0
     obj.data.uv_layers.remove(obj.data.uv_layers["Tile"])
     obj.data.uv_layers["Atlas"].active_render = True
 

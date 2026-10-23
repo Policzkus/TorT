@@ -197,8 +197,6 @@ def materials(V):
     M["Books"] = books_material("Books")
     M["Canvas"] = V.textured("Canvas", None, tint=(0.03, 0.025, 0.02, 1), rough=0.8)
     M["Pale"] = V.textured("Pale", None, tint=(0.5, 0.45, 0.38, 1), rough=0.8)
-    for room in FIGURE_ROOMS:
-        M["Figure_" + room] = M["Silhouette"]
 
 
 # Shapes ------------------------------------------------------------------------------------------
@@ -294,7 +292,8 @@ def wardrobe(V, m):
     V.box("FurnitureWood", (1.15, 0.58, 0.08), (0, 0, 0.04), matrix=m)
     for sx in (-0.27, 0.27):
         V.box("FurnitureWood", (0.46, 0.03, 1.6), (sx, -0.28, 1.06), bevel=0.01, matrix=m)
-        V.lathe("Iron", [(0.015, 0), (0.02, 0.03), (0.0, 0.05)], (sx * 0.15, -0.3, 1.1), segments=6, matrix=m @ Matrix.Rotation(math.pi / 2, 4, "X"))
+        knob = m @ Matrix.Translation((sx * 0.15, -0.3, 1.1)) @ Matrix.Rotation(math.pi / 2, 4, "X")
+        V.lathe("Iron", [(0.015, 0), (0.02, 0.03), (0.0, 0.05)], (0, 0, 0), segments=6, matrix=knob)
 
 
 def dresser(V, m):
@@ -471,7 +470,6 @@ def figure(V, grp, m):
     V.lathe(grp, [(0.0, 0.0), (0.09, 0.06), (0.11, 0.16), (0.09, 0.27), (0.0, 0.31)], (0, 0, 0), segments=10, matrix=m @ V.frame_matrix((0, 0, 1.66), (0.18, 0.12, 0)))
 
 
-FIGURE_ROOMS = ("U1", "R5", "T3")
 
 
 # Rooms -------------------------------------------------------------------------------------------
@@ -549,70 +547,21 @@ def box_room(V, room):
 
 
 def furnish(V, room):
-    """Hand-placed furniture for each room (world coordinates, studs). Pieces face -Y at yaw 0, so
-    yaw pi faces +Y, pi/2 faces +X and -pi/2 faces -X."""
-    rid, f = room["id"], room["floor"]
-    pi = math.pi
-    if rid == "R1":  # parlour, seen through the bay window: fireplace on the far wall
-        fireplace(V, at(V, -9.0, 8.9 - 0.3 * U, f))
-        armchair(V, at(V, -11.6, 4.4, f, pi * 0.8))
-        armchair(V, at(V, -6.3, 4.0, f, -pi * 0.75))
-        side_table(V, at(V, -12.9, 6.9, f))
-        rug(V, at(V, -9.0, 4.8, f), 2.4, 1.6)
-        clock(V, at(V, -14.0 + 0.16 * U, 0.8, f, pi / 2))
-        portrait(V, V.frame_matrix((-3.95 - 0.1, 4.0, f + 6.4), (0, 0, -pi / 2)) @ Matrix.Scale(U, 4))
-    elif rid == "U1":  # nursery behind the upstairs bay windows; someone may stand at the glass
-        crib(V, at(V, -11.4, 8.9 - 0.36 * U, f))
-        rocking_chair(V, at(V, -6.6, 3.2, f, -0.25), doll=True)
-        wardrobe(V, at(V, -4.0 - 0.3 * U, 6.8, f, -pi / 2))
-        for i, (x, y) in enumerate(((-9.6, 2.6), (-8.8, 3.0), (-9.2, 2.4))):
-            V.box("FurnitureWood", (0.6, 0.6, 0.6), (x, y, f + 0.3 + (0.6 if i == 2 else 0)), rot=(0, 0, 0.3 * i))  # toy blocks
-        portrait(V, V.frame_matrix((-14.0 + 0.1, 1.5, f + 6.0), (0, 0, pi / 2)) @ Matrix.Scale(U * 0.8, 4))
-        figure(V, "Figure_U1", at(V, -12.0, -1.0, f, 0.1))
-    elif rid == "R2":  # kitchen behind the back door
-        stove(V, at(V, -12.2, 23.0 - 0.32 * U, f))
-        shelves(V, at(V, -8.0, 13.05 + 0.15 * U, f, pi), seed=3)
-        table(V, at(V, -9.5, 18.0, f, 0.1))
-        chair(V, at(V, -9.0, 16.0, f, 0.2))
-        chair(V, at(V, -11.6, 18.4, f, pi / 2 - 0.3))
-        V.box("Pale", (2.8, 2.2, 0.04), (-9.4, 18.1, f + 2.88), rot=(0, 0, 0.4))  # a cloth on the table
-    elif rid == "U2":  # corner bedroom
-        bed(V, at(V, -9.6, 11.1 + 1.0 * U, f, pi))
-        dresser(V, at(V, -14.0 + 0.23 * U, 20.6, f, pi / 2))
-        wardrobe(V, at(V, -4.8 - 0.3 * U, 20.8, f, -pi / 2))
-        chair(V, at(V, -12.4, 13.2, f, -pi * 0.2))
-    elif rid == "R3":  # dining room
-        table(V, at(V, 0.2, 19.8, f), w=1.8, d=1.0)
-        for sx in (-0.55, 0.0, 0.55):
-            chair(V, at(V, 0.2 + sx * U, 19.8 - 0.7 * U, f, 0))
-            chair(V, at(V, 0.2 + sx * U, 19.8 + 0.7 * U, f, pi))
-        candelabra(V, at(V, 0.2, 19.8, f + 0.78 * U))
-        portrait(V, V.frame_matrix((0.0, 16.6 + 0.15, f + 6.4), (0, 0, pi)) @ Matrix.Scale(U * 1.1, 4))
-    elif rid == "U3":  # everything under dust sheets
-        lump(V, "Cloth", (2.0, 0.85, 0.85), at(V, 0.0, 19.4, f), seed=1)
-        lump(V, "Cloth", (0.5, 0.5, 1.0), at(V, -3.0, 21.8, f), seed=2)
-        lump(V, "Cloth", (0.35, 0.25, 1.9), at(V, 3.6, 22.0, f, 0.3), seed=3)
-        lump(V, "Cloth", (0.6, 0.4, 0.75), at(V, 2.7, 17.6, f, -0.4), seed=4)
-    elif rid == "R4":  # study: shelves on the inner wall, facing the window
-        for i, y in enumerate((9.0, 12.9)):
-            bookshelf(V, at(V, 7.7 + 0.17 * U, y, f, pi / 2), seed=10 + i)
-        desk(V, at(V, 12.0, 11.0, f, -pi / 2))
-        chair(V, at(V, 10.6, 11.0, f, pi / 2))
-        rug(V, at(V, 11.0, 11.0, f), 1.8, 1.4)
-    elif rid == "U4":  # second bedroom, the bed running along the room
-        bed(V, at(V, 10.0, 15.0 - 0.1 - 1.0 * U, f))
-        rocking_chair(V, at(V, 12.8, 8.6, f, pi / 2 + 0.3))
-        chair(V, at(V, 8.6, 8.0, f, pi * 0.75))
-    elif rid == "R5":  # stair hall; the doorway on the inner wall opens into darkness
+    """Rooms are furnished per house by the game (Config/RoomLayouts, pieces from furniture.py);
+    only the stair hall keeps fixed furniture: its stairs, landing and hall table."""
+    if room["id"] == "R5":
+        f = room["floor"]
         stairs(V, at(V, 12.1, 15.9, f), steps=7)
         V.box("FurnitureWood", (3.8, 0.6, 4.76), (12.1, 22.75, f + 2.38))  # landing
         V.box("FurnitureWood", (2.6, 1.0, 2.8), (9.4, 22.4, f + 1.4), bevel=0.05)  # hall table
         V.lathe("Glass", [(0.25, 2.8), (0.45, 3.4), (0.2, 4.1), (0.3, 4.4)], (9.4, 22.4, f), segments=10)  # a vase
-        figure(V, "Figure_R5", at(V, 9.6, 18.4, f, pi / 2))
-    elif rid == "U5":  # boarded-up junk room
-        for i, (x, y) in enumerate(((9.5, 21.5), (12.4, 21.0), (11.0, 17.5))):
-            crate(V, at(V, x, y, f, 0.3 * i))
-        lump(V, "Cloth", (0.6, 0.5, 0.7), at(V, 9.0, 17.0, f), seed=5)
+
+
+def room_entry(room, lamp, role, front):
+    """What the game needs to know about a room: its lamp, box, role and which wall is its front
+    (the window side the furniture faces)."""
+    return dict(id=room["id"], lamp=lamp, role=role, front=front,
+                box=(room["x0"], room["x1"], room["y0"], room["y1"], room["floor"], room["ceil"]))
 
 
 def main_rooms(V):
@@ -636,11 +585,13 @@ def main_rooms(V):
         dict(id="R5", x0=7.6, x1=xi1, y0=15.2, y1=yb, floor=g0, ceil=c0, paper="WallpaperB", doorway_side=3, doorway=(-1.5, 4.0, 8.0)),
         dict(id="U5", x0=7.6, x1=xi1, y0=15.2, y1=yb, floor=g1, ceil=c1, paper="WallpaperA"),
     ]
+    roles = {'R1': ('living', 'y0'), 'U1': ('living', 'y0'), 'R2': ('kitchen', 'x0'), 'U2': ('living', 'x0'), 'R3': ('living', 'y1'), 'U3': ('living', 'y1'), 'R4': ('living', 'x1'), 'U4': ('living', 'x1'), 'R5': ('hall', 'x1'), 'U5': ('attic', 'x1')}
     lamps = []
     for room in rooms:
         lamp = box_room(V, room)
         furnish(V, room)
-        lamps.append((room["id"], lamp, False))
+        role, front = roles[room["id"]]
+        lamps.append(room_entry(room, lamp, role, front))
     return lamps
 
 
@@ -675,31 +626,15 @@ def tower_rooms(V):
             bmesh.ops.transform(bm, matrix=lean @ Matrix.Translation((0, 0, z)), verts=bm.verts)
             V.mesh_object("TowerFloor", bm, grp)
         centre = lean @ Vector((0, 0, 0))
-        lamp = pendant(V, centre.x, centre.y, z1)
-        lamps.append((rid, lean @ Vector((0, 0, z1 - 1.2)), False))
-        # Furniture, in tower-local positions turned into world ones.
-        def spot(x, y, yaw=0.0):
-            p = lean @ Vector((x, y, 0))
-            return at(V, p.x, p.y, z0, yaw)
-
-        if rid == "T1":  # a little library: shelves round the back, a chair facing the front window
-            for k in (3, 4, 5):
-                th = k * math.pi / 4
-                bookshelf(V, spot(math.sin(th) * (r - 0.75), -math.cos(th) * (r - 0.75), th + math.pi), seed=20 + k)
-            armchair(V, spot(0.3, 0.6, 0.0))
-            side_table(V, spot(-1.8, 1.4))
-        elif rid == "T2":
-            lump(V, "Cloth", (0.7, 0.45, 0.8), spot(-1.0, 1.2, 0.3), seed=11)
-            lump(V, "Cloth", (0.3, 0.2, 1.7), spot(1.8, 1.6, -0.5), seed=12)
-            crate(V, spot(1.6, -1.2, 0.6))
-        else:  # the top: one chair turned to face the front window, and sometimes someone by it
-            chair(V, spot(0.4, -0.6, 0.15))
-            figure(V, "Figure_T3", spot(-1.0, -2.4, 0.15))
+        pendant(V, centre.x, centre.y, z1)
+        half = r * 0.7  # a square inside the octagon for the furniture
+        box = dict(id=rid, x0=centre.x - half, x1=centre.x + half, y0=centre.y - half, y1=centre.y + half, floor=z0, ceil=z1)
+        lamps.append(room_entry(box, lean @ Vector((0, 0, z1 - 1.2)), "tower", "y0"))
     return lamps
 
 
 def attic(V):
-    """The attic behind the bay gable window: plank walls, crates, a trunk and a dress form. Kept
+    """The attic behind the bay gable window: plank walls and floor (the game furnishes it). Kept
     narrow and shallow so it stays under the bay roof and in front of the main roof."""
     EAVE = V.EAVE
     x0, x1, y0, y1 = -11.2, -6.8, V.BAY["y"] + V.T, 0.3
@@ -709,12 +644,23 @@ def attic(V):
         wall_slab(V, "Boards", corners[i], corners[(i + 1) % 4], floor, ceil)
     V.box("Floorboards", (x1 - x0, y1 - y0, 0.2), ((x0 + x1) / 2, (y0 + y1) / 2, floor - 0.1))
     V.box("Boards", (x1 - x0, y1 - y0, 0.2), ((x0 + x1) / 2, (y0 + y1) / 2, ceil + 0.1))
-    crate(V, at(V, -10.2, -0.5, floor, 0.4), s=0.5)
-    crate(V, at(V, -10.0, -0.6, floor + 0.4 * U, 0.1), s=0.38)
-    V.box("FurnitureWood", (1.8, 1.2, 1.3), (-7.8, -0.5, floor + 0.65), rot=(0, 0, -0.2), bevel=0.06)  # a trunk
-    dress_form(V, at(V, -10.4, -2.1, floor, 0.4))
-    V.box("Iron", (0.04, 0.04, 1.2), (-9.0, -1.0, ceil - 0.6))
-    return [("ATTIC", Vector((-9.0, -1.0, ceil - 1.25)), True)]
+    room = dict(id="ATTIC", x0=x0, x1=x1, y0=y0, y1=y1, floor=floor, ceil=ceil)
+    return [room_entry(room, Vector((-9.0, -1.0, ceil - 1.25)), "attic", "y0")]
+
+
+def room_lines(rooms):
+    """Luau table rows for the rooms (shared with housekit.Data)."""
+    lines = []
+    for r in rooms:
+        p = r["lamp"]
+        x0, x1, y0, y1, f, c = r["box"]
+        figure = "true" if r["front"] == "y0" and r["role"] in ("living", "tower", "attic") else "false"
+        lines.append(
+            f'\t\t{{ id = "{r["id"]}", lamp = Vector3.new({p.x:.2f}, {p.y:.2f}, {p.z:.2f}), figure = {figure}, '
+            f'attic = {"true" if r["role"] == "attic" else "false"}, role = "{r["role"]}", front = "{r["front"]}", '
+            f"box = {{ x0 = {x0:.2f}, x1 = {x1:.2f}, y0 = {y0:.2f}, y1 = {y1:.2f}, floor = {f:.2f}, ceil = {c:.2f} }} }},"
+        )
+    return lines
 
 
 def write_luau(V, lamps):
@@ -722,17 +668,15 @@ def write_luau(V, lamps):
     lines = [
         "--!strict",
         "-- Generated by art/scripts/interiors.py: the rooms behind the windows of the Blender Victorian,",
-        "-- in its coordinates (x right, y back from the street, z up). `lamp` is where each room's lamp",
-        "-- hangs; `figure` rooms have a Figure_<id> mesh that Victorian.roomLights may keep. Don't edit",
-        "-- by hand: change the rooms in interiors.py and re-export.",
+        "-- in its coordinates (x right, y back from the street, z up): each room's lamp, its box, its role",
+        "-- and which wall is its front (the window side the furniture faces). The game lights some of them",
+        "-- and furnishes them per house (World/BlenderLot, Config/RoomLayouts). Don't edit by hand.",
         "",
-        "export type Room = { id: string, lamp: Vector3, figure: boolean, attic: boolean }",
+        "local HouseData = require(script.Parent.Types)",
         "",
-        "local rooms: { Room } = {",
+        "local rooms: { HouseData.Room } = {",
     ]
-    for rid, p, is_attic in lamps:
-        fig = "true" if rid in FIGURE_ROOMS else "false"
-        lines.append(f'\t{{ id = "{rid}", lamp = Vector3.new({p.x:.2f}, {p.y:.2f}, {p.z:.2f}), figure = {fig}, attic = {"true" if is_attic else "false"} }},')
+    lines += [line[1:] for line in room_lines(lamps)]
     lines += ["}", "", "return rooms", ""]
     path.write_text("\n".join(lines), encoding="utf-8")
     print("WROTE", path)

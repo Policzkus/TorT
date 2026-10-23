@@ -13,7 +13,18 @@ export type Hinged = {
 	prompt: string?,
 }
 
-export type Room = { id: string, lamp: Vector3, figure: boolean, attic: boolean }
+-- A room behind the windows: where its lamp hangs, whether a figure may stand in it (it faces the
+-- street), its role (living, kitchen, hall, tower, attic: which layouts suit it, Config/RoomLayouts),
+-- which wall is its front (the window side, y0/y1/x0/x1) and its box.
+export type Room = {
+	id: string,
+	lamp: Vector3,
+	figure: boolean,
+	attic: boolean,
+	role: string,
+	front: string,
+	box: { x0: number, x1: number, y0: number, y1: number, floor: number, ceil: number },
+}
 
 export type Data = {
 	style: string,

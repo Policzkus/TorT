@@ -113,7 +113,6 @@ class Data:
         self.anchors = []
         self.rooms = []
         self.yard = {}
-        self.figures = set()
 
     def front_door(self, x, y, sill):
         """The front door slab's centre: x, the plane it sits in (y), and its threshold height."""
@@ -133,8 +132,12 @@ class Data:
     def anchor(self, name, at, yaw=0.0):
         self.anchors.append((name, Vector(at), yaw))
 
-    def room(self, rid, lamp, attic=False):
-        self.rooms.append((rid, Vector(lamp), attic))
+    def room(self, room, lamp, role, front):
+        """A room the game lights and furnishes: `room` is its box dict (interiors.box_room's),
+        `role` one of living, kitchen, hall, tower, attic, `front` the window wall (y0, y1, x0, x1)."""
+        import interiors
+
+        self.rooms.append(interiors.room_entry(room, Vector(lamp), role, front))
 
     def write(self, root):
         def v3(p):
@@ -175,10 +178,9 @@ class Data:
         for name, at, yaw in self.anchors:
             lines.append(f'\t\t{{ name = "{name}", at = {v3(at)}, yaw = {yaw:.1f} }},')
         lines += ["\t},", "\trooms = {"]
-        for rid, lamp, attic in self.rooms:
-            lines.append(
-                f'\t\t{{ id = "{rid}", lamp = {v3(lamp)}, figure = {"true" if rid in self.figures else "false"}, attic = {"true" if attic else "false"} }},'
-            )
+        import interiors
+
+        lines += interiors.room_lines(self.rooms)
         y = self.yard
         graves = ", ".join(v3(Vector(g)) for g in y.get("graves", []))
         lines += [

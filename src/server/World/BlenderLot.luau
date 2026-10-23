@@ -3,12 +3,14 @@
 -- art/scripts/housekit.py, or a table in the same shape): a dead lawn, stepping stones from the
 -- steps to the gate, a fence of the yard set's pieces (wrought iron or rotten pickets) with a double
 -- gate standing open, a dead tree, a mailbox, graves; then it lights a few of the house's rooms and
--- keeps at most one of its figures. Works in the lot's frame (x across, -z toward the street),
--- where Blender x runs the other way.
+-- furnishes them all from the Blender furniture set (a layout per room from Config/RoomLayouts, so
+-- no two houses look alike inside), with at most one figure watching from a window. Works in the
+-- lot's frame (x across, -z toward the street), where Blender x runs the other way.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local RoomLayouts = require(ReplicatedStorage.Shared.Config.RoomLayouts)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local HouseData = require(script.Parent.HouseData.Types)
 local Parts = require(script.Parent.Parts)
@@ -223,8 +225,8 @@ end
 
 -- Lights two to four rooms (and the attic sometimes): a glowing bulb under the room's lamp shade
 -- and a warm light spilling out through the glass. The rest stay dark until a flashlight finds the
--- furniture. Keeps at most one Figure_<room> mesh, usually in a lit room.
-function BlenderLot.roomLights(house: Model, base: CFrame, rng: Rng.Rng, rooms: { HouseData.Room })
+-- furniture. Returns the room a figure should stand in, if any: usually a lit one.
+function BlenderLot.roomLights(house: Model, base: CFrame, rng: Rng.Rng, rooms: { HouseData.Room }): HouseData.Room?
 	local candidates = {}
 	for i, room in rooms do
 		if not room.attic then
@@ -236,30 +238,10 @@ function BlenderLot.roomLights(house: Model, base: CFrame, rng: Rng.Rng, rooms: 
 	for n = 1, math.min(#candidates, rng:int(2, 4)) do
 		lit[rooms[candidates[n]].id] = true
 	end
-	local keep: string? = nil
-	local figureRooms = {}
 	for _, room in rooms do
-		if room.figure then
-			table.insert(figureRooms, room)
-		end
-	end
-	rng:shuffle(figureRooms)
-	for _, room in figureRooms do
-		if lit[room.id] and rng:chance(0.6) then
-			keep = room.id
-			break
-		end
-	end
-	if keep == nil and #figureRooms > 0 and rng:chance(0.25) then
-		keep = figureRooms[1].id -- one left in the dark for the flashlight to find
-	end
-	for _, room in rooms do
-		local figure = house:FindFirstChild("Figure_" .. room.id, true)
-		if figure and room.id ~= keep then
-			figure:Destroy()
-		end
 		local isLit = if room.attic then rng:chance(0.4) else lit[room.id] == true
 		if isLit then
+			lit[room.id] = true
 			local color = rng:pick(ROOM_LIGHTS)
 			local bulb = Instance.new("Part")
 			bulb.Name = "RoomBulb"
@@ -279,9 +261,249 @@ function BlenderLot.roomLights(house: Model, base: CFrame, rng: Rng.Rng, rooms: 
 			bulb.Parent = house
 		end
 	end
+	local figureRooms = {}
+	for _, room in rooms do
+		-- The figure is a head taller than anyone (7.5 studs): not in the low attics.
+		if room.figure and room.box.ceil - room.box.floor >= 8 then
+			table.insert(figureRooms, room)
+		end
+	end
+	rng:shuffle(figureRooms)
+	for _, room in figureRooms do
+		if lit[room.id] and rng:chance(0.6) then
+			return room
+		end
+	end
+	if #figureRooms > 0 and rng:chance(0.25) then
+		return figureRooms[1] -- one left in the dark for the flashlight to find
+	end
+	return nil
 end
 
--- The whole dressing: the yard (when the yard set is there) and the room lights. Returns false
+-- The furniture set, if it's been imported (tools/setup_furniture.luau).
+function BlenderLot.furnitureSet(): Instance?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	return assets and assets:FindFirstChild("Furniture")
+end
+
+local MARGIN = 0.3 -- studs kept clear of the walls (the wallpaper and skirting stand inside the box)
+
+type Box = { x0: number, x1: number, y0: number, y1: number }
+
+-- A piece's footprint in its own frame, Blender-style (x across, y back), and its height.
+local function extents(piece: BasePart): (Box, number)
+	local centre = piece.PivotOffset:Inverse().Position -- the mesh's centre in its pivot frame
+	local size = piece.Size
+	-- The pivot frame is Roblox's: Blender x is -X, y is Z, z is Y.
+	return {
+		x0 = -centre.X - size.X / 2,
+		x1 = -centre.X + size.X / 2,
+		y0 = centre.Z - size.Z / 2,
+		y1 = centre.Z + size.Z / 2,
+	},
+		centre.Y + size.Y / 2
+end
+
+-- The footprint turned by yaw (radians) and moved to (x, y).
+local function turned(box: Box, yaw: number, x: number, y: number): Box
+	local c, s = math.cos(yaw), math.sin(yaw)
+	local out = { x0 = math.huge, x1 = -math.huge, y0 = math.huge, y1 = -math.huge }
+	for _, px in { box.x0, box.x1 } do
+		for _, py in { box.y0, box.y1 } do
+			local rx, ry = px * c - py * s + x, px * s + py * c + y
+			out.x0, out.x1 = math.min(out.x0, rx), math.max(out.x1, rx)
+			out.y0, out.y1 = math.min(out.y0, ry), math.max(out.y1, ry)
+		end
+	end
+	return out
+end
+
+-- Slides a coordinate so its footprint [v + a0, v + a1] stays within [-half, half]; centres it
+-- when it can't fit.
+local function clampAxis(v: number, a0: number, a1: number, half: number): number
+	local lo, hi = -half + MARGIN - a0, half - MARGIN - a1
+	if lo > hi then
+		return (lo + hi) / 2
+	end
+	return math.clamp(v, lo, hi)
+end
+
+-- Footprints may touch or tuck in a little (chairs under a table) before they count as overlapping.
+local TUCK = 0.35
+local function overlaps(a: Box, b: Box): boolean
+	return a.x0 + TUCK < b.x1 - TUCK
+		and b.x0 + TUCK < a.x1 - TUCK
+		and a.y0 + TUCK < b.y1 - TUCK
+		and b.y0 + TUCK < a.y1 - TUCK
+end
+local function clear(spot: Box, taken: { Box }): boolean
+	for _, other in taken do
+		if overlaps(spot, other) then
+			return false
+		end
+	end
+	return true
+end
+
+-- A room's frame: its centre on the floor, turned so local -y points at its front (window) wall;
+-- w is its width across, d its depth from the front back.
+local FRONT_YAW = { y0 = 0, y1 = math.pi, x0 = -math.pi / 2, x1 = math.pi / 2 }
+local function roomFrame(room: HouseData.Room): (number, number, number, number, number)
+	local b = room.box
+	local w, d = b.x1 - b.x0, b.y1 - b.y0
+	if room.front == "x0" or room.front == "x1" then
+		w, d = d, w
+	end
+	return (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, FRONT_YAW[room.front] or 0, w, d
+end
+
+local function pickLayout(
+	rng: Rng.Rng,
+	room: HouseData.Room,
+	w: number,
+	d: number,
+	used: { [string]: boolean }
+): RoomLayouts.Layout?
+	local weights: { [string]: number } = {}
+	local byName: { [string]: RoomLayouts.Layout } = {}
+	for _, layout in RoomLayouts do
+		if table.find(layout.roles, room.role) and w >= layout.minW and d >= layout.minD then
+			byName[layout.name] = layout
+			-- The same layout twice in one house happens, but rarely.
+			weights[layout.name] = layout.weight * (if used[layout.name] then 0.15 else 1)
+		end
+	end
+	local name = rng:weighted(weights)
+	return if name then byName[name] else nil
+end
+
+-- Furnishes every room but the halls (their stairs are part of the house) with a layout that fits
+-- it, mirrored half the time and nudged a little, and stands the figure in figureRoom.
+function BlenderLot.furnish(
+	house: Model,
+	base: CFrame,
+	rng: Rng.Rng,
+	rooms: { HouseData.Room },
+	figureRoom: HouseData.Room?
+)
+	local set = BlenderLot.furnitureSet()
+	if set == nil then
+		return
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "Furniture"
+	local used: { [string]: boolean } = {}
+	for _, room in rooms do
+		if room.role == "hall" then
+			continue
+		end
+		local cx, cy, frameYaw, w, d = roomFrame(room)
+		local height = room.box.ceil - room.box.floor
+		local c, s = math.cos(frameYaw), math.sin(frameYaw)
+		local function place(template: BasePart, lx: number, ly: number, yaw: number, lift: number, scale: Vector3?)
+			local x, y = cx + lx * c - ly * s, cy + lx * s + ly * c
+			local piece = template:Clone()
+			if scale then
+				piece.Size *= scale
+			end
+			piece:PivotTo(base * CFrame.new(-x, room.box.floor + lift, y) * CFrame.Angles(0, frameYaw + yaw, 0))
+			piece.Parent = folder
+		end
+		local taken: { Box } = {}
+		local layout = pickLayout(rng, room, w, d, used)
+		if layout then
+			used[layout.name] = true
+			local mirror = if rng:chance(0.5) then -1 else 1
+			for _, item in layout.items do
+				local template = set:FindFirstChild(item.piece) :: BasePart?
+				if template == nil then
+					continue
+				end
+				local box, top = extents(template)
+				local lift = item.z or 0
+				if top + lift > height - 0.2 then
+					continue -- too tall for this room (attics)
+				end
+				local at = item.at
+				local u = item.u or 0.5
+				if mirror < 0 then
+					if at == "left" or at == "right" then
+						at = if at == "left" then "right" else "left"
+					elseif at == "wallLeft" or at == "wallRight" then
+						at = if at == "wallLeft" then "wallRight" else "wallLeft"
+					else
+						u = 1 - u
+					end
+				end
+				local lx, ly, yaw
+				if at == "back" or at == "wall" then
+					lx, ly, yaw = (u - 0.5) * w, d / 2 - MARGIN - box.y1, 0
+				elseif at == "left" or at == "wallLeft" then
+					-- Turned to face the right-hand wall, its back (+y) against the left one.
+					lx, ly, yaw = -w / 2 + MARGIN + box.y1, (u - 0.5) * d, math.pi / 2
+				elseif at == "right" or at == "wallRight" then
+					lx, ly, yaw = w / 2 - MARGIN - box.y1, (u - 0.5) * d, -math.pi / 2
+				else
+					lx = if item.x then item.x * mirror else (u - 0.5) * w
+					ly = if item.y then item.y else ((item.v or 0.5) - 0.5) * d
+					-- Nobody lines furniture up exactly.
+					lx += rng:range(-0.3, 0.3)
+					ly += rng:range(-0.3, 0.3)
+					yaw = math.rad((item.yaw or 0) * mirror) + rng:range(-0.08, 0.08)
+				end
+				local foot = turned(box, yaw, 0, 0)
+				local roomW, roomD = w - 2 * MARGIN, d - 2 * MARGIN
+				local scale: Vector3? = nil
+				if foot.x1 - foot.x0 > roomW or foot.y1 - foot.y0 > roomD then
+					if item.piece ~= "Rug" then
+						continue -- it would stick through a wall
+					end
+					-- A rug is cut to fit (it lies square to the room, give or take a nudge).
+					local kx = math.min(1, roomW / (foot.x1 - foot.x0) - 0.03)
+					local ky = math.min(1, roomD / (foot.y1 - foot.y0) - 0.03)
+					scale = Vector3.new(kx, 1, ky)
+					box = { x0 = box.x0 * kx, x1 = box.x1 * kx, y0 = box.y0 * ky, y1 = box.y1 * ky }
+					foot = turned(box, yaw, 0, 0)
+				end
+				lx = clampAxis(lx, foot.x0, foot.x1, w / 2)
+				ly = clampAxis(ly, foot.y0, foot.y1, d / 2)
+				-- Floor pieces mustn't run into each other (a small room squeezes a layout); the
+				-- first in the list wins. Hung and lifted ones and rugs don't count.
+				local floor = lift == 0
+					and at ~= "wall"
+					and at ~= "wallLeft"
+					and at ~= "wallRight"
+					and item.piece ~= "Rug"
+				local spot = turned(box, yaw, lx, ly)
+				if floor and not clear(spot, taken) then
+					continue
+				end
+				place(template, lx, ly, yaw, lift, scale)
+				if floor then
+					table.insert(taken, spot)
+				end
+			end
+		end
+		local figure = set:FindFirstChild("Figure") :: BasePart?
+		if room == figureRoom and figure then
+			-- Close behind the glass, looking out, somewhere nothing else stands.
+			local box = extents(figure)
+			for _ = 1, 10 do
+				local yaw = rng:range(-0.35, 0.35)
+				local foot = turned(box, yaw, 0, 0)
+				local lx = clampAxis(rng:range(-w / 3, w / 3), foot.x0, foot.x1, w / 2)
+				local ly = clampAxis(-d / 2 + rng:range(1.6, 2.6), foot.y0, foot.y1, d / 2)
+				if clear(turned(box, yaw, lx, ly), taken) then
+					place(figure, lx, ly, yaw, 0)
+					break
+				end
+			end
+		end
+	end
+	folder.Parent = house
+end
+
+-- The whole dressing: the yard (when the yard set is there), the room lights and the furniture. Returns false
 -- when the yard set is missing, so the caller can build a yard of its own.
 function BlenderLot.dress(
 	house: Model,
@@ -295,7 +517,8 @@ function BlenderLot.dress(
 	if set then
 		BlenderLot.yard(house, base, rng, yardDepth, lotWidth, data, set)
 	end
-	BlenderLot.roomLights(house, base, rng, data.rooms)
+	local figureRoom = BlenderLot.roomLights(house, base, rng, data.rooms)
+	BlenderLot.furnish(house, base, rng, data.rooms, figureRoom)
 	return set ~= nil
 end
 
