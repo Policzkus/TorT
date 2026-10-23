@@ -13,3 +13,4 @@ sourcemap.json
 art/textures/
 art/export/
 art/renders/
+__pycache__/
