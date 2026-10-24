@@ -132,12 +132,8 @@ local function apply(houseId: string, state: HouseState)
 	house.model:SetAttribute("HouseType", state.houseType)
 	house.model:SetAttribute("Owner", state.owner)
 	house.model:SetAttribute("Preference", state.preference)
-	local personality = Dialogue.personalities[state.owner]
-	if state.houseType == "LightsOff" then
-		house.prompt.ObjectText = "Nobody's home..."
-	elseif personality then
-		house.prompt.ObjectText = `{personality.emoji} {personality.name}`
-	end
+	-- Never who lives there: you find out when the door opens.
+	house.prompt.ObjectText = if state.houseType == "LightsOff" then "Nobody's home..." else "Trick or treat!"
 	-- Lights off and bowl houses don't answer the door.
 	house.prompt.Enabled = state.houseType ~= "LightsOff" and state.houseType ~= "Bowl"
 end

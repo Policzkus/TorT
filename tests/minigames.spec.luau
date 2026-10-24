@@ -70,20 +70,24 @@ return {
 		expect(hasTrap(NerveHold.generate(5, 5))).toBe(true)
 	end,
 	["costume line uses the house personality and has one right answer"] = function()
-		local spec = CostumeLine.generate(11, 1, { personality = "WitchyWanda" })
-		expect(spec.personality).toBe("WitchyWanda")
+		local spec = CostumeLine.generate(11, 1, { personality = "Rhymer" })
+		expect(spec.personality).toBe("Rhymer")
 		expect(#spec.options).toBe(2)
-		expect(table.find(Dialogue.personalities.WitchyWanda.answers, spec.options[spec.correct]) ~= nil).toBe(true)
-		local hard = CostumeLine.generate(11, 8, { personality = "CoachCarl" })
+		expect(table.find(Dialogue.personalities.Rhymer.answers, spec.options[spec.correct]) ~= nil).toBe(true)
+		local hard = CostumeLine.generate(11, 8, { personality = "Child" })
 		expect(#hard.options).toBe(4)
 	end,
 	["costume line grades speed and correctness"] = function()
-		local spec = CostumeLine.generate(12, 1, { personality = "GrumpyGus" })
+		local spec = CostumeLine.generate(12, 1, { personality = "Host" })
 		local wrong = if spec.correct == 1 then 2 else 1
-		expect((CostumeLine.grade(spec, { spec.timer * 0.2, spec.correct }))).toBe("PERFECT")
-		expect((CostumeLine.grade(spec, { spec.timer * 0.5, spec.correct }))).toBe("GREAT")
-		expect((CostumeLine.grade(spec, { spec.timer * 0.9, spec.correct }))).toBe("GOOD")
-		expect((CostumeLine.grade(spec, { spec.timer * 0.2, wrong }))).toBe("MISS")
+		local r = spec.read
+		expect(r > 0).toBe(true)
+		expect((CostumeLine.grade(spec, { r + spec.timer * 0.2, spec.correct }))).toBe("PERFECT")
+		expect((CostumeLine.grade(spec, { r + spec.timer * 0.5, spec.correct }))).toBe("GREAT")
+		expect((CostumeLine.grade(spec, { r + spec.timer * 0.9, spec.correct }))).toBe("GOOD")
+		expect((CostumeLine.grade(spec, { r + spec.timer * 1.1, spec.correct }))).toBe("MISS")
+		expect((CostumeLine.grade(spec, { r + spec.timer * 0.2, wrong }))).toBe("MISS")
+		expect(CostumeLine.validInput(spec, { r * 0.5, spec.correct }, 30)).toBe(false) -- before the answers showed
 		expect((CostumeLine.grade(spec, {}))).toBe("MISS")
 		expect(CostumeLine.validInput(spec, { 1, 99 }, 5)).toBe(false)
 		expect(CostumeLine.validInput(spec, { 1, 1.5 }, 5)).toBe(false)
@@ -94,6 +98,7 @@ return {
 			local p = Dialogue.personalities[id]
 			expect(#p.greetings >= 3).toBe(true)
 			expect(#p.answers >= 5).toBe(true)
+			expect(#p.hello >= 2 and #p.pleased >= 2 and #p.displeased >= 2).toBe(true)
 			lines += #p.greetings + #p.answers
 		end
 		expect(lines >= 40).toBe(true)

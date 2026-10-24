@@ -263,6 +263,9 @@ local function create(house: Model, door: BasePart, skipEntrance: boolean)
 	}
 	figure.twitchAt = (if skipEntrance then 30 else 3) + figure.rng:NextNumber(0.5, 2)
 	figures[house] = figure
+	if not skipEntrance then
+		Sound.play("Latch", { at = door }) -- the bolt drawn back before the door moves
+	end
 	model.Parent = if hiddenHouses[house] then nil else Workspace
 end
 

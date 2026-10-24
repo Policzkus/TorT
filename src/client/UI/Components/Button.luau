@@ -54,6 +54,7 @@ function Button.new(options: Options): TextButton
 	button.MouseEnter:Connect(function()
 		hovering = true
 		TweenService:Create(scale, HOVER, { Scale = 1.05 }):Play()
+		Sound.play("Hover")
 	end)
 	button.MouseLeave:Connect(function()
 		hovering = false

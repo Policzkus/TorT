@@ -1,7 +1,8 @@
 --!strict
 -- Client side of doors: knock sound, the doorstep shot (when someone answers your knock you step
--- back off the door and look up at them), and a 💤 countdown over houses you've already visited
--- (only you see it). Doors stream in and out, so state is kept by house id and reapplied.
+-- back off the door and look up at them), what they say to you (a hello once they're out, then how
+-- they took your mini-game; DialogController), and a 💤 countdown over houses you've already
+-- visited (only you see it). Doors stream in and out, so state is kept by house id and reapplied.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -10,8 +11,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+local Dialogue = require(ReplicatedStorage:WaitForChild("Shared").Config.Dialogue)
 local Houses = require(ReplicatedStorage:WaitForChild("Shared").Modules.Houses)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
+local Dialog = require(script.Parent.DialogController)
 local Homeowner = require(script.Parent.HomeownerController)
 local Sound = require(script.Parent.SoundController)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -25,6 +28,8 @@ local DoorController = {}
 local DOORSTEP = { near = 5, far = 8, keep = 10, side = 2.5, level = 1, drop = 3.2 }
 local LOOK_TIME = 2.2 -- seconds your view is drawn up to their face; then it's yours again
 local LOOK_BELOW = 0.9 -- aim this far under the face, so it sits above the mini-game panel
+-- Seconds from the knock being answered until they're out and speak, per entrance style.
+local HELLO_AFTER = { Snap = 1.8, Blackout = 1.7, Peek = 2.7, Waiting = 2.3, Creep = 2.8 }
 
 local doors: { [string]: BasePart } = {}
 local readyAt: { [string]: number } = {}
@@ -149,6 +154,37 @@ local function doorstep(bottom: Vector3, out: Vector3, character: Model): Vector
 	return below
 end
 
+local function personalityOf(house: Model): Dialogue.Personality?
+	return Dialogue.personalities[house:GetAttribute("Owner") :: string]
+end
+
+-- Once they're out, they say hello (Costume Line's question does that job itself).
+local function greet(house: Model)
+	local style = house:GetAttribute("OwnerStyle")
+	task.delay(HELLO_AFTER[if type(style) == "string" then style else "Creep"] or 2.4, function()
+		local personality = personalityOf(house)
+		if personality and house:GetAttribute("OwnerOut") == true then
+			Dialog.say(house, personality.hello[math.random(1, #personality.hello)], personality.voice)
+		end
+	end)
+end
+
+-- What they make of how it went. A trick house's Nerve Hold ends in the jumpscare instead.
+local function react(result: any)
+	if result.houseType == "Trick" or result.bowl ~= nil then
+		return
+	end
+	local door = doors[result.houseId]
+	local house = door and Houses.of(door)
+	local personality = house and personalityOf(house)
+	if house and personality then
+		local lines = if result.grade == "MISS" then personality.displeased else personality.pleased
+		task.delay(0.35, function()
+			Dialog.say(house, lines[math.random(1, #lines)], personality.voice)
+		end)
+	end
+end
+
 -- Your knock was answered: step back off the door if you're on top of it, and look up at whoever
 -- opens it.
 local function onAnswered(houseId: string)
@@ -214,6 +250,11 @@ function DoorController.Start()
 		local context = type(challenge) == "table" and challenge.context
 		if type(context) == "table" and type(context.houseId) == "string" then
 			onAnswered(context.houseId)
+			local door = doors[context.houseId]
+			local house = door and Houses.of(door)
+			if house and challenge.kind ~= "CostumeLine" then
+				greet(house)
+			end
 		end
 	end)
 	-- After the camera (and its PSX sway) has moved, so the camera picks up where this leaves it.
@@ -222,6 +263,7 @@ function DoorController.Start()
 	Net.event("DoorResult").OnClientEvent:Connect(function(result: any)
 		readyAt[result.houseId] = result.cooldownUntil
 		apply(result.houseId)
+		react(result)
 	end)
 	-- Dawn: every door is ready again.
 	Net.event("CooldownsReset").OnClientEvent:Connect(function()

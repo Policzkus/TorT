@@ -82,7 +82,8 @@ local function onRender(dt: number)
 	local moving = humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.1 and not airborne
 	local speed = if humanoid then humanoid.WalkSpeed / 16 else 1
 	bobWeight += ((if moving then 1 else 0) - bobWeight) * math.min(1, dt * 8)
-	bobTime += dt * BOB_SPEED * speed * bobWeight
+	-- Quicker steps when faster, but not twice as quick at twice the speed (FootstepController's stride).
+	bobTime += dt * BOB_SPEED * math.sqrt(math.max(speed, 0.25)) * bobWeight
 	-- Landing: the view drops with the impact and springs back (harder falls, deeper dips).
 	if airborne and root then
 		fallSpeed = math.max(fallSpeed, -root.AssemblyLinearVelocity.Y)

@@ -1,6 +1,8 @@
 --!strict
--- Costume Line rules. The homeowner (a personality, from the house) greets you; pick the answer
--- in the style they like before the timer runs out. Input: { answerTime, optionIndex }.
+-- Costume Line rules. The homeowner (a personality, from the house) asks you something; pick the
+-- answer in the style they like before the timer runs out. The question types out first (`read`
+-- seconds, DialogController); the timer starts after it. Input: { answerTime, optionIndex }, the
+-- time counted from the start.
 
 local Config = script.Parent.Parent.Parent.Config
 local Dialogue = require(Config.Dialogue)
@@ -15,6 +17,7 @@ export type Spec = {
 	greeting: string,
 	options: { string },
 	correct: number,
+	read: number, -- seconds the question takes to type out; the answers appear after it
 	timer: number,
 	timeout: number,
 }
@@ -50,23 +53,26 @@ function CostumeLine.generate(seed: number, difficulty: number, context: any?): 
 	local correct = table.find(options, correctText) :: number
 
 	local timer = Rules.easyTimer + (Rules.hardTimer - Rules.easyTimer) * t
+	local greeting = rng:pick(personality.greetings)
+	local read = math.min(Rules.readMax, #greeting / Rules.readSpeed)
 	return {
 		difficulty = d,
 		personality = personalityId,
-		greeting = rng:pick(personality.greetings),
+		greeting = greeting,
 		options = options,
 		correct = correct,
+		read = read,
 		timer = timer,
-		timeout = timer + 0.2,
+		timeout = read + timer + 0.2,
 	}
 end
 
 function CostumeLine.grade(spec: Spec, input: { number }): (string, { string })
 	local at, choice = input[1], input[2]
-	if at == nil or choice ~= spec.correct or at > spec.timer then
+	if at == nil or choice ~= spec.correct or at - spec.read > spec.timer then
 		return "MISS", { "MISS" }
 	end
-	local share = at / spec.timer
+	local share = math.max(0, at - spec.read) / spec.timer
 	local grade = if share <= Rules.perfectShare then "PERFECT" elseif share <= Rules.greatShare then "GREAT" else "GOOD"
 	return grade, { grade }
 end
@@ -79,7 +85,9 @@ function CostumeLine.validInput(spec: Spec, input: any, elapsed: number): boolea
 	if at == nil then
 		return true -- timed out
 	end
-	if type(at) ~= "number" or at ~= at or at < 0.3 or at > elapsed + Minigames.LATENCY_GRACE then
+	-- Not before the answers were up, nor later than the server says time has passed.
+	local earliest = math.max(0.3, spec.read - 0.05)
+	if type(at) ~= "number" or at ~= at or at < earliest or at > elapsed + Minigames.LATENCY_GRACE then
 		return false
 	end
 	return type(choice) == "number" and choice >= 1 and choice <= #spec.options and choice % 1 == 0

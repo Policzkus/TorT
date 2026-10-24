@@ -1,0 +1,155 @@
+"""Packs the game's short sounds into a few "sprite" files: each is many clips one after another
+with silence between, so it takes one Roblox upload, and the game plays a clip by seeking to its
+offset (SoundController, Config/SoundSprites). Every clip is peak-normalised so the volumes in
+Config/Sounds mean the same thing for all of them.
+
+Sources are Kenney's CC0 packs (kenney.nl: Impact Sounds, Interface Sounds, RPG Audio; public
+domain, no credit required), unzipped under SOURCE_DIR.
+
+    python -I art/scripts/sound_sprites.py SOURCE_DIR
+
+Writes art/export/audio/TorT_<Sprite>.ogg (upload these in Studio: Asset Manager > Import, then put
+the ids in Config/SoundSprites.luau `sprites`) and src/shared/Config/SoundSprites.luau.
+"""
+
+import pathlib
+import re
+import subprocess
+import sys
+import tempfile
+
+import numpy as np
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+EXPORT = ROOT / "art" / "export" / "audio"
+LUAU = ROOT / "src" / "shared" / "Config" / "SoundSprites.luau"
+FFMPEG = "ffmpeg"
+RATE = 44100
+GAP = 0.35  # seconds of silence before each clip, so a seek never catches the one before
+PEAK = 10 ** (-1.5 / 20)  # normalise every clip to -1.5 dBFS
+
+
+def n(prefix, count, start=0, width=3, sep="_"):
+    return [f"{prefix}{sep}{i:0{width}d}" for i in range(start, start + count)]
+
+
+# sprite -> clip name -> source files (without .ogg); each file becomes one variant of the clip.
+SPRITES = {
+    "Steps": {
+        "StepWood": n("footstep_wood", 5),
+        "StepGrass": n("footstep_grass", 5),
+        "StepConcrete": n("footstep_concrete", 5),
+        "StepCarpet": n("footstep_carpet", 5),
+        "StepDirt": [f"footstep0{i}" for i in range(10)],
+        "LandWood": n("impactWood_heavy", 3),
+        "LandSoft": n("impactSoft_heavy", 3),
+    },
+    "Ui": {
+        "Click": n("click", 5, 1),
+        "Hover": n("select", 4, 1),
+        "Open": n("open", 2, 1),
+        "Close": n("close", 2, 1),
+        "Tick": ["tick_001", "tick_002", "tick_004"],
+        "Confirm": n("confirmation", 2, 1),
+        "Error": n("error", 3, 4),
+        "Bong": ["bong_001"],
+        "Pluck": n("pluck", 2, 1),
+        "Scratch": n("scratch", 3, 1),
+        "Glitch": n("glitch", 4, 1),
+        "Drop": n("drop", 4, 1),
+        "Question": n("question", 2, 1),
+    },
+    "Foley": {
+        "Creak": ["creak1", "creak2", "creak3"],
+        "DoorOpen": ["doorOpen_1", "doorOpen_2"],
+        "DoorClose": ["doorClose_1", "doorClose_2", "doorClose_3", "doorClose_4"],
+        "Latch": ["metalLatch", "metalClick"],
+        "Coins": ["handleCoins", "handleCoins2"],
+        "Cloth": ["cloth1", "cloth2", "cloth3", "cloth4"],
+        "Plank": n("impactPlank_medium", 5),
+        "Bell": n("impactBell_heavy", 3),
+    },
+}
+
+
+def decode(path: pathlib.Path) -> np.ndarray:
+    raw = subprocess.run(
+        [FFMPEG, "-v", "error", "-i", str(path), "-ac", "1", "-ar", str(RATE), "-f", "f32le", "-"],
+        check=True, capture_output=True,
+    ).stdout
+    return np.frombuffer(raw, dtype=np.float32).copy()
+
+
+def trim(samples: np.ndarray, floor=10 ** (-50 / 20)) -> np.ndarray:
+    """Cut leading and trailing near-silence (keeps a few ms of run-in)."""
+    loud = np.nonzero(np.abs(samples) > floor)[0]
+    if len(loud) == 0:
+        return samples
+    start = max(0, loud[0] - int(0.004 * RATE))
+    return samples[start: loud[-1] + int(0.02 * RATE)]
+
+
+def main(source: pathlib.Path):
+    files = {p.stem: p for p in source.rglob("*.ogg")}
+    EXPORT.mkdir(parents=True, exist_ok=True)
+    table = {}
+    for sprite, clips in SPRITES.items():
+        pieces = []
+        at = 0.0
+        for clip, names in clips.items():
+            parts = []
+            for name in names:
+                if name not in files:
+                    raise SystemExit(f"missing {name}.ogg under {source}")
+                samples = trim(decode(files[name]))
+                samples = samples * (PEAK / max(1e-6, float(np.max(np.abs(samples)))))
+                pieces.append(np.zeros(int(GAP * RATE), dtype=np.float32))
+                at += GAP
+                parts.append((round(at, 4), round(len(samples) / RATE, 4)))
+                pieces.append(samples.astype(np.float32))
+                at += len(samples) / RATE
+            table[clip] = (sprite, parts)
+        pieces.append(np.zeros(int(GAP * RATE), dtype=np.float32))
+        data = np.concatenate(pieces)
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = pathlib.Path(tmp) / "sprite.f32"
+            raw.write_bytes(data.tobytes())
+            out = EXPORT / f"TorT_{sprite}.ogg"
+            subprocess.run(
+                [FFMPEG, "-v", "error", "-y", "-f", "f32le", "-ar", str(RATE), "-ac", "1", "-i", str(raw),
+                 "-c:a", "libvorbis", "-q:a", "6", str(out)],
+                check=True,
+            )
+        print("WROTE", out, f"{len(data) / RATE:.1f}s")
+
+    lines = [
+        "--!strict",
+        "-- Generated by art/scripts/sound_sprites.py (don't edit by hand, except the ids): short sounds",
+        "-- packed into a few uploaded files, each clip a slice { start, length } in seconds. A clip with",
+        "-- several slices is one sound with variants; SoundController picks one at random.",
+        "-- Sources: Kenney's CC0 packs (kenney.nl), public domain.",
+        "",
+        "export type Clip = { sprite: string, parts: { { number } } }",
+        "",
+        "local sprites: { [string]: number } = {",
+    ]
+    # Keep ids already filled in: re-running mustn't undo the uploads.
+    known = {}
+    if LUAU.exists():
+        pattern = r"^\t(\w+) = (\d+), -- art/export/audio"
+        for name, asset in re.findall(pattern, LUAU.read_text(encoding="utf-8"), re.M):
+            known[name] = asset
+    for sprite in SPRITES:
+        asset = known.get(sprite, 0)
+        lines.append(f"\t{sprite} = {asset}, -- art/export/audio/TorT_{sprite}.ogg: upload it, put its id here")
+    lines += ["}", "", "local clips: { [string]: Clip } = {"]
+    for clip, (sprite, parts) in table.items():
+        slices = ", ".join(f"{{ {a}, {b} }}" for a, b in parts)
+        lines.append(f'\t{clip} = {{ sprite = "{sprite}", parts = {{ {slices} }} }},')
+    lines += ["}", "", "return { sprites = sprites, clips = clips }", ""]
+    LUAU.write_text("\n".join(lines), encoding="utf-8")
+    print("WROTE", LUAU)
+
+
+if __name__ == "__main__":
+    main(pathlib.Path(sys.argv[1]))
