@@ -57,5 +57,5 @@ return {
 	APPEAR_TIME = 1.2, -- rough seconds until they're out (the mini-game starts meanwhile)
 	LEAVE_DELAY = 1.4, -- seconds they linger after the mini-game
 	TWITCH_EVERY = { min = 0.6, max = 2.2 } :: Range,
-	STAND_OFF = 0.9, -- studs in front of the door surface they stand
+	STAND_OFF = 0.2, -- studs in front of the door surface they stand: on the threshold, in the doorway
 }

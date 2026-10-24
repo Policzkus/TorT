@@ -391,7 +391,8 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 	local door = figure.door
 	local p = entrance(figure)
 	local idle = math.max(0, figure.clock - 4)
-	local out = p.out + math.min(idle / 40, 0.18) -- they slowly lean in while you play
+	local lean = math.min(idle / 30, 0.16) -- they slowly lean in toward you while you play
+	local out = p.out
 	if figure.leaving then
 		local t = figure.leaveClock
 		out = lerp(figure.leaveFrom, 0, ease(t / LEAVE_TIME))
@@ -464,8 +465,11 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 	local tilt = figure.look.tilt
 
 	if not figure.rigged then
-		local body =
-			CFrame.Angles(-duck + breathe, 0, tilt * 0.5 + p.roll * 0.6 + figure.twitchBody + figure.twitchNeck * 0.3)
+		local body = CFrame.Angles(
+			-duck - lean + breathe,
+			0,
+			tilt * 0.5 + p.roll * 0.6 + figure.twitchBody + figure.twitchNeck * 0.3
+		)
 		figure.root.CFrame = feet * body * figure.rootOffset
 		return
 	end
@@ -474,7 +478,7 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 	setJoint(
 		figure,
 		"RootJoint",
-		CFrame.Angles(-duck + breathe + p.bow * 0.25, 0, p.roll + tilt * 0.3 + figure.twitchBody)
+		CFrame.Angles(-duck - lean + breathe + p.bow * 0.25, 0, p.roll + tilt * 0.3 + figure.twitchBody)
 	)
 
 	-- Head: follows the camera, slowly, with sudden snaps when it twitches.
@@ -586,6 +590,19 @@ end
 function HomeownerController.current(house: Model): BasePart?
 	local figure = figures[house]
 	return if figure and not figure.leaving then figure.root else nil
+end
+
+-- Where the face of whoever answered a house's door is right now (DoorController looks up at it).
+function HomeownerController.face(house: Model): Vector3?
+	local figure = figures[house]
+	if figure == nil or figure.leaving then
+		return nil
+	end
+	local head = figure.model:FindFirstChild("Head") :: BasePart?
+	if head then
+		return head.Position
+	end
+	return (figure.root.CFrame * CFrame.new(0, figure.root.Size.Y * 0.4, 0)).Position
 end
 
 function HomeownerController.Start()

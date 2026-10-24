@@ -184,7 +184,8 @@ function MinigameController.Init()
 		create("Frame", {
 			Name = "GradeAnchor",
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.36),
+			-- Over the homeowner's chest: their face is framed above it (DoorController), the panel below.
+			Position = UDim2.fromScale(0.5, 0.5),
 			Size = UDim2.fromOffset(500, 80),
 			BackgroundTransparency = 1,
 			ZIndex = 5,

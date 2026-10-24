@@ -1,23 +1,35 @@
 --!strict
--- Client side of doors: knock sound, and a 💤 countdown over houses you've already visited
+-- Client side of doors: knock sound, the doorstep shot (when someone answers your knock you step
+-- back off the door and look up at them), and a 💤 countdown over houses you've already visited
 -- (only you see it). Doors stream in and out, so state is kept by house id and reapplied.
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Houses = require(ReplicatedStorage:WaitForChild("Shared").Modules.Houses)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
+local Homeowner = require(script.Parent.HomeownerController)
 local Sound = require(script.Parent.SoundController)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
 local DoorController = {}
 
+-- Where you stand to see who answers: straight out from the door, NEAR to FAR studs, on the porch
+-- or a step down (LEVEL under the sill) if there's room, else as far down a stoop as DROP. Already
+-- standing KEEP or closer, within SIDE of the middle, you stay put.
+local DOORSTEP = { near = 5, far = 8, keep = 10, side = 2.5, level = 1, drop = 3.2 }
+local LOOK_TIME = 2.2 -- seconds your view is drawn up to their face; then it's yours again
+local LOOK_BELOW = 0.9 -- aim this far under the face, so it sits above the mini-game panel
+
 local doors: { [string]: BasePart } = {}
 local readyAt: { [string]: number } = {}
 local badges: { [string]: BillboardGui } = {}
+local look: { house: Model, guess: Vector3, untilAt: number }? = nil
 
 local function promptOf(door: BasePart): ProximityPrompt?
 	return door:FindFirstChildOfClass("ProximityPrompt")
@@ -109,6 +121,80 @@ function DoorController.getDoor(houseId: string): BasePart?
 	return doors[houseId]
 end
 
+-- The farthest clear spot straight out from the door with floor about level with its sill; failing
+-- that, the farthest down the stoop. Clear: nothing solid between it and the door.
+local function doorstep(bottom: Vector3, out: Vector3, character: Model): Vector3?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { character }
+	params.RespectCanCollide = true -- the houses' invisible colliders, not their meshes
+	local from = bottom + out * 0.8 + Vector3.new(0, 2.5, 0)
+	local below: Vector3? = nil
+	for distance = DOORSTEP.far, DOORSTEP.near, -0.5 do
+		local spot = bottom + out * distance
+		local ground = Workspace:Raycast(spot + Vector3.new(0, 3, 0), Vector3.new(0, -3 - DOORSTEP.drop, 0), params)
+		if ground == nil or ground.Position.Y > bottom.Y + 0.5 then
+			continue
+		end
+		local to = Vector3.new(spot.X, bottom.Y + 2.5, spot.Z)
+		if Workspace:Raycast(from, to - from, params) ~= nil then
+			continue
+		end
+		local stand = Vector3.new(spot.X, ground.Position.Y, spot.Z)
+		if ground.Position.Y >= bottom.Y - DOORSTEP.level then
+			return stand
+		end
+		below = below or stand
+	end
+	return below
+end
+
+-- Your knock was answered: step back off the door if you're on top of it, and look up at whoever
+-- opens it.
+local function onAnswered(houseId: string)
+	local door = doors[houseId]
+	local house = door and Houses.of(door)
+	local character = Players.LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if door == nil or house == nil or character == nil or humanoid == nil or root == nil then
+		return
+	end
+	local frame = Homeowner.doorFrame(door) -- where it hangs closed (a real door may be swinging)
+	local bottom = (frame * CFrame.new(0, -door.Size.Y / 2, 0)).Position
+	local out = (frame.LookVector * Vector3.new(1, 0, 1)).Unit
+	local offset = root.Position - bottom
+	local along, side = offset:Dot(out), offset:Dot(frame.RightVector)
+	if along < DOORSTEP.near or along > DOORSTEP.keep or math.abs(side) > DOORSTEP.side then
+		local spot = doorstep(bottom, out, character)
+		if spot then
+			humanoid:MoveTo(spot) -- walks there with movement locked; first person keeps you facing the door
+		end
+	end
+	-- Until they're out, look about where a face will be: just over the door, on the threshold.
+	look = {
+		house = house,
+		guess = bottom + out * 1.5 + Vector3.new(0, door.Size.Y * 0.88, 0),
+		untilAt = os.clock() + LOOK_TIME,
+	}
+end
+
+local function steerLook(dt: number)
+	local active = look
+	if active == nil then
+		return
+	end
+	local camera = Workspace.CurrentCamera
+	if os.clock() > active.untilAt or camera == nil or camera.CameraType ~= Enum.CameraType.Custom then
+		look = nil
+		return
+	end
+	local target = (Homeowner.face(active.house) or active.guess) - Vector3.new(0, LOOK_BELOW, 0)
+	local at = camera.CFrame
+	local want = CFrame.lookAt(at.Position, target)
+	camera.CFrame = CFrame.new(at.Position) * at.Rotation:Lerp(want.Rotation, 1 - math.exp(-dt * 6))
+end
+
 function DoorController.Start()
 	CollectionService:GetInstanceAddedSignal("Door"):Connect(track)
 	CollectionService:GetInstanceRemovedSignal("Door"):Connect(untrack)
@@ -122,6 +208,16 @@ function DoorController.Start()
 			Sound.play("Knock")
 		end
 	end)
+
+	-- A door mini-game starting means your knock was answered.
+	Net.event("MinigameStart").OnClientEvent:Connect(function(challenge: any)
+		local context = type(challenge) == "table" and challenge.context
+		if type(context) == "table" and type(context.houseId) == "string" then
+			onAnswered(context.houseId)
+		end
+	end)
+	-- After the camera (and its PSX sway) has moved, so the camera picks up where this leaves it.
+	RunService:BindToRenderStep("DoorstepLook", Enum.RenderPriority.Camera.Value + 2, steerLook)
 
 	Net.event("DoorResult").OnClientEvent:Connect(function(result: any)
 		readyAt[result.houseId] = result.cooldownUntil

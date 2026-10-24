@@ -207,6 +207,9 @@ local function updateBadge(entry: Tracked)
 	local owner = gui:FindFirstChild("Owner") :: TextLabel
 	icon.Text = top
 	owner.Text = bottom
+	-- Hidden while they're at the door: it would hang right behind their head (and a real door
+	-- carries it into the house as it swings open).
+	gui.Enabled = entry.model:GetAttribute("OwnerOut") ~= true
 end
 
 local function apply(entry: Tracked)
@@ -247,6 +250,11 @@ local function track(door: Instance)
 			end
 		end)
 	end
+	model:GetAttributeChangedSignal("OwnerOut"):Connect(function()
+		if tracked[model] == entry then
+			updateBadge(entry)
+		end
+	end)
 	apply(entry)
 end
 
