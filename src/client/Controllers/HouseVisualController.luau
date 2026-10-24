@@ -2,8 +2,9 @@
 -- Draws each house's "tells" from the attributes HouseService sets (PROMPT §3.5), all locally:
 --   preference badge over the door, dark windows for Lights Off, a flickering porch light for
 --   Trick houses, string lights + extra pumpkins for Decorated houses, the front door standing
---   open on a lit hall for Open houses (with someone at the end of the hall who's gone when you
---   come close), and the gold beam over the Full-Size Bar house (from ReplicatedStorage.WorldState).
+--   open on a lit hall for Open houses (with someone standing in the hall: it turns to watch you,
+--   comes a spot closer each time the light blinks while you watch, and is gone in a blackout when
+--   you come close), and the gold beam over the Full-Size Bar house (from ReplicatedStorage.WorldState).
 --   Jack-o'-lantern candles on the Blender houses flicker.
 
 local CollectionService = game:GetService("CollectionService")
@@ -27,9 +28,15 @@ type Open = {
 	closed: CFrame,
 	light: PointLight?,
 	steady: number,
-	spot: BasePart?,
+	glow: BasePart?, -- the HallLight marker (its children: the light, the chandelier's flames)
+	spots: { BasePart }, -- where the figure stands, from the far end of the hall to the door
+	index: number, -- which spot it's at
 	figure: BasePart?,
+	facing: CFrame?, -- its turn toward you (eased)
 	gone: boolean,
+	watched: number, -- seconds you've been watching the door since it last moved
+	nextStep: number, -- seconds of watching before it moves again
+	busy: boolean, -- in the middle of a blink
 }
 
 type Tracked = {
@@ -42,8 +49,13 @@ type Tracked = {
 }
 
 local OPEN_SHARE = 0.92 -- of its OpenAngle an open house's door stands at
-local FIGURE_GONE = 13 -- studs: come this close and whoever stood at the end of the hall is gone
+local FIGURE_GONE = 13 -- studs: come this close and whoever stands in the hall is gone
 local FIGURE_BACK = 40 -- studs: walk this far away and they may be back
+local FIGURE_WATCH = 36 -- studs: within this of the door, looking at it, you're watching
+local FIGURE_STEP = { min = 3.5, max = 7 } -- seconds of watching before it comes a spot closer
+local FIGURE_TURN = 2.2 -- how quickly it turns to face you
+local BLINK = 0.32 -- seconds the hall goes dark when it moves
+local FIGURES = { "FigureWidow", "FigureTall", "FigureGirl" } -- Assets.Furniture (art/scripts/figures.py)
 
 local tracked: { [Model]: Tracked } = {}
 local opened: { [Model]: Tracked } = {}
@@ -223,9 +235,46 @@ local function frontHinge(model: Model): Model?
 	return nil
 end
 
+-- The figure templates that have been imported (the old silhouette when none of the new are).
+local function figureTemplate(): BasePart?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local furniture = assets and assets:FindFirstChild("Furniture")
+	if furniture == nil then
+		return nil
+	end
+	local found = {}
+	for _, name in FIGURES do
+		local template = furniture:FindFirstChild(name)
+		if template and template:IsA("BasePart") then
+			table.insert(found, template)
+		end
+	end
+	if #found > 0 then
+		return found[math.random(1, #found)]
+	end
+	return furniture:FindFirstChild("Figure") :: BasePart?
+end
+
+-- The spots a figure can stand at in an open house's hall (World/BlenderLot.dressHall), far to near.
+local function figureSpots(model: Model): { BasePart }
+	local spots = {}
+	local first = model:FindFirstChild("HallFigure") :: BasePart?
+	if first then
+		table.insert(spots, first)
+	end
+	for k = 2, 9 do
+		local spot = model:FindFirstChild("HallFigure" .. k) :: BasePart?
+		if spot == nil then
+			break
+		end
+		table.insert(spots, spot)
+	end
+	return spots
+end
+
 -- An Open house: the front door swings open (or already stands open if it just streamed in), the
 -- hall light (HouseService switches it on) gutters like a candle, and someone stands at the far end
--- of the hall, looking out.
+-- of the hall.
 local function standOpen(entry: Tracked, animate: boolean)
 	local hinge = frontHinge(entry.model)
 	if hinge == nil then
@@ -233,17 +282,22 @@ local function standOpen(entry: Tracked, animate: boolean)
 	end
 	local closed = hinge:GetPivot()
 	local angle = math.rad(((hinge:GetAttribute("OpenAngle") :: number?) or 90) * OPEN_SHARE)
-	local glow = entry.model:FindFirstChild("HallLight")
+	local glow = entry.model:FindFirstChild("HallLight") :: BasePart?
 	local light = glow and glow:FindFirstChildOfClass("PointLight")
-	local spot = entry.model:FindFirstChild("HallFigure") :: BasePart?
 	local open: Open = {
 		hinge = hinge,
 		closed = closed,
 		light = light,
 		steady = if light then light.Brightness else 1,
-		spot = spot,
+		glow = glow,
+		spots = figureSpots(entry.model),
+		index = 1,
 		figure = nil,
+		facing = nil,
 		gone = false,
+		watched = 0,
+		nextStep = FIGURE_STEP.min + math.random() * (FIGURE_STEP.max - FIGURE_STEP.min),
+		busy = false,
 	}
 	entry.open = open
 	opened[entry.model] = entry
@@ -262,14 +316,14 @@ local function standOpen(entry: Tracked, animate: boolean)
 	if light then
 		candles[light] = open.steady
 	end
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local furniture = assets and assets:FindFirstChild("Furniture")
-	local template = furniture and furniture:FindFirstChild("Figure") :: BasePart?
+	local template = figureTemplate()
+	local spot = open.spots[1]
 	if spot and template then
 		local figure = template:Clone()
 		figure:PivotTo(spot.CFrame)
 		figure.Parent = entry.model
 		open.figure = figure
+		open.facing = spot.CFrame.Rotation
 	end
 end
 
@@ -290,26 +344,104 @@ local function closeUp(entry: Tracked)
 	end
 end
 
--- Whoever stands at the end of an open house's hall: there when you look from the street, gone
--- when you come close, maybe back once you've walked away.
-local function watchFigures()
+-- The hall goes dark for a moment (light, flames); `during` runs in the dark.
+local function blink(entry: Tracked, open: Open, during: () -> ())
+	if open.busy then
+		return
+	end
+	open.busy = true
+	local light = open.light
+	local flames = {}
+	if open.glow then
+		for _, child in open.glow:GetChildren() do
+			if child:IsA("BasePart") then
+				table.insert(flames, child)
+			end
+		end
+	end
+	if light then
+		candles[light] = nil
+		light.Enabled = false
+	end
+	for _, flame in flames do
+		flame.LocalTransparencyModifier = 1
+	end
+	task.delay(BLINK * 0.5, during)
+	task.delay(BLINK, function()
+		open.busy = false
+		if light and entry.open == open then
+			light.Enabled = true
+			candles[light] = open.steady
+		end
+		for _, flame in flames do
+			flame.LocalTransparencyModifier = 0
+		end
+	end)
+end
+
+-- Whoever stands in an open house's hall: turned toward you, a spot closer each time the light
+-- blinks while you stand watching the door, gone in a blackout when you come close, maybe back at
+-- the far end once you've walked away.
+local function watchFigures(dt: number)
 	local camera = Workspace.CurrentCamera
 	if camera == nil then
 		return
 	end
+	local eye = camera.CFrame.Position
 	for model, entry in opened do
 		local open = entry.open
-		if open == nil or open.figure == nil or open.spot == nil or model.Parent == nil then
+		local figure = open and open.figure
+		if open == nil or figure == nil or #open.spots == 0 or model.Parent == nil then
 			continue
 		end
-		local distance = (camera.CFrame.Position - open.spot.Position).Magnitude
-		if not open.gone and distance < FIGURE_GONE then
-			open.gone = true
-			open.figure.Parent = nil
-			Sound.play("Whispers", { at = open.spot, volume = 0.9 })
-		elseif open.gone and distance > FIGURE_BACK and math.random() < 0.03 then
-			open.gone = false
-			open.figure.Parent = model
+		local spot = open.spots[open.index]
+		local distance = (eye - spot.Position).Magnitude
+		if open.gone then
+			if distance > FIGURE_BACK and not open.busy and math.random() < 0.03 then
+				open.gone = false
+				open.index = 1
+				open.watched = 0
+				figure:PivotTo(open.spots[1].CFrame)
+				figure.Parent = model
+			end
+			continue
+		end
+		-- Turn to face you, slowly.
+		local flat = (eye - spot.Position) * Vector3.new(1, 0, 1)
+		if flat.Magnitude > 0.5 then
+			local want = CFrame.lookAt(Vector3.zero, flat.Unit)
+			open.facing = (open.facing or want):Lerp(want, 1 - math.exp(-dt * FIGURE_TURN))
+			figure:PivotTo(CFrame.new(spot.Position) * (open.facing :: CFrame))
+		end
+		if distance < FIGURE_GONE then
+			blink(entry, open, function()
+				open.gone = true
+				figure.Parent = nil
+				Sound.play("Whispers", { at = spot, volume = 0.9 })
+			end)
+			continue
+		end
+		-- Watching: near enough, looking at the door.
+		local toDoor = entry.door.Position - eye
+		local watching = toDoor.Magnitude < FIGURE_WATCH and camera.CFrame.LookVector:Dot(toDoor.Unit) > 0.82
+		if watching and not open.busy then
+			open.watched += dt
+			if open.watched >= open.nextStep then
+				open.watched = 0
+				open.nextStep = FIGURE_STEP.min + math.random() * (FIGURE_STEP.max - FIGURE_STEP.min)
+				local nextSpot = open.spots[open.index + 1]
+				blink(entry, open, function()
+					if nextSpot and (eye - nextSpot.Position).Magnitude > FIGURE_GONE + 2 then
+						open.index += 1
+						figure:PivotTo(CFrame.new(nextSpot.Position) * (open.facing or nextSpot.CFrame.Rotation))
+						Sound.play("FloorCreak", { at = nextSpot, volume = 0.7 })
+					else
+						open.gone = true -- nowhere closer to stand: it's just gone
+						figure.Parent = nil
+						Sound.play("Whispers", { at = spot, volume = 0.9 })
+					end
+				end)
+			end
 		end
 	end
 end
@@ -467,7 +599,7 @@ function HouseVisualController.Start()
 	-- Trick houses: a porch light that can't make up its mind. Candles gutter everywhere.
 	while true do
 		task.wait(0.12)
-		watchFigures()
+		watchFigures(0.12)
 		for light, steady in candles do
 			if light.Parent == nil then
 				candles[light] = nil

@@ -105,6 +105,28 @@
     - **Farmhouse:** a hall the depth of the house; its stair climbs into a black stairwell through the ceiling.
     - **Mansard:** an imperial staircase in a two-storey hall, a central flight to a half landing and two flights back to a gallery over the vestibule.
     - The data files carry each hall (`Hall`: lamp, figure, props, `hang` piece, `drop`, `range`, candle `flames`). `BlenderLot.dressHall` hangs the new **Chandelier** (furniture.py) or the bare bulb and places the props. `HouseService` lights the flames along with the light.
+- **Collisions, figures, dialogue (2026-10-24, the user found a porch collision wrong, dialogue too fast and stuck on screen):**
+  - **Collision comes from the house data at runtime now** (`BlenderLot.collide`); the boxes baked into a template are replaced. Fixing a collider is code only: edit `colliders()` in the house script, rebuild the data (no export or import).
+    - The Victorian's list moved from `tools/setup_victorian.luau` into `victorian.colliders()` / `VictorianRooms.luau`.
+  - `art/scripts/colcheck.py <style>` compares the colliders with the model over a grid. It writes a top-down map (`art/renders/colcheck_<style>.png`) of floors you'd float over or sink into, invisible walls, and things you walk through.
+  - **Fixed collisions:**
+    - The Mansard's sloped cheek walls by the steps were full-height boxes that lifted you onto air; they're now four steps.
+    - The Victorian's trim band (a sill at the door) is now a ledge you stand on.
+    - The rotted porch holes are shallow pits.
+    - The porch rocking chairs, the urn, the washtub, the back stoop handrail and the step stringers all collide.
+    - Foundations and plinths stick out past the walls and now collide.
+    - Every low window's sill, casing and shutters collide (`housekit.sill_colliders`).
+    - The porch fascias collide.
+    - The cellar doors are a stepped slope.
+  - **Figures:** `art/scripts/figures.py` adds three smooth Blender figures to the furniture: FigureWidow (a veiled woman in mourning), FigureTall (a gaunt man with a skull of a head and arms to his knees) and FigureGirl (a nightgown, her hair over her face). They're used in the open halls and behind windows.
+    - Each hall has five figure spots, far to near (`Hall.figures`, markers `HallFigure`, `HallFigure2`…).
+    - The figure turns to watch you. While you watch the door from within 36 studs, the hall blinks dark every 3.5–7 s and it's a spot closer. It vanishes in a blackout when you come within 13 studs, and may return at the far end once you're 40 away.
+  - **Doorstep sequence:** the server gives each challenge an `intro` (homeowner out + hello; `Homeowners.OUT_AFTER`, `HELLO_TIME` 4.2), and the mini-game's clock starts after it. The client holds you and starts the game after the intro.
+    - Lines type at 20 letters a second, with real pauses and trailing "...", and stay for 1.8 s + 0.22 s a word.
+    - A line follows the face while it's on screen and becomes a subtitle while it isn't. It fades when the speaker goes inside or you're 26 studs off; it used to freeze where the face was last seen.
+    - Homeowners linger 3.8 s after the game (`LEAVE_DELAY`), so their reaction gets read.
+    - The Costume Line question types at 20 letters a second (max 4.5 s).
+  - `/housetype Open` works.
 - **Texture flicker hunt (2026-10-24, the user saw textures glitching):** `art/scripts/zfight.py` finds faces lying in one plane, facing the same way and overlapping (z-fighting).
   - Run it on an exported FBX, or on a build with `--zfight` (`victorian.py`, `farmhouse.py`, `mansard.py`; `furniture.py -- --zfight --self`). `--detail` lists each patch with its bounds and `--pair A,B` dumps triangles.
   - Faces buried inside a solid are left out. Faces against a wall or under a floor still show up in the report (backs of trims, wall bottoms and tops); read those as hidden.

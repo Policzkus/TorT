@@ -54,8 +54,10 @@ return {
 	--   Blackout - the porch light dies; when it flickers back they're on the porch
 	STYLES = { "Creep", "Snap", "Peek", "Waiting", "Blackout" },
 
-	APPEAR_TIME = 1.2, -- rough seconds until they're out (the mini-game starts meanwhile)
-	LEAVE_DELAY = 1.4, -- seconds they linger after the mini-game
+	-- Seconds from the knock being answered until they're out on the threshold, per style.
+	OUT_AFTER = { Snap = 1.8, Blackout = 1.7, Peek = 2.7, Waiting = 2.3, Creep = 2.8 } :: { [string]: number },
+	HELLO_TIME = 4.2, -- seconds they have for their hello before the mini-game starts (the longest types in ~4.5)
+	LEAVE_DELAY = 3.8, -- seconds they linger after the mini-game (long enough to say what they think)
 	TWITCH_EVERY = { min = 0.6, max = 2.2 } :: Range,
 	STAND_OFF = 0.2, -- studs in front of the door surface they stand: on the threshold, in the doorway
 }

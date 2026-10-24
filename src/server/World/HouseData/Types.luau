@@ -33,10 +33,12 @@ export type Prop = { at: Vector3, yaw: number, pieces: { string }, chance: numbe
 -- The entrance hall behind the front door: what you see when it opens. `hang` is the furniture
 -- piece hung at `lamp` (a chandelier on the house's chain, a bare bulb on a cord), its light `drop`
 -- below it with `range`; `flames` burn on its candles (from the lamp, Blender axes, before it's
--- turned). An open house's figure stands at `figure`, looking out.
+-- turned). An open house's figure stands at `figure` (the first of `figures`, from the far end of
+-- the hall to just inside the door: it comes closer while you watch).
 export type Hall = {
 	lamp: Vector3,
 	figure: Vector3,
+	figures: { Vector3 }?,
 	props: { Prop },
 	hang: string?,
 	drop: number?,

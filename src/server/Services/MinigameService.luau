@@ -31,6 +31,7 @@ export type Challenge = {
 	difficulty: number,
 	seed: number,
 	context: { [string]: any }?,
+	intro: number, -- seconds before the game starts (the homeowner coming out, their hello)
 }
 
 type Pending = {
@@ -87,13 +88,15 @@ local function record(player: Player, grade: string)
 end
 
 -- Starts a mini-game for the player. `onResult(grade)` gets "MISS".."PERFECT", or nil if the
--- challenge was abandoned or cancelled.
+-- challenge was abandoned or cancelled. `intro` seconds go first (the homeowner coming out and
+-- saying hello): the client starts the game after them, and so does the clock.
 function MinigameService.issue(
 	player: Player,
 	kind: string,
 	difficulty: number,
 	onResult: (grade: string?) -> (),
-	context: { [string]: any }?
+	context: { [string]: any }?,
+	intro: number?
 ): Challenge?
 	local rules = KINDS[kind]
 	if rules == nil then
@@ -108,12 +111,14 @@ function MinigameService.issue(
 		difficulty = difficulty,
 		seed = random:NextInteger(1, 2147483646),
 		context = context,
+		intro = intro or 0,
 	}
 	local spec = rules.generate(challenge.seed, difficulty, context)
-	pending[player] = { challenge = challenge, spec = spec, issuedAt = os.clock(), onResult = onResult }
+	local lead = intro or 0
+	pending[player] = { challenge = challenge, spec = spec, issuedAt = os.clock() + lead, onResult = onResult }
 	Net.event("MinigameStart"):FireClient(player, challenge)
 
-	task.delay(spec.timeout + Minigames.EXPIRE_GRACE, function()
+	task.delay(lead + spec.timeout + Minigames.EXPIRE_GRACE, function()
 		local open = pending[player]
 		if open and open.challenge.id == challenge.id then
 			pending[player] = nil

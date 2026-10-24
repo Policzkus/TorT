@@ -48,23 +48,25 @@ function HomeownerService.roll(model: Model, neighborhoodId: string)
 end
 
 -- Someone knocked: the homeowner comes out (safe to call for several visitors at once).
-function HomeownerService.appear(houseId: string)
+function HomeownerService.appear(houseId: string): number
 	local house = WorldService.getHouse(houseId)
 	if house == nil then
-		return
+		return 0
 	end
 	local visit = visits[houseId]
 	if visit then
 		visit.count += 1
 		visit.closing += 1 -- cancels a pending "go back inside"
-		return
+		return 0 -- already out
 	end
 	visits[houseId] = { count = 1, closing = 0 }
 	local model = house.model
 	local number = ((model:GetAttribute("OwnerVisit") :: number?) or 0) + 1
 	model:SetAttribute("OwnerVisit", number)
-	model:SetAttribute("OwnerStyle", Homeowners.STYLES[random:NextInteger(1, #Homeowners.STYLES)])
+	local style = Homeowners.STYLES[random:NextInteger(1, #Homeowners.STYLES)]
+	model:SetAttribute("OwnerStyle", style)
 	model:SetAttribute("OwnerOut", true)
+	return Homeowners.OUT_AFTER[style] or 2.4
 end
 
 -- One visitor is done; the homeowner goes back inside a moment after the last one.

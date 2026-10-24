@@ -21,12 +21,14 @@ import bpy
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import figures as F  # noqa: E402
 import interiors as I  # noqa: E402
 import victorian as V  # noqa: E402
 
 ARGS = V.ARGS
 EXPORT = V.ROOT / "export" / "furniture"
 U = I.U
+F.setup(V, U)
 
 
 def at0(yaw=0.0):
@@ -309,6 +311,10 @@ PIECES = {
     "Pram": pram,
     "HangingBulb": hanging_bulb,
     "Chandelier": chandelier,
+    # The open houses' figures (figures.py).
+    "FigureWidow": lambda: F.widow(at0()),
+    "FigureTall": lambda: F.tall(at0()),
+    "FigureGirl": lambda: F.girl(at0()),
 }
 
 
@@ -318,6 +324,7 @@ def build():
     I.materials(V)
     # The hall mirror's glass: nearly black, glossy, so it catches the light.
     V.MATERIALS["Mirror"] = V.textured("Mirror", None, tint=(0.05, 0.055, 0.06, 1), rough=0.12)
+    F.materials()
     for name, fn in PIECES.items():
         before = set(bpy.data.objects)
         fn()
@@ -370,8 +377,8 @@ if __name__ == "__main__":
         cam, _ = V.setup_render("furniture", night=False)
         scene = bpy.context.scene
         scene.camera = cam
-        cam.location = (0, -42, 30) if only is None else (0, -2.6 * len(shown) - 7, 6)
-        look = Vector((0, 16, 0)) if only is None else Vector((0, 0, 3))
+        cam.location = (0, -42, 30) if only is None else (0, -2.6 * len(shown) - 7, 6 if "--low" not in ARGS else 4.5)
+        look = Vector((0, 16, 0)) if only is None else Vector((0, 0, 3 if "--low" not in ARGS else 4.2))
         cam.rotation_euler = (look - Vector(cam.location)).to_track_quat("-Z", "Y").to_euler()
         scene.render.filepath = str(V.RENDERS / f"{ARGS[ARGS.index('--render') + 1]}.png")
         bpy.ops.render.render(write_still=True)

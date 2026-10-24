@@ -112,19 +112,8 @@ local function bindInput()
 	)
 end
 
-local function start(challenge: any)
-	if session then
-		session.cancel()
-		session = nil
-	end
+local function begin(challenge: any)
 	local entry = GAMES[challenge.kind]
-	if entry == nil then
-		-- Not built on the client: answer at once so the door doesn't hang.
-		Net.event("MinigameSubmit"):FireServer(challenge.id, {})
-		return
-	end
-	gradeLabel.Visible = false
-	lockMovement(true)
 	local current: Session
 	current = entry.ui.run(stage, challenge, {
 		onTap = function(hit: number, grade: string, total: number)
@@ -148,6 +137,43 @@ local function start(challenge: any)
 	if not current.usesOwnButtons then
 		bindInput()
 	end
+end
+
+-- A challenge: whoever answers comes out and says hello first (its intro, DoorController), you
+-- held in place; then the game itself.
+local function start(challenge: any)
+	if session then
+		session.cancel()
+		session = nil
+	end
+	local entry = GAMES[challenge.kind]
+	if entry == nil then
+		-- Not built on the client: answer at once so the door doesn't hang.
+		Net.event("MinigameSubmit"):FireServer(challenge.id, {})
+		return
+	end
+	gradeLabel.Visible = false
+	lockMovement(true)
+	local intro = if type(challenge.intro) == "number" then challenge.intro else 0
+	if intro <= 0 then
+		begin(challenge)
+		return
+	end
+	local waiting: Session
+	waiting = {
+		cancel = function()
+			if session == waiting then
+				session = nil
+			end
+		end,
+	}
+	session = waiting
+	task.delay(intro, function()
+		if session == waiting then
+			session = nil
+			begin(challenge)
+		end
+	end)
 end
 
 function MinigameController.isActive(): boolean

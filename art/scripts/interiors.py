@@ -849,12 +849,14 @@ def chandelier_flames():
             for a in (k * 2 * math.pi / c["arms"] for k in range(c["arms"]))]
 
 
-def entrance(lamp, figure, hang=None, drop=None, range_=None, flames=()):
+def entrance(lamp, figures, hang=None, drop=None, range_=None, flames=()):
     """The entrance hall the game dresses (World/BlenderLot.dressHall): where its light hangs
     (and `hang`, the furniture piece hung there, `drop` above its light), the light's `range_`,
-    the hanging piece's candle flames, and where a figure stands looking out. Add the furniture
+    the hanging piece's candle flames, and the spots an open house's figure stands at, from the far
+    end of the hall to just inside the door (it comes closer while you watch). Add the furniture
     spots to its "props": (at, yaw degrees from facing the street, pieces, chance)."""
-    return dict(lamp=Vector(lamp), figure=Vector(figure), hang=hang, drop=drop, range=range_, flames=list(flames), props=[])
+    figures = [Vector(f) for f in figures]
+    return dict(lamp=Vector(lamp), figure=figures[0], figures=figures, hang=hang, drop=drop, range=range_, flames=list(flames), props=[])
 
 
 def hall_lines(hall):
@@ -863,6 +865,8 @@ def hall_lines(hall):
         return f"Vector3.new({p.x:.2f}, {p.y:.2f}, {p.z:.2f})"
 
     lines = ["\thall = {", f"\t\tlamp = {v3(hall['lamp'])},", f"\t\tfigure = {v3(hall['figure'])},"]
+    if len(hall.get("figures", [])) > 1:
+        lines.append("\t\tfigures = { " + ", ".join(v3(f) for f in hall["figures"]) + " },")
     if hall.get("hang"):
         lines.append(f'\t\thang = "{hall["hang"]}",')
     if hall.get("drop") is not None:
@@ -917,8 +921,9 @@ def victorian_foyer(V):
     lamp = Vector((1.8, 8.8, 15.6))
     rose(V, lamp.x, lamp.y, C)
     chain(V, lamp.x, lamp.y, C - 0.3, lamp.z + 0.05)
-    hall = entrance(lamp, (5.4, 15.5, F), hang="Chandelier", drop=CHANDELIER["light"] * U, range_=26, flames=chandelier_flames())
     on_stair = lambda k: (sy + (k + 0.5) * tread, F + (k + 1) * rise)
+    figures = [(2.0, 15.4, G), (5.4, 15.5, F), (-2.4, *on_stair(9)), (2.4, 9.6, F), (1.2, 5.0, F)]  # gallery, under it, the stair, the hall, the vestibule
+    hall = entrance(lamp, figures, hang="Chandelier", drop=CHANDELIER["light"] * U, range_=26, flames=chandelier_flames())
     hall["props"] += [
         ((1.5, 6.5, F), 0, ["Runner"], 0.85),
         ((-2.7, 2.4, F), 90, ["CoatRack", "UmbrellaStand"], 0.9),
@@ -1069,7 +1074,15 @@ def write_luau(V, lamps, hall):
     lines += ["}", ""]
     hall_rows = hall_lines(hall)
     lines += ["local hall: HouseData.Hall = {"] + [line[1:] for line in hall_rows[1:-1]] + ["}", ""]
-    lines += ["return { rooms = rooms, hall = hall }", ""]
+
+    def v3(p):
+        return f"Vector3.new({p.x:.2f}, {p.y:.2f}, {p.z:.2f})"
+
+    lines += ["local colliders = {"]
+    for size, centre, yaw in V.colliders():
+        lines.append(f"\t{{ size = {v3(size)}, centre = {v3(centre)}, yaw = {yaw:.1f} }},")
+    lines += ["}", ""]
+    lines += ["return { rooms = rooms, hall = hall, colliders = colliders }", ""]
     path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     print("WROTE", path)
 

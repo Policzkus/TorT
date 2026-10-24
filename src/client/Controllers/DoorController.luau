@@ -12,6 +12,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Dialogue = require(ReplicatedStorage:WaitForChild("Shared").Config.Dialogue)
+local Homeowners = require(ReplicatedStorage:WaitForChild("Shared").Config.Homeowners)
 local Houses = require(ReplicatedStorage:WaitForChild("Shared").Modules.Houses)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
 local Dialog = require(script.Parent.DialogController)
@@ -29,8 +30,6 @@ local DoorController = {}
 local DOORSTEP = { near = 5, far = 8, keep = 10, side = 2.5, level = 1, drop = 3.2 }
 local LOOK_TIME = 2.2 -- seconds your view is drawn up to their face; then it's yours again
 local LOOK_BELOW = 0.9 -- aim this far under the face, so it sits above the mini-game panel
--- Seconds from the knock being answered until they're out and speak, per entrance style.
-local HELLO_AFTER = { Snap = 1.8, Blackout = 1.7, Peek = 2.7, Waiting = 2.3, Creep = 2.8 }
 
 local doors: { [string]: BasePart } = {}
 local readyAt: { [string]: number } = {}
@@ -151,10 +150,12 @@ local function personalityOf(house: Model): Dialogue.Personality?
 	return Dialogue.personalities[house:GetAttribute("Owner") :: string]
 end
 
--- Once they're out, they say hello (Costume Line's question does that job itself).
-local function greet(house: Model)
+-- Once they're out (`outIn` seconds after the knock was answered), they say hello; the mini-game
+-- waits for it (Costume Line's question does that job itself).
+local function greet(house: Model, outIn: number?)
 	local style = house:GetAttribute("OwnerStyle")
-	task.delay(HELLO_AFTER[if type(style) == "string" then style else "Creep"] or 2.4, function()
+	local wait = outIn or Homeowners.OUT_AFTER[if type(style) == "string" then style else "Creep"] or 2.4
+	task.delay(wait + 0.3, function()
 		local personality = personalityOf(house)
 		if personality and house:GetAttribute("OwnerOut") == true then
 			Dialog.say(house, personality.hello[math.random(1, #personality.hello)], personality.voice)
@@ -246,7 +247,7 @@ function DoorController.Start()
 			local door = doors[context.houseId]
 			local house = door and Houses.of(door)
 			if house and challenge.kind ~= "CostumeLine" then
-				greet(house)
+				greet(house, if type(context.outIn) == "number" then context.outIn else nil)
 			end
 		end
 	end)

@@ -397,7 +397,8 @@ def hall(f, u, ceil, ty):
     lamp = Vector((0.0, 5.6, 17.8))
     I.rose(V, lamp.x, lamp.y, ceil, r=1.8)
     I.chain(V, lamp.x, lamp.y, ceil - 0.3, lamp.z + 0.05)
-    D.entrance(lamp, (3.2, 9.9, land), hang="Chandelier", drop=I.CHANDELIER["light"] * I.U, range_=28, flames=I.chandelier_flames())
+    figures = [(-3.2, 10.0, land), (3.2, 9.9, land), (-1.0, y0 + 5.5 * tread, f + 6 * rise), (1.2, 1.7, f), (-1.4, -0.6, f)]  # the landing, the stair, its foot, the vestibule
+    D.entrance(lamp, figures, hang="Chandelier", drop=I.CHANDELIER["light"] * I.U, range_=28, flames=I.chandelier_flames())
     D.prop((-2.7, -0.5, f), 90, ["CoatRack", "UmbrellaStand"], 0.9)
     D.prop((5.2, 1.0 + 0.18 + 0.57, f), 180, ["Clock"], 0.85)
     D.prop((1.0, y0 + 3.5 * tread, f + 4 * rise), 0, ["Doll"], 0.35)
@@ -408,17 +409,26 @@ def hall(f, u, ceil, ty):
 
 
 def colliders():
+    """The invisible collision the game builds (colcheck.py checks it against the model)."""
     D.collider((26, 22, CORNICE), (0, 11, CORNICE / 2))
     D.collider((9, 3, TOWER["top"]), (0, -1.5, TOWER["top"] / 2))
+    D.collider((27, 23, FOUND + 0.4), (0, 11, (FOUND + 0.4) / 2))  # stone and trim, a ledge past the walls
+    D.collider((9.6, 3.0, FOUND), (0, -1.8, FOUND / 2))
     D.collider((9.2, TOWER["y0"] - PORCH_Y, FOUND), (0, (PORCH_Y + TOWER["y0"]) / 2, FOUND / 2))
     for s in range(1, 5):
         top = FOUND - s * FOUND / 4
         D.collider((6.0, 1.0, top), (0, PORCH_Y - (s - 0.5), top / 2))
         D.collider((5.0, 1.0, top), (-6, MAIN["y1"] + (s - 0.5), top / 2))
+    # The cheek walls beside the steps slope down from the portico to the ground: four steps of
+    # collider under the slope (one full-height box stood you on air over its low end).
     for sx in (-4.0, 4.0):
-        D.collider((1.0, 4.6, FOUND + 0.6), (sx, PORCH_Y - 2.3, (FOUND + 0.6) / 2))  # cheek walls
+        for k in range(4):
+            top = (FOUND + 0.6) * (1 - (k + 0.5) / 4)
+            D.collider((1.0, 1.15, top), (sx, PORCH_Y - (k + 0.5) * 1.15, top / 2))
     for sx in (-3.6, 3.6):
-        D.collider((1.3, 1.3, 9.0), (sx, PORCH_Y + 0.9, FOUND + 4.5))
+        D.collider((1.0, 1.0, 9.0), (sx, PORCH_Y + 0.9, FOUND + 4.5))
+    for size, centre, yaw in K.sill_colliders(V):
+        D.collider(size, centre, yaw)
     for x in (-9.5, 9.5):
         D.collider((2.6, 2.6, 12), (x, 16, MANSARD_TOP - 2))
 

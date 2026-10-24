@@ -100,6 +100,28 @@ def gable_trim(V, low_left, peak, low_right, scallops=True, grp="Trim"):
     V.lathe(grp, [(0.15, 0), (0.2, -0.3), (0.0, -1.2)], (p.x, p.y, p.z - 0.4), segments=8)
 
 
+def sill_colliders(V, ground=0.0, below=7.5):
+    """Colliders in front of every window low enough to walk into (its bottom less than `below`
+    over `ground`): its sill, casing and shutters stand out from the wall past the house's own
+    block collider. Each is (size in Blender axes, centre, yaw degrees), like Data.collider."""
+    out = []
+    for op in V.OPENINGS:
+        frame, o = op["frame"], op["o"]
+        if o["h"] >= 8.5:  # a door
+            continue
+        bottom = frame @ Vector((o["x"], 0.0, o["y"]))
+        if bottom.z - ground > below:
+            continue
+        along = (frame.to_3x3() @ Vector((1, 0, 0)))
+        along.z = 0
+        along.normalize()
+        out_dir = Vector((along.y, -along.x, 0))  # the frame's -Y: away from the wall
+        top = bottom.z + o["h"] + 1.3
+        centre = Vector((bottom.x, bottom.y, (ground + top) / 2)) + out_dir * 0.48
+        out.append((Vector((o["w"] + 1.6, 0.95, top - ground)), centre, math.degrees(math.atan2(along.y, along.x))))
+    return out
+
+
 # House data -------------------------------------------------------------------------------------
 class Data:
     """Everything the game needs to know about a house model, gathered while it's built."""
@@ -140,12 +162,12 @@ class Data:
 
         self.rooms.append(interiors.room_entry(room, Vector(lamp), role, front))
 
-    def entrance(self, lamp, figure, hang=None, drop=None, range_=None, flames=()):
+    def entrance(self, lamp, figures, hang=None, drop=None, range_=None, flames=()):
         """The entrance hall behind the front door (interiors.entrance): its light, what hangs
-        there, and where a figure can stand looking out (World/BlenderLot, the open houses)."""
+        there, and the spots a figure stands at, far to near (World/BlenderLot, the open houses)."""
         import interiors
 
-        self.hall = interiors.entrance(lamp, figure, hang, drop, range_, flames)
+        self.hall = interiors.entrance(lamp, figures, hang, drop, range_, flames)
 
     def prop(self, at, yaw, pieces, chance=1.0):
         """A spot in the entrance hall: one of the furniture `pieces` goes there (or, `chance`

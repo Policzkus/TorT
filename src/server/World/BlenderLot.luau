@@ -484,7 +484,15 @@ function BlenderLot.furnish(
 				end
 			end
 		end
-		local figure = set:FindFirstChild("Figure") :: BasePart?
+		-- One of the figures (art/scripts/figures.py), or the old silhouette.
+		local figures = {}
+		for _, name in { "FigureWidow", "FigureTall", "FigureGirl" } do
+			local found = set:FindFirstChild(name)
+			if found and found:IsA("BasePart") then
+				table.insert(figures, found)
+			end
+		end
+		local figure = if #figures > 0 then rng:pick(figures) else set:FindFirstChild("Figure") :: BasePart?
 		if room == figureRoom and figure then
 			-- Close behind the glass, looking out, somewhere nothing else stands.
 			local box = extents(figure)
@@ -572,12 +580,44 @@ function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: Ho
 		flame.CFrame = hung * CFrame.new(-offset.X, offset.Z, offset.Y)
 		flame.Parent = glow
 	end
+	-- Where an open house's figure stands, far to near (HouseVisualController moves it closer).
 	marker("HallFigure", at(hall.figure, 0))
+	for k, spot in hall.figures or {} do
+		if k > 1 then
+			marker("HallFigure" .. k, at(spot, 0))
+		end
+	end
 end
 
--- The whole dressing: the yard (when the yard set is there), the room lights, the furniture and
--- the entrance hall. Returns false
--- when the yard set is missing, so the caller can build a yard of its own.
+-- The house's invisible collision, from its data (the boxes its template was filed with are
+-- replaced: the data is where collision gets fixed, art/scripts/colcheck.py checks it).
+function BlenderLot.collide(house: Model, base: CFrame, data: HouseData.Data)
+	if #data.colliders == 0 then
+		return
+	end
+	for _, child in house:GetChildren() do
+		if child.Name == "Collision" and child:IsA("BasePart") then
+			child:Destroy()
+		end
+	end
+	local rot = base.Rotation
+	for _, c in data.colliders do
+		Parts.block(
+			house,
+			"Collision",
+			Vector3.new(c.size.X, c.size.Z, c.size.Y),
+			rot * CFrame.Angles(0, math.rad(c.yaw), 0)
+				+ (base * CFrame.new(-c.centre.X, c.centre.Z, c.centre.Y)).Position,
+			"060607",
+			Enum.Material.SmoothPlastic,
+			{ Transparency = 1, CanQuery = true, CanTouch = false, CastShadow = false }
+		)
+	end
+end
+
+-- The whole dressing: the house's collision, the yard (when the yard set is there), the room
+-- lights, the furniture and the entrance hall. Returns false when the yard set is missing, so the
+-- caller can build a yard of its own.
 function BlenderLot.dress(
 	house: Model,
 	base: CFrame,
@@ -586,6 +626,7 @@ function BlenderLot.dress(
 	lotWidth: number,
 	data: HouseData.Data
 ): boolean
+	BlenderLot.collide(house, base, data)
 	local set = BlenderLot.yardSet(data.yard.fence)
 	if set then
 		BlenderLot.yard(house, base, rng, yardDepth, lotWidth, data, set)

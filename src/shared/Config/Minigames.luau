@@ -65,7 +65,7 @@ return {
 		hardTimer = 4,
 		perfectShare = 0.35, -- answered within this share of the timer
 		greatShare = 0.65,
-		readSpeed = 40, -- letters a second the question types out at; the timer starts once it's out
-		readMax = 2.4, -- seconds of reading at most
+		readSpeed = 20, -- letters a second the question types out at; the timer starts once it's out
+		readMax = 4.5, -- seconds of reading at most
 	},
 }

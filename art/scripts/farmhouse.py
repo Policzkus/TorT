@@ -283,8 +283,9 @@ def hall(f, c, u):
     I.clock(V, I.at(V, 4.1 - 0.18 - 0.57, 12.5, f, -math.pi / 2))
     lamp = Vector((1.4, 6.0, c))
     I.rose(V, lamp.x, lamp.y, c, r=1.1)
-    D.entrance(lamp, (1.8, 12.5, f), hang="HangingBulb", drop=4.45, range_=20)
     on_stair = lambda k: (sy + (k + 0.5) * tread, f + (k + 1) * rise)
+    figures = [(1.2, 15.4, f), (1.8, 12.5, f), (-2.85, *on_stair(6)), (2.4, 8.2, f), (0.8, 4.2, f)]  # by the kitchen door, the hall, the stair, nearer, the door
+    D.entrance(lamp, figures, hang="HangingBulb", drop=4.45, range_=20)
     D.prop((0.6, 6.5, f), 0, ["Runner"], 0.85)
     D.prop((3.0, 1.95, f), -90, ["CoatRack", "UmbrellaStand"], 0.9)
     D.prop((4.1 - 0.18 - 0.61, 9.0, f), -90, ["Console"], 0.8)
@@ -296,10 +297,23 @@ def hall(f, c, u):
 
 
 def colliders(posts, post_y):
+    """The invisible collision the game builds (colcheck.py checks it against the model)."""
     E = EAVE
     D.collider((24, 18, E), (0, 9, E / 2))
     D.collider((16, 6, LEAN["low"]), (-4, 21, LEAN["low"] / 2))
-    D.collider((25.2, 8, FOUND), (0, -4, FOUND / 2))
+    D.collider((24.4, 18.2, FOUND), (0, 9.1, FOUND / 2))  # the stone, a ledge past the walls
+    D.collider((16.4, 6.0, FOUND), (-4, 21.2, FOUND / 2))
+    # The porch deck round its rotted hole (a shallow pit), the rocking chair and the washtub.
+    x0, x1, y0 = PORCH["x0"], PORCH["x1"], PORCH["y"]
+    hx0, hx1, hy0, hy1 = 7.9, 9.3, -5.75, -4.65
+    edge = y0 - 0.15  # the fascia under the deck's front edge stands out a little
+    for bx0, bx1, by0, by1 in ((x0, hx0, edge, 0), (hx1, x1, edge, 0), (hx0, hx1, edge, hy0), (hx0, hx1, hy1, 0)):
+        D.collider((bx1 - bx0, by1 - by0, FOUND), ((bx0 + bx1) / 2, (by0 + by1) / 2, FOUND / 2))
+    D.collider((hx1 - hx0, hy1 - hy0, FOUND - 1.0), ((hx0 + hx1) / 2, (hy0 + hy1) / 2, (FOUND - 1.0) / 2))
+    D.collider((1.9, 3.0, 4.4), (-6.0, -2.4, FOUND + 2.2), math.degrees(-0.4))
+    D.collider((2.2, 2.2, 1.05), (9.8, -2.0, FOUND + 0.52))
+    for size, centre, yaw in K.sill_colliders(V):
+        D.collider(size, centre, yaw)
     for s in range(1, 4):
         top = FOUND - s * FOUND / 3
         D.collider((5.0, 1.05, top), (0, PORCH["y"] - (s - 0.5) * 1.05, top / 2))
@@ -309,9 +323,9 @@ def colliders(posts, post_y):
     D.collider((2.6, 3.8, RIDGE + 3.5), (MAIN["x0"] - 1.3, 9.0, (RIDGE + 3.5) / 2))
     # Railings (open at the steps) and the porch posts.
     for a, b in ((posts[0], posts[2]), (posts[3], posts[5])):
-        D.collider((b - a, 0.5, 3.4), ((a + b) / 2, post_y, FOUND + 1.7))
+        D.collider((b - a, 0.35, 3.4), ((a + b) / 2, post_y, FOUND + 1.7))
     for x in (posts[0], posts[5]):
-        D.collider((0.5, -PORCH["y"], 3.4), (x, PORCH["y"] / 2, FOUND + 1.7))
+        D.collider((0.35, -PORCH["y"], 3.4), (x, PORCH["y"] / 2, FOUND + 1.7))
     for x in posts:
         D.collider((0.6, 0.6, 10), (x, post_y, FOUND + 5))
 

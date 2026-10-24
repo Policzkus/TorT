@@ -1360,6 +1360,62 @@ def render(name, night=False, views=("front", "corner"), hall=None, extra=None):
         print("RENDERED", scene.render.filepath)
 
 
+# Collision ---------------------------------------------------------------------------------------
+def colliders():
+    """The invisible collision World/BlenderLot builds for every Victorian (written to
+    VictorianRooms.luau): floors and steps you walk on, walls, railings and things in the way.
+    Each is (size in Blender axes, centre, yaw in degrees). colcheck.py checks them against the
+    model."""
+    import housekit
+
+    out = []
+
+    def add(size, centre, yaw=0.0):
+        out.append((Vector(size), Vector(centre), yaw))
+
+    add((30, 24, EAVE), (0, 12, EAVE / 2))  # main block
+    add((12, 4, EAVE), (-9, -2, EAVE / 2))  # bay
+    # The foundation and its trim band stand out past the walls: a ledge at the band's height,
+    # which is also the sill you step up onto at the front door.
+    add((30.8, 24.8, FOUND + 0.5), (0, 12, (FOUND + 0.5) / 2))
+    add((12.8, 4.0, FOUND + 0.5), (-9, -2.4, (FOUND + 0.5) / 2))
+    # Tower: four strips, one per pair of opposite faces (two squares would make a star that sticks
+    # out past the walls), as wide as its stone plinth.
+    a = TOWER["apothem"] + 0.2
+    side = 2 * a * math.tan(math.pi / 8) + 0.1
+    for k in range(4):
+        add((side, 2 * a, TOWER["eave"]), (TOWER["x"], TOWER["y"], TOWER["eave"] / 2), k * 45)
+    # The porch deck, round the rotted hole (a shallow pit you can step down into and out of).
+    x0, x1, y0 = PORCH["x0"], PORCH["x1"], PORCH["y"]
+    edge = y0 - 0.15  # the fascia under the deck's front edge stands out a little
+    hx0, hx1, hy0, hy1 = 8.7, 11.3, -8.5, -6.7
+    for bx0, bx1, by0, by1 in ((x0, hx0, edge, 0), (hx1, x1, edge, 0), (hx0, hx1, edge, hy0), (hx0, hx1, hy1, 0)):
+        add((bx1 - bx0, by1 - by0, FOUND), ((bx0 + bx1) / 2, (by0 + by1) / 2, FOUND / 2))
+    add((hx1 - hx0, hy1 - hy0, FOUND - 1.0), ((hx0 + hx1) / 2, (hy0 + hy1) / 2, (FOUND - 1.0) / 2))
+    for s in range(1, 4):
+        top = FOUND - s * FOUND / 4
+        add((6.2, 1.15, top), (DOOR["x"], y0 - (s - 0.5) * 1.15, top / 2))  # front steps and their stringers
+        add((5, 1, top), (-8, 28 + (s - 0.5), top / 2))  # back steps
+    add((6, 3.8, FOUND), (-8, 26.1, FOUND / 2))  # back stoop
+    add((0.3, 3.6, 3.0), (-10.8, 26.3, FOUND + 1.5))  # its handrail
+    # Porch railings and end posts (open at the steps).
+    add((11.6, 0.4, 3.4), (10.4, -9.5, FOUND + 1.7))
+    add((0.4, 5.1, 3.4), (-2.6, -6.95, FOUND + 1.7))
+    add((0.4, 5.7, 3.4), (16.2, -6.65, FOUND + 1.7))
+    for x in (-2.6, 4.6):
+        add((0.9, 0.9, 10.2), (x, -9.5, FOUND + 5.1))
+    # Things on the porch: the rocking chair, the urn of dead stalks.
+    add((1.8, 2.4, 3.6), (-0.8, -3, FOUND + 1.8), -35)
+    add((1.4, 1.4, 1.25), (PORCH["x0"] + 1.4, y0 + 1.0, FOUND + 0.62))
+    # The storm cellar: its curb, then its doors sloping up to the wall in three steps.
+    add((4.8, 6, 1.2), (17.1, 6, 0.6))
+    for k, (xa, xb) in enumerate(((15.0, 16.4), (16.4, 17.8))):
+        top = FOUND - (k + 0.5) * (FOUND - 1.2) / 3
+        add((xb - xa, 5.0, top), ((xa + xb) / 2, 6, top / 2))
+    out += housekit.sill_colliders(sys.modules[__name__])
+    return out
+
+
 # Main --------------------------------------------------------------------------------------------
 def build():
     reset()

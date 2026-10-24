@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
+local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
 local HouseTypes = require(ReplicatedStorage.Shared.Config.HouseTypes)
 local Minigames = require(ReplicatedStorage.Shared.Config.Minigames)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
@@ -193,8 +194,12 @@ local function knock(player: Player, houseId: string)
 		+ WorldEventsService.difficultyBonus()
 	difficulty = math.clamp(difficulty, Minigames.DIFFICULTY_MIN, Minigames.DIFFICULTY_MAX)
 	local kind = pickMinigame(neighborhood, houseType)
-	local context = { houseId = houseId, personality = HouseService.owner(houseId), houseType = houseType }
-	HomeownerService.appear(houseId)
+	-- They come out and say hello before the mini-game starts (Costume Line's question is its
+	-- hello): the challenge's intro, which the client plays out and the clock leaves out.
+	local outIn = HomeownerService.appear(houseId)
+	local intro = outIn + (if kind == "CostumeLine" then 0 else Homeowners.HELLO_TIME)
+	local context =
+		{ houseId = houseId, personality = HouseService.owner(houseId), houseType = houseType, outIn = outIn }
 	local issued = MinigameService.issue(player, kind, difficulty, function(grade)
 		HomeownerService.leave(houseId)
 		finish(player, houseId, houseType, grade)
@@ -202,7 +207,7 @@ local function knock(player: Player, houseId: string)
 		if grade and kind == "NerveHold" then
 			Net.event("Jumpscare"):FireClient(player, houseId, "monster")
 		end
-	end, context)
+	end, context, intro)
 	if issued == nil then
 		HomeownerService.leave(houseId)
 	end

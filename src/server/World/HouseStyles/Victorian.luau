@@ -1135,7 +1135,7 @@ local BLENDER_LOT: HouseData.Data = {
 	style = "Victorian",
 	door = { x = DOOR.x, y = 0.55, sill = FOUND },
 	hinged = {},
-	colliders = {},
+	colliders = VictorianRooms.colliders,
 	lights = {},
 	anchors = {},
 	rooms = VictorianRooms.rooms,
