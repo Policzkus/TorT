@@ -70,7 +70,7 @@ def hood(frame, o):
     x, y, w, h = o["x"], o["y"], o["w"], o["h"]
     top = y + h + 0.35
     arc = [(x - w / 2 - 0.6, top), (x + w / 2 + 0.6, top)]
-    for i in range(8, -1, -1):
+    for i in range(9):  # right to left: an outline that goes round once
         a = math.pi * i / 8
         arc.append((x + math.cos(a) * (w / 2 + 0.6), top + 0.35 + math.sin(a) * 0.65))
     V.prism("Trim", arc, 0.45, frame @ Matrix.Translation((0, -0.45, 0)), bevel=0.04)
@@ -129,8 +129,8 @@ def round_window(frame, x, z, r, wall=None):
     V.OPENINGS.append(dict(frame=frame, o=dict(x=x, y=z - r, w=2 * r, h=2 * r)))
     V.torus("Trim", (0, 0, 0), r + 0.25, 0.22, frame @ V.frame_matrix((x, -0.1, z), (0, 0, 0)), segments=20, sides=6)
     V.prism("Glass", pts, 0.05, frame @ Matrix.Translation((0, 0.55, 0)))
-    V.box("Trim", (2 * r, 0.15, 0.14), (x, 0.5, z), matrix=frame)
-    V.box("Trim", (0.14, 0.15, 2 * r), (x, 0.5, z), matrix=frame)
+    V.box("Trim", (2 * r, 0.25, 0.14), (x, 0.55, z), matrix=frame)  # the glass inside their depth
+    V.box("Trim", (0.14, 0.18, 2 * r), (x, 0.55, z), matrix=frame)
 
 
 def walls():
@@ -139,55 +139,60 @@ def walls():
     # Main front, its middle opened up behind the tower so the hall and tower rooms run deep.
     front = V.wall_frame((0, MAIN["y0"], FOUND), 0)
     fo = [dict(x=-8.75, y=2.2, w=2.8, h=7.4), dict(x=8.75, y=2.2, w=2.8, h=7.4), dict(x=-8.75, y=up + 2.2, w=2.8, h=7.0), dict(x=8.75, y=up + 2.2, w=2.8, h=7.0)]
-    V.wall(front, 26, H, fo + [dict(x=0, y=-0.5, w=7.2, h=H + 1)], "Siding")
+    e = V.EPS  # walls meeting at a corner stop short of it (victorian.EPS)
+    V.wall(front, 26 - 2 * e, H, fo + [dict(x=0, y=-0.5, w=7.2, h=H + 1)], "Siding")
     for i, o in enumerate(fo):
-        V.window(front, o, curtains=(i in (0, 3)), shutters=False, broken=(i == 1))
+        V.window(front, o, curtains=(i in (0, 3)), shutters=False, broken=(i == 1), crown=False)
         hood(front, o)
     # Tower: a front wall (door, window, oculus) and two short side walls, up to its own cornice.
     TH = TOWER["top"] - FOUND
     tf = V.wall_frame((0, TOWER["y0"], FOUND), 0)
     door_o = dict(x=0, y=0, w=V.DOOR["w"], h=V.DOOR["h"] + 1.5)
     tw = dict(x=0, y=up + 2.0, w=3.0, h=7.2)
-    tower_front = V.wall(tf, 9, TH, [door_o, tw], "Siding")
-    front_hinge = V.door(tf, 0, 0, "FrontDoor", hall=False)
-    V.window(tf, tw, curtains=True)
+    tower_front = V.wall(tf, 9 - 2 * e, TH, [door_o, tw], "Siding")
+    front_hinge = V.door(tf, 0, 0, "FrontDoor")
+    V.window(tf, tw, curtains=True, crown=False)
     hood(tf, tw)
     round_window(tf, 0, CORNICE - FOUND + 4.2, 1.5, wall=tower_front)
     for x, yaw in ((TOWER["x0"], -math.pi / 2), (TOWER["x1"], math.pi / 2)):
         # Below the cornice the side walls run back to the main front; above it, to the tower's back.
-        f = V.wall_frame((x, (TOWER["y0"] + 0.0) / 2, FOUND), yaw)
-        V.wall(f, 3.0, H, [], "Siding")
+        f = V.wall_frame((x, (TOWER["y0"] + e) / 2, FOUND), yaw)
+        V.wall(f, 3.0 - e, H, [], "Siding")
         f2 = V.wall_frame((x, (TOWER["y0"] + TOWER["y_back"]) / 2, CORNICE), yaw)
-        V.wall(f2, TOWER["y_back"] - TOWER["y0"], TOWER["top"] - CORNICE, [], "Siding")
+        V.wall(f2, TOWER["y_back"] - TOWER["y0"] - 2 * e, TOWER["top"] - CORNICE, [], "Siding")
     tb = V.wall_frame((0, TOWER["y_back"], CORNICE), math.pi)
-    V.wall(tb, 9, TOWER["top"] - CORNICE, [], "Siding")
+    V.wall(tb, 9 - 2 * e, TOWER["top"] - CORNICE, [], "Siding")
     # Sides: two windows a floor.
     for x, yaw, sign in ((MAIN["x0"], -math.pi / 2, -1), (MAIN["x1"], math.pi / 2, 1)):
         f = V.wall_frame((x, 11.0, FOUND), yaw)
         lx = [-sign * (6 - 11), -sign * (16 - 11)]  # world y 6 and 16
         lx = [5, -5] if sign < 0 else [-5, 5]
         ops = [dict(x=lx[0], y=2.2, w=2.8, h=7.4), dict(x=lx[1], y=2.2, w=2.8, h=7.4), dict(x=lx[0], y=up + 2.2, w=2.8, h=7.0), dict(x=lx[1], y=up + 2.2, w=2.8, h=7.0)]
-        V.wall(f, 22, H, ops, "Siding")
+        V.wall(f, 22 - 2 * e, H, ops, "Siding")
         for i, o in enumerate(ops):
-            V.window(f, o, shutters=(i == 2), boarded=(sign > 0 and i == 3), curtains=(sign < 0 and i == 1))
+            V.window(f, o, shutters=(i == 2), boarded=(sign > 0 and i == 3), curtains=(sign < 0 and i == 1), crown=False)
             hood(f, o)
     # Back: the back door and windows.
     back = V.wall_frame((0, MAIN["y1"], FOUND), math.pi)  # local x -> world -x
     bo = [dict(x=6, y=0, w=V.DOOR["w"], h=V.DOOR["h"] + 1.5), dict(x=-6, y=2.2, w=2.8, h=7.4), dict(x=6, y=up + 2.2, w=2.8, h=7.0), dict(x=-6, y=up + 2.2, w=2.8, h=7.0)]
-    V.wall(back, 26, H, bo, "Siding")
-    back_hinge = V.door(back, 6, 0, "BackDoor", hall=False)
+    V.wall(back, 26 - 2 * e, H, bo, "Siding")
+    back_hinge = V.door(back, 6, 0, "BackDoor")
     for o in bo[1:]:
-        V.window(back, o, boarded=(o["x"] == 6))
+        V.window(back, o, boarded=(o["x"] == 6), crown=False)
         hood(back, o)
     # Belt course between the floors, the cornice, quoins.
     for (a, b) in (((MAIN["x0"], 0), (TOWER["x0"], 0)), ((TOWER["x1"], 0), (MAIN["x1"], 0))):
         V.box("Trim", (abs(b[0] - a[0]), 0.4, 0.45), ((a[0] + b[0]) / 2, -0.2, FOUND + STORY), bevel=0.05)
     V.box("Trim", (9.0, 0.4, 0.45), (0, TOWER["y0"] - 0.2, FOUND + STORY), bevel=0.05)
-    for z, sx, sy, cy in ((CORNICE, 26.8, 22.8, 11.0),):
-        V.box("Trim", (sx + 0.4, sy + 0.4, 0.5), (0, cy, z + 0.25), bevel=0.06)
-        V.box("Trim", (sx, sy, 1.2), (0, cy, z - 0.6), bevel=0.04)
+    # The cornices: a slab on the walls' tops and a frieze below it round the outside. The frieze
+    # is a ring (solid, it filled the top of every room behind the walls, the hall's ceiling too),
+    # and sits behind the window hoods.
+    V.box("Trim", (27.2, 23.2, 0.5), (0, 11.0, CORNICE + 0.25), bevel=0.06)
+    frieze = V.box("Trim", (26.4, 22.4, 1.2), (0, 11.0, CORNICE - 0.6), bevel=0.04)
+    V.cut(frieze, [V.box("_cutters", (2 * (MAIN["x1"] - T) + 0.2, MAIN["y1"] - 2 * T + 0.2, 3.0), (0, 11.0, CORNICE - 0.6))])
     V.box("Trim", (10.2, TOWER["y_back"] - TOWER["y0"] + 1.2, 0.5), (0, (TOWER["y0"] + TOWER["y_back"]) / 2, TOWER["top"] + 0.25), bevel=0.06)
-    V.box("Trim", (9.6, TOWER["y_back"] - TOWER["y0"] + 0.6, 1.0), (0, (TOWER["y0"] + TOWER["y_back"]) / 2, TOWER["top"] - 0.5), bevel=0.04)
+    frieze = V.box("Trim", (9.6, TOWER["y_back"] - TOWER["y0"] + 0.6, 1.0), (0, (TOWER["y0"] + TOWER["y_back"]) / 2, TOWER["top"] - 0.5), bevel=0.04)
+    V.cut(frieze, [V.box("_cutters", (2 * (TOWER["x1"] - T) + 0.2, TOWER["y_back"] - TOWER["y0"] - 2 * T + 0.2, 3.0), (0, (TOWER["y0"] + TOWER["y_back"]) / 2, TOWER["top"] - 0.5))])
     brackets((MAIN["x0"], -0.3, 0), (TOWER["x0"], -0.3, 0), CORNICE - 1.2, -1)
     brackets((TOWER["x1"], -0.3, 0), (MAIN["x1"], -0.3, 0), CORNICE - 1.2, -1)
     brackets((TOWER["x0"], TOWER["y0"] - 0.3, 0), (TOWER["x1"], TOWER["y0"] - 0.3, 0), CORNICE - 1.2, -1)
@@ -226,7 +231,7 @@ def roofs():
         for s in (-1, 1):
             V.box("Trim", (0.3, 5.0, 6.2), (s * 1.9, 2.4, 3.1), matrix=f)  # cheeks
         arc = [(-2.3, 6.2), (2.3, 6.2)]
-        for i in range(8, -1, -1):
+        for i in range(1, 8):  # over the top, right to left (no point twice)
             a = math.pi * i / 8
             arc.append((math.cos(a) * 2.3, 6.2 + math.sin(a) * 1.0))
         V.prism("Roof", arc, 5.6, f @ Matrix.Translation((0, -0.3, 0)), bevel=0.04)
@@ -237,7 +242,7 @@ def roofs():
     ty0, ty1 = TOWER["y0"] - 0.5, TOWER["y_back"] + 0.5
     cap = frustum("Shakes", TOWER["x0"] - 0.5, TOWER["x1"] + 0.5, ty0, ty1, TOWER["top"] + 0.5, TOWER["cap"], 1.6)
     f = V.wall_frame((0, ty0, TOWER["top"] + 0.5), 0)
-    V.cut(cap, [V.box("_cutters", (2.4, 4.0, 4.4), (0, 1.8, 2.6), matrix=f)])
+    V.cut(cap, [V.box("_cutters", (2.4, 4.0, 4.3), (0, 1.8, 2.55), matrix=f)])  # its top under the dormer roof's
     o = dict(x=0, y=1.0, w=1.6, h=3.0)
     V.wall(f, 2.8, 4.8, [o], "Trim")
     V.window(f, o, broken=True)
@@ -257,7 +262,7 @@ def roofs():
 def portico():
     """A columned porch in front of the tower, a balcony on top, and wide stone steps."""
     x0, x1, y0 = -4.6, 4.6, PORCH_Y
-    V.box("Stone", (x1 - x0, TOWER["y0"] - y0, FOUND), (0, (y0 + TOWER["y0"]) / 2, FOUND / 2), bevel=0.08)
+    V.box("Stone", (x1 - x0, TOWER["y0"] - 0.3 - y0, FOUND), (0, (y0 + TOWER["y0"] - 0.3) / 2, FOUND / 2), bevel=0.08)  # against the tower's
     V.box("Porch", (x1 - x0 - 0.4, TOWER["y0"] - y0 - 0.2, 0.15), (0, (y0 + TOWER["y0"]) / 2, FOUND + 0.07))
     for s in range(1, 5):
         top = FOUND - s * FOUND / 4
@@ -308,7 +313,7 @@ def portico():
 
 def foundation():
     V.box("Stone", (26.6, 22.6, FOUND), (0, 11, FOUND / 2), bevel=0.08)
-    V.box("Stone", (9.6, 3.6, FOUND), (0, -1.5, FOUND / 2), bevel=0.08)
+    V.box("Stone", (9.6, 3.0, FOUND), (0, -1.8, FOUND / 2), bevel=0.08)  # the tower's, against the main stone
     V.box("Trim", (27.0, 23.0, 0.4), (0, 11, FOUND + 0.2), bevel=0.05)
     for s in range(1, 5):  # back steps
         top = FOUND - s * FOUND / 4
@@ -316,46 +321,90 @@ def foundation():
 
 
 def rooms():
-    pi, U = math.pi, I.U
+    """Rooms behind the windows (interiors.py pieces), and the hall."""
     g, c = FOUND + 0.5, FOUND + STORY - 0.6
     u, uc = FOUND + STORY, FOUND + 2 * STORY - 0.6
     m, mc = CORNICE + 0.6, CORNICE + 5.4
     xi0, xi1, yb = MAIN["x0"] + T, MAIN["x1"] - T, MAIN["y1"] - T
     ty = TOWER["y0"] + T
     plan = [
-        dict(id="G1", x0=xi0, x1=-5.4, y0=T, y1=10.8, floor=g, ceil=c, paper="WallpaperB"),
-        dict(id="G2", x0=-3.6, x1=3.6, y0=ty, y1=10.8, floor=g, ceil=c, paper="WallpaperC"),
-        dict(id="G3", x0=5.4, x1=xi1, y0=T, y1=10.8, floor=g, ceil=c, paper="WallpaperA"),
+        dict(id="G1", x0=xi0, x1=-6.8, y0=T, y1=10.8, floor=g, ceil=c, paper="WallpaperB"),
+        dict(id="G3", x0=6.8, x1=xi1, y0=T, y1=10.8, floor=g, ceil=c, paper="WallpaperA"),
         dict(id="G4", x0=xi0, x1=-0.2, y0=11.0, y1=yb, floor=g, ceil=c, paper="WallpaperA"),
         dict(id="G5", x0=0.0, x1=xi1, y0=11.0, y1=yb, floor=g, ceil=c, paper="WallpaperC"),
-        dict(id="U1", x0=xi0, x1=-5.4, y0=T, y1=10.8, floor=u, ceil=uc, paper="WallpaperC"),
-        dict(id="U2", x0=-3.6, x1=3.6, y0=ty, y1=10.8, floor=u, ceil=uc, paper="WallpaperB"),
-        dict(id="U3", x0=5.4, x1=xi1, y0=T, y1=10.8, floor=u, ceil=uc, paper="WallpaperB"),
+        dict(id="U1", x0=xi0, x1=-6.8, y0=T, y1=10.8, floor=u, ceil=uc, paper="WallpaperC"),
+        dict(id="U3", x0=6.8, x1=xi1, y0=T, y1=10.8, floor=u, ceil=uc, paper="WallpaperB"),
         dict(id="U4", x0=xi0, x1=-0.2, y0=11.0, y1=yb, floor=u, ceil=uc, paper="WallpaperB"),
         dict(id="U5", x0=0.0, x1=xi1, y0=11.0, y1=yb, floor=u, ceil=uc, paper="WallpaperA"),
         dict(id="M1", x0=-11.0, x1=-5.6, y0=1.2, y1=9.0, floor=m, ceil=mc, paper="Boards"),
         dict(id="M2", x0=5.6, x1=11.0, y0=1.2, y1=9.0, floor=m, ceil=mc, paper="Boards"),
         dict(id="T3", x0=-3.6, x1=3.6, y0=ty, y1=TOWER["y_back"] - T, floor=m, ceil=TOWER["top"] - 0.6, paper="WallpaperC"),
     ]
-    roles = {"G1": ("living", "y0"), "G2": ("hall", "y0"), "G3": ("living", "y0"), "G4": ("kitchen", "x0"), "G5": ("living", "x1"),
-             "U1": ("living", "y0"), "U2": ("living", "y0"), "U3": ("living", "y0"), "U4": ("living", "x0"), "U5": ("living", "x1"),
+    roles = {"G1": ("living", "y0"), "G3": ("living", "y0"), "G4": ("kitchen", "x0"), "G5": ("living", "x1"),
+             "U1": ("living", "y0"), "U3": ("living", "y0"), "U4": ("living", "x0"), "U5": ("living", "x1"),
              "M1": ("attic", "y0"), "M2": ("attic", "y0"), "T3": ("tower", "y0")}
     for room in plan:
         lamp = I.box_room(V, room)
         role, front = roles[room["id"]]
         D.room(room, lamp, role, front)
-        if room["id"] == "G2":  # the hall keeps its grand stair and clock; the game furnishes the rest
-            f = room["floor"]
-            I.stairs(V, I.at(V, 1.6, 2.0, f), steps=12)
-            I.clock(V, I.at(V, -3.5 + 0.16 * U, 6.0, f, pi / 2))
-            # What the game may stand in it (seen through the door when it opens).
-            D.entrance(lamp, (-1.8, 9.8, f))
-            D.prop((-0.6, 0.6, f), 0, ["Runner"], 0.85)
-            D.prop((-2.7, -0.9, f), 90, ["CoatRack", "UmbrellaStand"], 0.9)
-            D.prop((-3.15, 2.9, f), 90, ["Console"], 0.85)
-            D.prop((-3.45, 2.9, f + 5.0), 90, ["HallMirror", "Portrait"], 0.8)
-            D.prop((-2.0, 8.9, f), 165, ["Pram", "Doll", "SheetTall"], 0.75)
-            D.prop((1.2, 2.0 + 3 * 0.95, f + 0.18 * 4 * U), 10, ["Doll"], 0.3)  # on the fourth stair
+    hall(g, u, uc, ty)
+
+
+def hall(f, u, ceil, ty):
+    """The hall, both storeys high behind the tower's vestibule: an imperial staircase, a central
+    flight up to a half landing against the back wall and two flights back along the side walls to
+    a gallery over the way in; a dark doorway on the landing, more off the vestibule and the
+    gallery; panelled walls, a cupboard under a side flight, a chandelier on a long chain."""
+    steps, tread = 8, 0.72
+    rise = (u - f) / (2 * steps)
+    land = f + steps * rise  # the half landing
+    y0 = 2.6  # the central flight's first riser, and the gallery's edge
+    ly = y0 + steps * tread  # the landing's front
+    outline = [(-3.6, ty), (3.6, ty), (3.6, T), (6.6, T), (6.6, 10.8), (-6.6, 10.8), (-6.6, T), (-3.6, T)]
+    doors = {
+        1: [(1.5, 1.8, 7.0, 0.0)],  # off the vestibule
+        2: [(1.5, 2.2, 6.8, u - f)],  # off the gallery
+        4: [(6.5, 3.6, 7.4, land - f)],  # on the landing
+        6: [(1.5, 2.2, 6.8, u - f)],
+    }
+    edges = I.hall_walls(V, outline, f, ceil, "WallpaperC", doors, plain=(3, 4, 5))
+    rects = [(-3.6, 3.6, ty, T), (-6.6, 6.6, T, 10.8)]
+    I.slabs(V, "Floorboards", rects, f)
+    I.slabs(V, "Plaster", rects, ceil, top=False)
+    # The landing: a panelled block against the back wall between the side walls.
+    V.box("Plaster", (13.0, 10.7 - ly, land - 0.12 - f), (0, (ly + 10.7) / 2, (f + land - 0.12) / 2))
+    V.box("Floorboards", (13.0, 10.7 - ly, 0.12), (0, (ly + 10.7) / 2, land - 0.06))
+    for sx in (-1, 1):
+        V.box("FurnitureWood", (1.2, 0.05, land - f - 1.8), (sx * 3.2, ly - 0.025, (f + 0.9 + land - 0.9) / 2), bevel=0.02)
+    # The flights: the central one from the floor, the side ones from the landing, solid to the
+    # floor along the walls.
+    I.flight(V, V.frame_matrix((-2.4, y0, f)), steps, rise, tread, 4.8, open_sides=(0, 1))
+    left = V.frame_matrix((-4.0, ly, land), (0, 0, math.pi))
+    right = V.frame_matrix((6.5, ly, land), (0, 0, math.pi))
+    I.flight(V, left, steps, rise, tread, 2.5, open_sides=(0,), base=f - land, cupboard=(0, 2.4))
+    I.flight(V, right, steps, rise, tread, 2.5, open_sides=(1,), base=f - land)
+    for sx in (-1, 1):
+        I.balustrade(V, (sx * 2.5, y0 + steps * tread + I.TOP_NEWEL), (sx * 3.9, ly + 0.45), land, newels=(False, False))
+    # The gallery over the way in, its beam, and its balustrade between the side flights' newels.
+    V.box("Floorboards", (13.0, y0 - 1.0, 0.75), (0, (1.0 + y0) / 2, u - 0.375))
+    V.box("FurnitureWood", (7.4, 0.3, 1.08), (0, y0 + 0.15, u - 0.46), bevel=0.04)
+    V.box("FurnitureWood", (7.4, 0.2, 0.22), (0, y0 + 0.1, u - 1.1), bevel=0.03)
+    I.balustrade(V, (-3.9, y0 - I.TOP_NEWEL), (3.9, y0 - I.TOP_NEWEL), u, newels=(False, False))
+    m2, m6 = edges[2][0], edges[6][0]
+    for mm in (m2, m6):
+        I.run(V, "FurnitureWood", mm, 0.0, 3.0, 0.18, u - f, u - f + 0.62, [(1.5, 3.1, u - f, 7.25)], bevel=0.03)
+    # The rose and the chandelier's chain, over the stair.
+    lamp = Vector((0.0, 5.6, 17.8))
+    I.rose(V, lamp.x, lamp.y, ceil, r=1.8)
+    I.chain(V, lamp.x, lamp.y, ceil - 0.3, lamp.z + 0.05)
+    D.entrance(lamp, (3.2, 9.9, land), hang="Chandelier", drop=I.CHANDELIER["light"] * I.U, range_=28, flames=I.chandelier_flames())
+    D.prop((-2.7, -0.5, f), 90, ["CoatRack", "UmbrellaStand"], 0.9)
+    D.prop((5.2, 1.0 + 0.18 + 0.57, f), 180, ["Clock"], 0.85)
+    D.prop((1.0, y0 + 3.5 * tread, f + 4 * rise), 0, ["Doll"], 0.35)
+    D.prop((-5.0, 9.7, land), 0, ["DressForm", "SheetTall"], 0.6)
+    D.prop((-4.2, 10.7 - 0.115, land + 5.5), 0, ["Portrait"], 0.85)
+    D.prop((4.6, 10.7 - 0.115, land + 5.5), 0, ["Portrait", "HallMirror"], 0.7)
+    D.prop((2.2, 9.6, land), 0, ["Candles"], 0.5)
 
 
 def colliders():
@@ -416,10 +465,18 @@ FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron",
 
 if __name__ == "__main__":
     merged = build()
+    if "--zfight" in ARGS:  # faces in one plane that would flicker (zfight.py)
+        import zfight
+
+        zfight.analyze("Mansard (built)")
     if "--render" in ARGS:
         name = ARGS[ARGS.index("--render") + 1]
         views = ARGS[ARGS.index("--views") + 1].split(",") if "--views" in ARGS else ["front", "corner"]
-        V.render("mansard_" + name, night="--night" in ARGS, views=views)
+        if "--open" in ARGS:
+            V.open_doors(merged, ("FrontDoor", "Brass_FrontDoor"))
+        extra = {"door": ((0.6, -12.0, FOUND + 4.6), (0.0, 8.0, FOUND + 6.5)), "foyer": ((0.0, -1.6, FOUND + 5.0), (0.0, 10.0, FOUND + 9.0)),
+                 "gallery": ((-2.5, 1.8, 14.5 + 4.6), (1.0, 9.5, 8.0))}
+        V.render("mansard_" + name, night="--night" in ARGS, views=views, hall=D.hall if "--open" in ARGS else None, extra=extra)
     if "--export" in ARGS:
         import export_victorian
 

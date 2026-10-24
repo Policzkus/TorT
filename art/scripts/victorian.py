@@ -37,6 +37,9 @@ FOUND = 2.6
 STORY = 11.5
 EAVE = FOUND + 2 * STORY
 T = 0.9  # wall thickness
+# Walls that meet at a corner each stop EPS short of it, so neither's end face lies in the other's
+# outer face (two faces in one plane flicker: z-fighting).
+EPS = 0.05
 MAIN = dict(x0=-15.0, x1=15.0, y0=0.0, y1=24.0)
 RIDGE_Y, RIDGE_Z = 12.0, EAVE + 11.0
 BAY = dict(x0=-15.0, x1=-3.0, y=-4.0)
@@ -140,11 +143,14 @@ def slab(grp, low, high, width, thickness, name="Slab", bevel=0.05):
     `width` along the horizontal edge direction, `thickness` along the surface normal (outward up)."""
     low, high = Vector(low), Vector(high)
     up = high - low
-    along = Vector((0, 0, 1)).cross(up).normalized()
-    normal = up.normalized().cross(along)
-    if normal.z < 0:
-        normal, along = -normal, -along
     y_axis = up.normalized()
+    along = Vector((0, 0, 1)).cross(up).normalized()
+    # A right-handed frame (along x up = normal): a mirrored one turns the box inside out, so its
+    # underside is what shows and it fights whatever lies along its bottom (the gable walls).
+    normal = along.cross(y_axis)
+    if normal.z < 0:
+        along = -along
+        normal = along.cross(y_axis)
     m = Matrix((along, y_axis, normal)).transposed().to_4x4()
     m.translation = (low + high) / 2 + normal * thickness / 2
     return box(grp, (width, up.length, thickness), (0, 0, 0), bevel=bevel, name=name, matrix=m)
@@ -280,38 +286,40 @@ def drape(frame, x0, x1, top, bottom, depth):
     mesh_object("Drape", bm, "Curtain")
 
 
-def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, curtains=False):
+def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, curtains=False, crown=True):
+    """A window in an opening of `frame`: casing (a plain head without `crown`, for a hood of the
+    caller's), sill, sashes, glass, and curtains, boards or shutters."""
     x, y, w, h = o["x"], o["y"], o["w"], o["h"]
     OPENINGS.append(dict(frame=frame, o=o))
-    casing(frame, o)
-    box("Trim", (w + 1.5, 0.95, 0.32), (x, -0.32, y - 0.16), bevel=0.06, matrix=frame)  # sill
+    casing(frame, o, crown=crown)
+    box("Trim", (w + 1.5, 0.9, 0.32), (x, -0.45, y - 0.16), bevel=0.06, matrix=frame)  # sill, against the wall (not into the opening)
     box("Trim", (w + 0.9, 0.3, 0.35), (x, -0.08, y - 0.5), bevel=0.04, matrix=frame)  # apron
     inset = 0.55
-    # Sash frames: outer frame, meeting rail, muntins.
-    fd = 0.22
+    # Sash frames: stiles, top and bottom rails, the meeting rail, muntins, each a little deeper
+    # or shallower than what it crosses (faces in one plane at a crossing flicker).
     for side in (-1, 1):
-        box("Trim", (0.22, fd, h), (x + side * (w / 2 - 0.11), inset, y + h / 2), matrix=frame)
-    box("Trim", (w, fd, 0.24), (x, inset, y + 0.12), matrix=frame)
-    box("Trim", (w, fd, 0.24), (x, inset, y + h - 0.12), matrix=frame)
-    box("Trim", (w, fd + 0.06, 0.2), (x, inset - 0.03, y + h / 2), matrix=frame)
-    box("Trim", (0.12, fd, h), (x, inset + 0.02, y + h / 2), matrix=frame)
+        box("Trim", (0.22, 0.28, h), (x + side * (w / 2 - 0.11), 0.58, y + h / 2), matrix=frame)
+    box("Trim", (w, 0.12, 0.24), (x, 0.54, y + 0.12), matrix=frame)
+    box("Trim", (w, 0.12, 0.24), (x, 0.54, y + h - 0.12), matrix=frame)
+    box("Trim", (w, 0.24, 0.2), (x, 0.48, y + h / 2), matrix=frame)
+    box("Trim", (0.12, 0.04, h), (x, 0.54, y + h / 2), matrix=frame)
     if w > 4.5:
         for f in (-0.25, 0.25):
-            box("Trim", (0.1, fd, h), (x + w * f, inset + 0.02, y + h / 2), matrix=frame)
-    # Glass and the room behind it.
+            box("Trim", (0.1, 0.04, h), (x + w * f, 0.54, y + h / 2), matrix=frame)
+    # Glass behind the rails and muntins, inside the stiles.
     glass = "Glass"
     if broken:
         # Bottom pane intact, top-right pane gone (dark hole), a shard left hanging.
-        box(glass, (w - 0.3, 0.05, h / 2 - 0.2), (x, inset + 0.1, y + h / 4), matrix=frame)
-        box(glass, (w / 2 - 0.2, 0.05, h / 2 - 0.2), (x - w / 4, inset + 0.1, y + h * 0.75), matrix=frame)
+        box(glass, (w - 0.3, 0.04, h / 2 - 0.2), (x, 0.65, y + h / 4), matrix=frame)
+        box(glass, (w / 2 - 0.2, 0.04, h / 2 - 0.2), (x - w / 4, 0.65, y + h * 0.75), matrix=frame)
         prism(
             glass,
             [(0, 0), (w * 0.22, 0), (0.05, h * 0.3)],
             0.05,
-            frame @ frame_matrix((x + 0.1, inset + 0.08, y + h / 2 + 0.1)),
+            frame @ frame_matrix((x + 0.1, 0.63, y + h / 2 + 0.1)),
         )
     else:
-        box(glass, (w - 0.2, 0.05, h - 0.2), (x, inset + 0.1, y + h / 2), matrix=frame)
+        box(glass, (w - 0.2, 0.04, h - 0.2), (x, 0.65, y + h / 2), matrix=frame)
     if curtains:
         # Heavy drapes on a rod, pooling on the floor, drawn part-way across.
         floor = 0.0 if y < STORY else STORY
@@ -328,7 +336,7 @@ def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, cur
             box(
                 "Boards",
                 (w + 1.6, 0.18, 0.8),
-                (x + rng.uniform(-0.3, 0.3), -0.42, zz),
+                (x + rng.uniform(-0.3, 0.3), -0.45 - 0.06 * i, zz),  # each nailed over the last
                 rot=(0, rng.uniform(-0.25, 0.25), 0),
                 bevel=0.05,
                 matrix=frame,
@@ -349,12 +357,13 @@ def window(frame, o, lit=False, boarded=False, broken=False, shutters=False, cur
                 )
 
 
-def door(frame, x, y, name, hall=True):
-    """Door opening trim, transom, and the door slab as its own object hinged on one side."""
+def door(frame, x, y, name, crown=True):
+    """Door opening trim, transom, and the door slab as its own object hinged on one side. (The
+    entrance hall behind a front door is a room of its own: interiors.py.)"""
     w, h = DOOR["w"], DOOR["h"]
     o = dict(x=x, y=y, w=w, h=h + 1.5)
     OPENINGS.append(dict(frame=frame, o=o))
-    casing(frame, o)
+    casing(frame, o, crown=crown)
     box("Glass", (w - 0.2, 0.05, 1.1), (x, 0.55, y + h + 0.78), matrix=frame)
     box("Trim", (w, 0.4, 0.3), (x, 0.45, y + h + 0.12), matrix=frame)
     box("Trim", (w + 0.6, 1.4, 0.2), (x, 0.35, y + 0.1), bevel=0.04, matrix=frame)  # threshold
@@ -370,28 +379,53 @@ def door(frame, x, y, name, hall=True):
     box("Brass_" + name, (0.32, 0.32, 0.32), (w - 0.45, -0.3, h * 0.47), bevel=0.12, matrix=hinge)
     box("Brass_" + name, (0.32, 0.32, 0.32), (w - 0.45, 0.3, h * 0.47), bevel=0.12, matrix=hinge)
     box("Brass_" + name, (0.45, 0.1, 0.55), (w / 2, -0.22, h * 0.7), bevel=0.04, matrix=hinge)
-    if hall:
-        depth, hw, hh = 9.0, w + 2.4, h + 3.0
-        inner = frame @ Matrix.Translation(Vector((x, T, y)))
-        box("Porch", (hw, depth, 0.3), (0, depth / 2, -0.15), matrix=inner)
-        box("Interior", (hw, depth, 0.3), (0, depth / 2, hh), matrix=inner)
-        for side in (-1, 1):
-            box("Wallpaper", (0.3, depth, hh), (side * hw / 2, depth / 2, hh / 2), matrix=inner)
-        box("Interior", (hw, 0.3, hh), (0, depth, hh / 2), matrix=inner)
-        for i in range(1, 7):
-            box("Porch", (hw * 0.45, 1.0, 0.6 * i), (hw * 0.25, depth - 1 - (6 - i) * 0.9, 0.3 * i), matrix=inner)
     return hinge
 
 
 # The house ----------------------------------------------------------------------------------------
+def tower_lean():
+    return frame_matrix((TOWER["x"], TOWER["y"], 0), (math.radians(-1.4), math.radians(2.0), 0))
+
+
+def octagon(grp, apothem, z0, z1, matrix, name="Octagon"):
+    """An upright octagonal prism round the origin of `matrix`, flat faces toward the axes (the
+    tower's walls), from z0 to z1."""
+    bm = bmesh.new()
+    r = apothem / math.cos(math.pi / 8)
+    ring = [bm.verts.new((math.sin(k * math.pi / 4 + math.pi / 8) * r, -math.cos(k * math.pi / 4 + math.pi / 8) * r, z0)) for k in range(8)]
+    face = bm.faces.new(ring)
+    ext = bmesh.ops.extrude_face_region(bm, geom=[face])
+    bmesh.ops.translate(bm, vec=Vector((0, 0, z1 - z0)), verts=[v for v in ext["geom"] if isinstance(v, bmesh.types.BMVert)])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.transform(bm, matrix=matrix, verts=bm.verts)
+    return mesh_object(name, bm, grp)
+
+
+def footprints():
+    """Cutters the shape of the foundation's stones (the porch deck stops against them)."""
+    bay_x = (BAY["x0"] + BAY["x1"]) / 2
+    return [
+        box("_cutters", (30.4, 24.4, 3.0), (0, 12, FOUND / 2)),
+        box("_cutters", (12.4, 4.0, 3.0), (bay_x, -2.2, FOUND / 2)),
+        octagon("_cutters", TOWER["apothem"] + 0.2, -0.5, FOUND + 0.5, tower_lean()),
+    ]
+
+
 def foundation():
+    # Stone: the main block, the bay's in front of it (not into it: their sides would meet in one
+    # plane) and an octagonal plinth under the tower. Their tops are the porch's height, so the
+    # porch deck stops against them instead of lying over them.
+    bay_x = (BAY["x0"] + BAY["x1"]) / 2
     box("Stone", (30.4, 24.4, FOUND), (0, 12, FOUND / 2), bevel=0.1)
-    box("Stone", (12.4, 4.4, FOUND), ((BAY["x0"] + BAY["x1"]) / 2, -2, FOUND / 2), bevel=0.1)
-    s = TOWER["apothem"] * 2 + 0.4
-    for a in (0, math.pi / 4):
-        box("Stone", (s, s, FOUND), (TOWER["x"], TOWER["y"], FOUND / 2), rot=(0, 0, a), bevel=0.1)
-    box("Trim", (30.8, 24.8, 0.5), (0, 12, FOUND + 0.25), bevel=0.06)
-    box("Trim", (12.8, 4.8, 0.5), ((BAY["x0"] + BAY["x1"]) / 2, -2, FOUND + 0.25), bevel=0.06)
+    box("Stone", (12.4, 4.0, FOUND), (bay_x, -2.2, FOUND / 2), bevel=0.1)
+    octagon("Stone", TOWER["apothem"] + 0.2, 0, FOUND, tower_lean())
+    # The trim band on top is a ring under the walls: the rooms' floors are at its height inside.
+    bands = [box("Trim", (30.8, 24.8, 0.5), (0, 12, FOUND + 0.25), bevel=0.06), box("Trim", (12.8, 4.0, 0.5), (bay_x, -2.4, FOUND + 0.25), bevel=0.06)]
+    for band in bands:
+        cut(band, [
+            box("_cutters", (2 * (MAIN["x1"] - T) + 0.2, MAIN["y1"] - 2 * T + 0.1, 2.0), (0, (T + MAIN["y1"] - T + 0.1) / 2, FOUND)),
+            box("_cutters", (BAY["x1"] - BAY["x0"] - 2 * T + 0.2, -BAY["y"] + 0.1, 2.0), (bay_x, (BAY["y"] + T - 0.1 + T) / 2, FOUND)),
+        ])
     for x in (-8, 6):
         f = wall_frame((x, MAIN["y1"] + 0.25, FOUND * 0.5), math.pi)
         box("Interior", (2.4, 0.2, 1.1), (0, 0, 0), matrix=f)
@@ -404,19 +438,19 @@ def main_walls():
     front = wall_frame((0, MAIN["y0"], FOUND), 0)
     fo = [dict(x=DOOR["x"], y=0, w=DOOR["w"], h=DOOR["h"] + 1.5), dict(x=DOOR["x"], y=up + 2.4, w=3.2, h=6)]
     # Open behind the bay and inside the tower (hidden by them), so their rooms run deep.
-    inside = [dict(x=-9.0, y=-0.5, w=BAY["x1"] - BAY["x0"] - 2 * T, h=EAVE - FOUND + 1), dict(x=10.3, y=-0.5, w=9.4, h=EAVE - FOUND + 1)]
-    wall(front, 30, EAVE - FOUND, fo + inside, "SidingFront")
+    inside = [dict(x=-9.1, y=-0.5, w=BAY["x1"] - BAY["x0"] - 2 * T + 0.2, h=EAVE - FOUND + 1), dict(x=10.3, y=-0.5, w=9.4, h=EAVE - FOUND + 1)]
+    wall(front, 30 - 2 * EPS, EAVE - FOUND, fo + inside, "SidingFront")
     front_hinge = door(front, DOOR["x"], 0, "FrontDoor")
     window(front, fo[1], boarded=True, curtains=True)
 
     bay_x = (BAY["x0"] + BAY["x1"]) / 2
     bay = wall_frame((bay_x, BAY["y"], FOUND), 0)
     bo = [dict(x=0, y=2.2, w=7, h=6.6), dict(x=-3, y=up + 2.2, w=2.8, h=6.2), dict(x=3, y=up + 2.2, w=2.8, h=6.2)]
-    wall(bay, BAY["x1"] - BAY["x0"], EAVE - FOUND, bo, "SidingFront")
+    wall(bay, BAY["x1"] - BAY["x0"] - 2 * EPS, EAVE - FOUND, bo, "SidingFront")
     window(bay, bo[0], lit=True, curtains=True)
     window(bay, bo[1], shutters=True, broken=True)
     window(bay, bo[2], shutters=True)
-    wall(wall_frame((BAY["x1"], BAY["y"] / 2, FOUND), math.pi / 2), -BAY["y"], EAVE - FOUND, [], "SidingFront")
+    wall(wall_frame((BAY["x1"], (BAY["y"] + EPS) / 2, FOUND), math.pi / 2), -BAY["y"] - EPS, EAVE - FOUND, [], "SidingFront")
 
     left_len = MAIN["y1"] - BAY["y"]
     mid = (MAIN["y1"] + BAY["y"]) / 2
@@ -425,7 +459,7 @@ def main_walls():
     for yy in (6, 17):
         lo.append(dict(x=mid - yy, y=2.4, w=3, h=6))
         lo.append(dict(x=mid - yy, y=up + 2.4, w=3, h=6))
-    wall(left, left_len, EAVE - FOUND, lo, "SidingSides")
+    wall(left, left_len - 2 * EPS, EAVE - FOUND, lo, "SidingSides")
     for i, o in enumerate(lo):
         window(left, o, boarded=(i == 1), shutters=(i == 2))
 
@@ -434,7 +468,7 @@ def main_walls():
     for yy in (11, 19):
         ro.append(dict(x=yy - 12, y=2.4, w=3, h=6))
         ro.append(dict(x=yy - 12, y=up + 2.4, w=3, h=6))
-    wall(right, 24, EAVE - FOUND, ro, "SidingSides")
+    wall(right, 24 - 2 * EPS, EAVE - FOUND, ro, "SidingSides")
     for i, o in enumerate(ro):
         window(right, o, curtains=(i == 0), boarded=(i == 3), shutters=(i == 1), broken=(i == 1))
 
@@ -447,21 +481,22 @@ def main_walls():
         dict(x=0, y=up + 2.4, w=3, h=6),
         dict(x=-8, y=up + 2.4, w=3, h=6),
     ]
-    wall(back, 30, EAVE - FOUND, bko, "SidingBack")
-    back_hinge = door(back, 8, 0, "BackDoor", hall=False)  # opens into the kitchen (interiors.py)
+    wall(back, 30 - 2 * EPS, EAVE - FOUND, bko, "SidingBack")
+    back_hinge = door(back, 8, 0, "BackDoor")  # opens into the kitchen (interiors.py)
     for i, o in enumerate(bko[1:]):
         window(back, o, boarded=(i in (1, 4)), curtains=(i == 2))
-    box("Stone", (6, 4, FOUND), (0, 0, 0), matrix=back @ Matrix.Translation(Vector((8, -2, -FOUND / 2))))
+    box("Stone", (6, 3.8, FOUND), (0, 0, 0), matrix=back @ Matrix.Translation(Vector((8, -2.1, -FOUND / 2))))  # the stoop, against the foundation
 
     # Corner boards, frieze under the eaves, belt between floors.
     for cx, cy in ((MAIN["x0"], BAY["y"]), (MAIN["x0"], MAIN["y1"]), (MAIN["x1"], MAIN["y1"]), (BAY["x1"], BAY["y"])):
-        box("Trim", (0.85, 0.85, EAVE - FOUND), (cx, cy, FOUND + (EAVE - FOUND) / 2), bevel=0.08)
-    box("Trim", (30.6, 0.45, 1.2), (0, MAIN["y1"] + 0.22, EAVE - 0.6), bevel=0.06)
-    box("Trim", (0.45, 28.6, 1.2), (MAIN["x0"] - 0.22, mid, EAVE - 0.6), bevel=0.06)
-    box("Trim", (0.45, 24.4, 1.2), (MAIN["x1"] + 0.22, 12, EAVE - 0.6), bevel=0.06)
-    box("Trim", (12.6, 0.45, 1.2), (bay_x, BAY["y"] - 0.22, EAVE - 0.6), bevel=0.06)
+        box("Trim", (0.85, 0.85, EAVE - FOUND - 0.5), (cx, cy, FOUND + 0.5 + (EAVE - FOUND - 0.5) / 2), bevel=0.08)
+    # (The frieze and belt stand further out than the corner boards: flush, their faces flickered.)
+    box("Trim", (30.6, 0.55, 1.2), (0, MAIN["y1"] + 0.27, EAVE - 0.6), bevel=0.06)
+    box("Trim", (0.55, 28.6, 1.2), (MAIN["x0"] - 0.27, mid, EAVE - 0.6), bevel=0.06)
+    box("Trim", (0.55, 24.4, 1.2), (MAIN["x1"] + 0.27, 12, EAVE - 0.6), bevel=0.06)
+    box("Trim", (12.6, 0.55, 1.2), (bay_x, BAY["y"] - 0.27, EAVE - 0.6), bevel=0.06)
     box("Trim", (9, 0.45, 1.2), (1.5, -0.22, EAVE - 0.6), bevel=0.06)
-    box("Trim", (12.6, 0.4, 0.45), (bay_x, BAY["y"] - 0.2, FOUND + STORY), bevel=0.05)
+    box("Trim", (12.6, 0.5, 0.45), (bay_x, BAY["y"] - 0.25, FOUND + STORY), bevel=0.05)
     box("Trim", (9, 0.4, 0.45), (1.5, -0.2, FOUND + STORY), bevel=0.05)
     return front_hinge, back_hinge
 
@@ -486,11 +521,11 @@ def main_roof():
         out = -1 if x < 0 else 1
         for side in (-1, 1):
             eave_y = MAIN["y0"] - over if side < 0 else MAIN["y1"] + over
-            slab("Trim", (x + out * 1.15, eave_y, low_z), (x + out * 1.15, RIDGE_Y, RIDGE_Z + 0.25), 0.35, 1.2)
+            slab("Trim", (x + out * 1.22, eave_y, low_z), (x + out * 1.22, RIDGE_Y, RIDGE_Z + 0.25), 0.35, 1.2)
         # Round attic vent.
         vent = wall_frame((x + out * 0.05, RIDGE_Y, EAVE + 4.4), yaw)
         lathe("Trim", [(1.3, 0), (1.3, 0.35), (0, 0.35)], (0, 0, 0), segments=16, matrix=vent @ Matrix.Rotation(math.pi / 2, 4, "X") @ Matrix.Translation((0, 0, -0.35)))
-        lathe("Interior", [(1.0, 0), (1.0, 0.4), (0, 0.4)], (0, 0, 0), segments=16, matrix=vent @ Matrix.Rotation(math.pi / 2, 4, "X") @ Matrix.Translation((0, 0, -0.38)))
+        lathe("Interior", [(1.0, 0), (1.0, 0.4), (0, 0.4)], (0, 0, 0), segments=16, matrix=vent @ Matrix.Rotation(math.pi / 2, 4, "X") @ Matrix.Translation((0, 0, -0.3)))
     # Chimney, leaning a hair.
     ch = frame_matrix((6, 17, (EAVE + RIDGE_Z) / 2 + 6), (math.radians(1.2), math.radians(-1.5), 0))
     box("Brick", (3.2, 3.2, 22), (0, 0, 0), bevel=0.06, matrix=ch)
@@ -522,8 +557,8 @@ def bay_roof():
     OPENINGS.append(dict(frame=af, o=o))  # so the attic room behind gets the same opening
     # Scalloped vergeboards with drops, king post and collar.
     for side in (-1, 1):
-        low = Vector((cx + side * (half + over), front + 0.25, EAVE - over * rise / half - 0.1))
-        high = Vector((cx, front + 0.25, BAY_RIDGE_Z + 0.3))
+        low = Vector((cx + side * (half + over), front - 0.06, EAVE - over * rise / half - 0.1))
+        high = Vector((cx, front - 0.06, BAY_RIDGE_Z + 0.3))
         slab("Trim", low, high, 0.45, 1.4)
         for i in range(1, 7):
             pt = low.lerp(high, i / 7)
@@ -545,7 +580,7 @@ def tower():
     a = TOWER["apothem"]
     pw = 2 * a * math.tan(math.pi / 8)
     height = TOWER["eave"] - FOUND
-    lean = frame_matrix((TOWER["x"], TOWER["y"], 0), (math.radians(-1.4), math.radians(2.0), 0))
+    lean = tower_lean()
     for k in range(8):
         if k in (4, 5):
             continue
@@ -597,14 +632,14 @@ def porch():
     w, d = x1 - x0, -y0
     cx = (x0 + x1) / 2
     deck = box("Porch", (w, d, 0.4), (cx, y0 / 2, FOUND - 0.2), bevel=0.04)
-    cut(deck, [box("_cutters", (2.6, 1.8, 1.0), (10.0, -7.6, FOUND - 0.2))])
+    cut(deck, [box("_cutters", (2.6, 1.8, 1.0), (10.0, -7.6, FOUND - 0.2))] + footprints())
     box("PorchTrim", (w + 0.4, 0.5, 0.5), (cx, y0 + 0.1, FOUND - 0.2), bevel=0.05)
     box("Interior", (w - 0.4, 0.2, FOUND - 0.5), (cx, y0 + 0.4, (FOUND - 0.5) / 2))
     i = 0
     xx = x0 + 0.6
     while xx < x1 - 0.4:
-        for ang in (0.8, -0.8):
-            box("Lattice", (0.16, 0.1, 3.0), (xx, y0 + 0.25, (FOUND - 0.5) / 2), rot=(0, ang, 0))
+        for ang, dy in ((0.8, 0.2), (-0.8, 0.3)):
+            box("Lattice", (0.16, 0.1, 3.0), (xx, y0 + dy, (FOUND - 0.5) / 2), rot=(0, ang, 0))
         xx += 1.4
         i += 1
     # A rotted-through patch of deck: a black hole, two snapped planks sagging into it.
@@ -1253,6 +1288,11 @@ def setup_render(name, night):
         "steps": ((-2, -19, 4.5), (1.5, -9, 2.6)),
         "bay": ((-30, -16, 8), (-14, 2, 12)),
         "roof": ((-20, -30, 44), (0, 12, 36)),
+        # Through the open front door (--open), and inside the entrance hall.
+        "door": ((DOOR["x"] + 0.6, -9.0, FOUND + 4.6), (DOOR["x"], 10.0, FOUND + 5.6)),
+        "doorleft": ((DOOR["x"] + 3.5, -7.0, FOUND + 4.6), (DOOR["x"] - 2.0, 10.0, FOUND + 6.0)),
+        "foyer": ((DOOR["x"] + 0.5, 1.6, FOUND + 5.0), (DOOR["x"] - 0.5, 16.0, FOUND + 8.0)),
+        "foyerback": ((DOOR["x"] + 1.0, 15.0, FOUND + 12.5), (DOOR["x"] - 1.0, 1.0, FOUND + 3.0)),
     }
     if night:
         bg.inputs["Color"].default_value = (0.004, 0.005, 0.008, 1)
@@ -1284,10 +1324,31 @@ def setup_render(name, night):
     return cam, views
 
 
-def render(name, night=False, views=("front", "corner")):
+def open_doors(merged, hinges, angle=92):
+    """Swing door slabs (merged meshes with their origin on the hinge) open inward."""
+    for name in hinges:
+        obj = merged.get(name)
+        if obj is not None:
+            obj.rotation_euler.z += math.radians(angle)
+
+
+def hall_light(hall):
+    """The game's hall light, for renders: warm, under the hanging piece (interiors.entrance)."""
+    light = bpy.data.objects.new("HallLight", bpy.data.lights.new("HallLight", "POINT"))
+    light.data.energy = 2500
+    light.data.color = (1.0, 0.66, 0.41)
+    light.data.shadow_soft_size = 0.6
+    light.location = hall["lamp"] - Vector((0, 0, hall.get("drop") or 0.6))
+    bpy.context.scene.collection.objects.link(light)
+
+
+def render(name, night=False, views=("front", "corner"), hall=None, extra=None):
     cam, presets = setup_render(name, night)
+    presets.update(extra or {})
     scene = bpy.context.scene
     scene.camera = cam
+    if hall is not None:
+        hall_light(hall)
     RENDERS.mkdir(parents=True, exist_ok=True)
     for v in views:
         loc, target = presets[v]
@@ -1346,9 +1407,15 @@ def build():
 
 if __name__ == "__main__":
     merged, *_ = build()
+    if "--zfight" in ARGS:  # faces in one plane that would flicker (zfight.py)
+        import zfight
+
+        zfight.analyze("Victorian (built)")
     if "--render" in ARGS:
         name = ARGS[ARGS.index("--render") + 1]
         views = ("front", "corner", "porch") if "--night" not in ARGS else ("front", "porch")
         if "--views" in ARGS:
             views = ARGS[ARGS.index("--views") + 1].split(",")
-        render(name, night="--night" in ARGS, views=views)
+        if "--open" in ARGS:
+            open_doors(merged, ("FrontDoor", "Brass_FrontDoor"))
+        render(name, night="--night" in ARGS, views=views, hall=interiors.HALL if "--open" in ARGS else None)

@@ -86,7 +86,7 @@ local function titleSign(parent: Instance, base: CFrame)
 	m.Name = "TitleSign"
 	m.Parent = parent
 	for _, x in { -11, 11 } do
-		Parts.block(m, "Post", Vector3.new(1.2, 14, 1.2), base * CFrame.new(x, 7, 0), "4A3020", M.Wood)
+		Parts.block(m, "Post", Vector3.new(1.2, 14.4, 1.2), base * CFrame.new(x, 7.2, 0), "4A3020", M.Wood) -- above the board
 	end
 	local board = Parts.block(m, "Board", Vector3.new(26, 8, 0.8), base * CFrame.new(0, 10, 0), "3A2418", M.WoodPlanks)
 	Parts.sign(board, Enum.NormalId.Front, "TRICK OR TREAT\nWITH FRIENDS 🎃", { color = Color3.fromHex("FF8A00") })
@@ -138,7 +138,8 @@ function Hub.build(parent: Instance): HubInfo
 			CFrame.new(side * (half + 1), World.BOUNDARY_HEIGHT / 2, 0)
 		)
 	end
-	Parts.block(folder, "Treeline", Vector3.new(size, 14, 4), CFrame.new(0, 7, half - 2), "18301E", M.LeafyGrass)
+	-- (Between the side tree lines, not into them: their ends met in one plane.)
+	Parts.block(folder, "Treeline", Vector3.new(size - 8, 14, 4), CFrame.new(0, 7, half - 2), "18301E", M.LeafyGrass)
 	Parts.invisibleWall(
 		folder,
 		Vector3.new(size + 4, World.BOUNDARY_HEIGHT, 2),

@@ -137,11 +137,18 @@ local function apply(houseId: string, state: HouseState)
 	house.prompt.ObjectText = if state.houseType == "LightsOff" then "Nobody's home..." else "Trick or treat!"
 	-- Lights off, bowl and open houses don't answer the door.
 	house.prompt.Enabled = state.houseType ~= "LightsOff" and state.houseType ~= "Bowl" and state.houseType ~= "Open"
-	-- An open house's hall is lit (World/BlenderLot.dressHall); the client swings its door open.
+	-- An open house's hall is lit, the chandelier's candles too (World/BlenderLot.dressHall); the
+	-- client swings its door open.
+	local open = state.houseType == "Open"
 	local hallLight = house.model:FindFirstChild("HallLight")
-	local light = hallLight and hallLight:FindFirstChildOfClass("PointLight")
-	if light then
-		light.Enabled = state.houseType == "Open"
+	if hallLight then
+		for _, child in hallLight:GetChildren() do
+			if child:IsA("PointLight") then
+				child.Enabled = open
+			elseif child:IsA("BasePart") then
+				child.Transparency = if open then 0.1 else 1
+			end
+		end
 	end
 end
 

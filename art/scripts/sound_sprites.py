@@ -147,7 +147,7 @@ def main(source: pathlib.Path):
         slices = ", ".join(f"{{ {a}, {b} }}" for a, b in parts)
         lines.append(f'\t{clip} = {{ sprite = "{sprite}", parts = {{ {slices} }} }},')
     lines += ["}", "", "return { sprites = sprites, clips = clips }", ""]
-    LUAU.write_text("\n".join(lines), encoding="utf-8")
+    LUAU.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     print("WROTE", LUAU)
 
 

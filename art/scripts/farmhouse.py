@@ -57,17 +57,19 @@ def walls():
     front = V.wall_frame((0, MAIN["y0"], FOUND), 0)
     door_o = dict(x=0, y=0, w=V.DOOR["w"], h=V.DOOR["h"] + 1.5)
     win = [dict(x=-7.5, y=2.4, w=3.0, h=6.5), dict(x=7.5, y=2.4, w=3.0, h=6.5)]
-    outline = [(-12, 0), (12, 0), (12, E), (GHALF, E), (0, GABLE_TOP - FOUND), (-GHALF, E), (-12, E)]
+    e = V.EPS  # walls meeting at a corner stop short of it (victorian.EPS)
+    outline = [(-12 + e, 0), (12 - e, 0), (12 - e, E), (GHALF, E), (0, GABLE_TOP - FOUND), (-GHALF, E), (-12 + e, E)]
     gothic = dict(x=0, y=STORY + 0.9, w=2.8, h=6.6)
     front_wall = K.poly_wall(V, front, outline, [door_o] + win, "Siding")
     apex = K.gothic_window(V, front, gothic["x"], gothic["y"], gothic["w"], gothic["h"], wall=front_wall)
-    front_hinge = V.door(front, 0, 0, "FrontDoor", hall=False)
+    front_hinge = V.door(front, 0, 0, "FrontDoor", crown=False)  # a plain head: a crown would poke into the porch ceiling
     V.window(front, win[0], shutters=True, curtains=True)
     V.window(front, win[1], broken=True, shutters=True)
     K.battens(V, front, -12, 12, lambda x: E if abs(x) > GHALF else E + (GABLE_TOP - EAVE) * (1 - abs(x) / GHALF) - 0.4,
               [door_o] + win + [dict(x=0, y=gothic["y"] - 0.5, w=gothic["w"] + 1.2, h=apex - gothic["y"] + 1.0)])
     # Sides: full gables up to the ridge, two windows below and one in the gable.
-    side_outline = [(-9, 0), (9, 0), (9, E), (0, RIDGE - FOUND), (-9, E)]
+    lift = (RIDGE - EAVE) / 9 * e
+    side_outline = [(-9 + e, 0), (9 - e, 0), (9 - e, E + lift), (0, RIDGE - FOUND), (-9 + e, E + lift)]
     for x, yaw, sign in ((MAIN["x0"], -math.pi / 2, -1), (MAIN["x1"], math.pi / 2, 1)):
         f = V.wall_frame((x, 9.0, FOUND), yaw)
         # Local x runs to world y = 9 - lx on the left, 9 + lx on the right.
@@ -83,18 +85,19 @@ def walls():
     # Back wall (the lean-to covers its left part), and the lean-to.
     back = V.wall_frame((0, MAIN["y1"], FOUND), math.pi)
     back_ops = [dict(x=-7.5, y=2.4, w=3.0, h=6.5)]  # world x = 7.5
-    V.wall(back, 24, E, back_ops, "Siding")
+    V.wall(back, 24 - 2 * e, E, back_ops, "Siding")
     V.window(back, back_ops[0], curtains=True)
     K.battens(V, back, -12, 12, lambda x: E, back_ops)
     lb = V.wall_frame(((LEAN["x0"] + LEAN["x1"]) / 2, LEAN["y1"], FOUND), math.pi)  # local x -> world -x + (-4)
     lean_ops = [dict(x=0, y=0, w=V.DOOR["w"], h=V.DOOR["h"] + 1.5), dict(x=5, y=2.6, w=2.6, h=4.6)]
-    V.wall(lb, LEAN["x1"] - LEAN["x0"], LEAN["low"] - FOUND, lean_ops, "Siding")
-    back_hinge = V.door(lb, 0, 0, "BackDoor", hall=False)
+    V.wall(lb, LEAN["x1"] - LEAN["x0"] - 2 * e, LEAN["low"] - FOUND, lean_ops, "Siding")
+    back_hinge = V.door(lb, 0, 0, "BackDoor")
     V.window(lb, lean_ops[1])
     for x, yaw in ((LEAN["x0"], -math.pi / 2), (LEAN["x1"], math.pi / 2)):
         f = V.wall_frame((x, (LEAN["y0"] + LEAN["y1"]) / 2, FOUND), yaw)
         lo, hi = LEAN["low"] - FOUND, LEAN["high"] - FOUND
-        pts = [(-3, 0), (3, 0), (3, hi), (-3, lo)] if yaw < 0 else [(-3, 0), (3, 0), (3, lo), (-3, hi)]
+        # (The end at the lean-to's back wall, y = 24, stops short of it.)
+        pts = [(-3 + e, 0), (3, 0), (3, hi), (-3 + e, lo)] if yaw < 0 else [(-3, 0), (3 - e, 0), (3 - e, lo), (-3, hi)]
         K.poly_wall(V, f, pts, [], "Siding")
     # Corner boards and the eave fascia.
     for cx, cy in ((MAIN["x0"], MAIN["y0"]), (MAIN["x1"], MAIN["y0"]), (MAIN["x0"], MAIN["y1"]), (MAIN["x1"], MAIN["y1"])):
@@ -141,12 +144,12 @@ def porch():
     deck = V.box("Porch", (w, d, 0.35), (cx, y0 / 2, FOUND - 0.18), bevel=0.04)
     V.cut(deck, [V.box("_cutters", (1.4, 1.1, 1.0), (8.6, -5.2, FOUND - 0.2))])  # a rotted hole
     V.box("Interior", (1.6, 1.3, 0.1), (8.6, -5.2, FOUND - 1.2))
-    V.box("PorchTrim", (w + 0.3, 0.4, 0.45), (cx, y0 + 0.05, FOUND - 0.2), bevel=0.05)
+    V.box("PorchTrim", (w + 0.3, 0.4, 0.45), (cx, y0 + 0.05, FOUND - 0.3), bevel=0.05)  # just under the deck's edge
     V.box("Interior", (w - 0.4, 0.2, FOUND - 0.4), (cx, y0 + 0.4, (FOUND - 0.4) / 2))
     xx = x0 + 0.5
     while xx < x1 - 0.3:
-        for ang in (0.8, -0.8):
-            V.box("Lattice", (0.14, 0.1, 2.4), (xx, y0 + 0.25, (FOUND - 0.4) / 2), rot=(0, ang, 0))
+        for ang, dy in ((0.8, 0.2), (-0.8, 0.3)):  # the two ways at two depths (crossing in one plane, they flickered)
+            V.box("Lattice", (0.14, 0.1, 2.4), (xx, y0 + dy, (FOUND - 0.4) / 2), rot=(0, ang, 0))
         xx += 1.3
     for s in range(1, 4):
         top = FOUND - s * FOUND / 3
@@ -216,47 +219,80 @@ def porch():
 
 
 def foundation():
-    V.box("Stone", (24.4, 18.4, FOUND), (0, 9, FOUND / 2), bevel=0.08)
-    V.box("Stone", (16.4, 6.4, FOUND), (-4, 21, FOUND / 2), bevel=0.08)
+    """Stone up to the floor: flush with the front wall (the porch deck stops against it), the
+    lean-to's behind the house's (not into it: their sides would meet in one plane), both hollowed
+    under the rooms, whose floors are at the stone's height."""
+    main = V.box("Stone", (24.4, 18.2, FOUND), (0, 9.1, FOUND / 2), bevel=0.08)
+    lean = V.box("Stone", (16.4, 6.0, FOUND), (-4, 21.2, FOUND / 2), bevel=0.08)
+    xi, yb = MAIN["x1"] - T + 0.1, MAIN["y1"] - T + 0.1
+    for stone in (main, lean):
+        V.cut(stone, [
+            V.box("_cutters", (2 * xi, yb - T, 1.0), (0, (T + yb) / 2, FOUND)),
+            V.box("_cutters", (LEAN["x1"] - LEAN["x0"] - 2 * T + 0.2, LEAN["y1"] - T + 0.1 - (LEAN["y0"] - 0.1), 1.0), ((LEAN["x0"] + LEAN["x1"]) / 2, (LEAN["y0"] - 0.1 + LEAN["y1"] - T + 0.1) / 2, FOUND)),
+        ])
     for s in range(1, 3):  # back steps down from the lean-to door
         top = FOUND - s * FOUND / 3
         V.box("Stone", (4.6, 1.0, top), (-4, LEAN["y1"] + (s - 0.5), top / 2), bevel=0.05)
 
 
 def rooms():
-    """Rooms behind every window (see interiors.py for the furniture)."""
-    pi, U = math.pi, I.U
+    """Rooms behind every window (see interiors.py for the furniture), and the hall."""
     g, c = FOUND, FOUND + STORY - 0.6
     u, uc = FOUND + STORY, FOUND + STORY + 6.1
     xi0, xi1, yb = MAIN["x0"] + T, MAIN["x1"] - T, MAIN["y1"] - T
     plan = [
-        dict(id="G1", x0=xi0, x1=-2.9, y0=T, y1=10.0, floor=g, ceil=c, paper="WallpaperC"),
-        dict(id="G2", x0=-2.7, x1=2.7, y0=T, y1=10.0, floor=g, ceil=c, paper="WallpaperA"),
-        dict(id="G3", x0=2.9, x1=xi1, y0=T, y1=10.0, floor=g, ceil=c, paper="WallpaperB"),
-        dict(id="G4", x0=xi0, x1=-2.9, y0=10.2, y1=yb, floor=g, ceil=c, paper="WallpaperA"),
-        dict(id="G5", x0=-2.7, x1=xi1, y0=10.2, y1=yb, floor=g, ceil=c, paper="WallpaperC"),
+        dict(id="G1", x0=xi0, x1=-4.4, y0=T, y1=10.0, floor=g, ceil=c, paper="WallpaperC"),
+        dict(id="G3", x0=4.4, x1=xi1, y0=T, y1=10.0, floor=g, ceil=c, paper="WallpaperB"),
+        dict(id="G4", x0=xi0, x1=-4.4, y0=10.2, y1=yb, floor=g, ceil=c, paper="WallpaperA"),
+        dict(id="G5", x0=4.4, x1=xi1, y0=10.2, y1=yb, floor=g, ceil=c, paper="WallpaperC"),
         dict(id="K", x0=LEAN["x0"] + T, x1=LEAN["x1"] - T, y0=LEAN["y0"] + 0.1, y1=LEAN["y1"] - T, floor=g, ceil=LEAN["low"] - 0.6, paper="WallpaperA"),
         dict(id="U1", x0=xi0, x1=-4.2, y0=3.5, y1=14.5, floor=u, ceil=uc, paper="WallpaperB"),
         dict(id="U2", x0=-3.0, x1=3.0, y0=T, y1=8.0, floor=u, ceil=uc - 0.4, paper="WallpaperC"),
         dict(id="U3", x0=4.2, x1=xi1, y0=3.5, y1=14.5, floor=u, ceil=uc, paper="WallpaperA"),
     ]
-    roles = {"G1": ("living", "y0"), "G2": ("hall", "y0"), "G3": ("living", "y0"), "G4": ("living", "x0"), "G5": ("living", "x1"),
+    roles = {"G1": ("living", "y0"), "G3": ("living", "y0"), "G4": ("living", "x0"), "G5": ("living", "x1"),
              "K": ("kitchen", "y1"), "U1": ("living", "x0"), "U2": ("living", "y0"), "U3": ("attic", "x1")}
     for room in plan:
         lamp = I.box_room(V, room)
         role, front = roles[room["id"]]
         D.room(room, lamp, role, front)
-        if room["id"] == "G2":  # the hall keeps its stairs and clock; the game furnishes the rest
-            f = room["floor"]
-            I.stairs(V, I.at(V, 1.4, 1.6, f), steps=10)
-            I.clock(V, I.at(V, -2.6 + 0.16 * U, 8.6, f, pi / 2))
-            # What the game may stand in it (seen through the door when it opens).
-            D.entrance(lamp, (-1.4, 8.8, f))
-            D.prop((-1.0, 4.2, f), 0, ["Runner"], 0.85)
-            D.prop((-1.85, 2.4, f), 90, ["CoatRack", "UmbrellaStand"], 0.9)
-            D.prop((-2.25, 5.4, f), 90, ["Console"], 0.8)
-            D.prop((-2.55, 5.4, f + 5.0), 90, ["HallMirror", "Portrait"], 0.8)
-            D.prop((1.0, 1.6 + 2 * 0.95, f + 0.18 * 3 * U), 15, ["Doll"], 0.3)  # on the third stair
+    hall(g, c, u)
+
+
+def hall(f, c, u):
+    """The hall behind the front door, the depth of the house: panelled walls, doorways into the
+    dark front rooms and the kitchen, a steep stair up the left wall into a black stairwell cut
+    through the ceiling, a cupboard under it, a bare bulb from a rose, a long-case clock."""
+    steps, tread = 16, 0.66
+    rise = (u - f) / steps
+    sy, hole = 6.0, 10.0  # the first riser; where the stairwell opens in the ceiling
+    outline = [(-4.2, T), (4.2, T), (4.2, 17.1), (-4.2, 17.1), (-4.2, 5.4)]
+    doors = {
+        1: [(5.0 - 1.0, 3.2, 7.6, 0.0)],  # right wall, into the parlour
+        2: [(4.1 - 1.2, 3.4, 7.6, 0.0)],  # back wall, into the kitchen
+        4: [(5.4 - 3.2, 2.8, 7.4, 0.0)],  # left wall by the door, into the front room
+    }
+    I.hall_walls(V, outline, f, c, "WallpaperA", doors, plain=(3,))
+    I.slabs(V, "Floorboards", [(-4.2, 4.2, T, 17.1)], f)
+    I.slabs(V, "Plaster", [(-4.2, 4.2, T, hole), (-1.0, 4.2, hole, 17.1)], c, top=False)
+    # The stairwell: trimmers round the hole (clear of the handrail) and darkness above it.
+    V.box("FurnitureWood", (3.1, 0.25, 0.7), (-2.55, hole - 0.125, c - 0.15), bevel=0.03)
+    V.box("FurnitureWood", (0.25, 17.0 - hole, 0.7), (-1.125, (hole + 17.0) / 2, c - 0.15), bevel=0.03)
+    V.box("Interior", (3.2, 17.1 - hole, 5.4), (-2.6, (hole + 17.1) / 2, c + 2.7))
+    I.flight(V, V.frame_matrix((-4.1, sy, f)), steps, rise, tread, 2.5, open_sides=(1,), top_newel=False, cupboard=(1, 6.2))
+    I.clock(V, I.at(V, 4.1 - 0.18 - 0.57, 12.5, f, -math.pi / 2))
+    lamp = Vector((1.4, 6.0, c))
+    I.rose(V, lamp.x, lamp.y, c, r=1.1)
+    D.entrance(lamp, (1.8, 12.5, f), hang="HangingBulb", drop=4.45, range_=20)
+    on_stair = lambda k: (sy + (k + 0.5) * tread, f + (k + 1) * rise)
+    D.prop((0.6, 6.5, f), 0, ["Runner"], 0.85)
+    D.prop((3.0, 1.95, f), -90, ["CoatRack", "UmbrellaStand"], 0.9)
+    D.prop((4.1 - 0.18 - 0.61, 9.0, f), -90, ["Console"], 0.8)
+    D.prop((4.1 - 0.19, 9.0, f + 6.2), -90, ["HallMirror", "Portrait"], 0.8)
+    D.prop((-4.1 + 0.115, 8.5, f + 7.0), 90, ["Portrait"], 0.75)
+    D.prop((-4.1 + 0.115, 2.9, f + 6.0), 90, ["Portrait", "HallMirror"], 0.5)
+    D.prop((2.6, 15.2, f), 200, ["Pram", "Doll", "SheetChair"], 0.7)
+    D.prop((-2.9, on_stair(3)[0], on_stair(3)[1]), 0, ["Doll"], 0.3)
 
 
 def colliders(posts, post_y):
@@ -323,10 +359,18 @@ FLAT = {"Glass", "LanternGlow", "PumpkinGlow", "Interior", "Silhouette", "Iron",
 
 if __name__ == "__main__":
     merged = build()
+    if "--zfight" in ARGS:  # faces in one plane that would flicker (zfight.py)
+        import zfight
+
+        zfight.analyze("Farmhouse (built)")
     if "--render" in ARGS:
         name = ARGS[ARGS.index("--render") + 1]
         views = ARGS[ARGS.index("--views") + 1].split(",") if "--views" in ARGS else ["front", "corner"]
-        V.render("farm_" + name, night="--night" in ARGS, views=views)
+        if "--open" in ARGS:
+            V.open_doors(merged, ("FrontDoor", "Brass_FrontDoor"))
+        extra = {"door": ((0.6, -9.5, FOUND + 4.6), (0.0, 10.0, FOUND + 5.6)), "foyer": ((0.6, 1.8, FOUND + 5.0), (-0.6, 16.0, FOUND + 7.0)),
+                 "foyerback": ((-0.5, 15.5, FOUND + 6.5), (1.0, 1.0, FOUND + 3.5))}
+        V.render("farm_" + name, night="--night" in ARGS, views=views, hall=D.hall if "--open" in ARGS else None, extra=extra)
     if "--export" in ARGS:
         import export_victorian
 

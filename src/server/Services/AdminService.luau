@@ -170,12 +170,12 @@ commands.event = {
 }
 
 commands.housetype = {
-	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff> - change the house nearest to you",
+	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open> - change the house nearest to you",
 	run = function(admin, args)
 		local wanted = args[1]
-		local valid = { Normal = true, Decorated = true, Trick = true, Bowl = true, LightsOff = true }
+		local valid = { Normal = true, Decorated = true, Trick = true, Bowl = true, LightsOff = true, Open = true }
 		if not valid[wanted] then
-			error("Try Normal, Decorated, Trick, Bowl or LightsOff", 0)
+			error("Try Normal, Decorated, Trick, Bowl, LightsOff or Open", 0)
 		end
 		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if root == nil then

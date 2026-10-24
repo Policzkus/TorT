@@ -91,6 +91,33 @@
 - **Decorations (Decorated houses):** `art/scripts/decor.py` → `art/export/decor/Decor.fbx`, `tools/setup_decor.luau` → `Assets.Decor`: a garland of C7 bulbs (three bulb meshes, Neon orange/purple/green) and a pile of pumpkins round a carved, glowing jack-o'-lantern (candle light named `PumpkinLight`, so it flickers). The Victorian template carries `DecorAnchors` (attachments named after the piece: five garlands under the porch beam, the pile on the lawn by the steps); `HouseVisualController` hangs the pieces there and falls back to the old neon balls for houses without anchors. Streets whose houses dress their own lots skip the part-built street pumpkins.
 - **Blender pipeline gotcha:** meshes made from curves (vines, branches, stems) bring their own `UVMap`; Roblox reads the first UV map, so `merge_group` drops stray ones before adding Tile/Atlas (they had turned the decor pumpkins glossy black and the trees and vines too dark).
 - **Doors that open:** models tagged `Hinged` (Kind, OpenAngle, Openable, Open). `HingeService` toggles Openable ones via their prompt (auto-close 30 s); `HingeController` swings them locally with creak/slam and makes loose shutters knock in the wind; `HomeownerController` swings the front door per entrance style. `Modules/Houses.of(door)` finds a door's house (the knock door now sits inside a door model).
+- **Doorstep, voice and feel (2026-10-24):**
+  - Knocking steps you back off the door and tilts the camera up at whoever answers (`DoorController` DOORSTEP).
+  - Homeowners talk in a HUD-style panel, letter by letter, with a whispered voice (`DialogController`, `Config/Dialogue`: 6 eerie personalities). The Costume Line answer waits for the line to be read.
+  - No names by doors. Sprint on Shift with an FOV kick (`MovementController`). No cursor in first person; the crosshair dot stays.
+  - The music waits for saved settings before it starts.
+  - Kenney CC0 sounds are packed into three uploaded sprites (`art/scripts/sound_sprites.py`, `Config/SoundSprites`). They give footsteps per surface (`FootstepController`), night ambience (`AmbienceController`) and UI sounds.
+  - Every screen restyled to the HUD (`UI/Components/Chip` and the rest).
+- **Open houses and entrance halls (2026-10-24):**
+  - About one house a street stands **Open** (`HouseTypes`): its door swings open, its hall light comes on and flickers, and a figure stands far inside. The figure is gone when you come close and maybe back once you walk away (`HouseVisualController`). These are the future heist entrances.
+  - **The halls were rebuilt bigger (2026-10-24, the user found them too small)**, on a kit in `interiors.py`: panelled wainscot with a chair rail, a cornice, doorways into darkness with casings, flights with a closed string, turned balusters and newels, a cupboard under the stairs, balustrades, and a ceiling rose with a chain.
+    - **Victorian:** a vestibule, then a two-storey hall with a steep stair up to a gallery and a column.
+    - **Farmhouse:** a hall the depth of the house; its stair climbs into a black stairwell through the ceiling.
+    - **Mansard:** an imperial staircase in a two-storey hall, a central flight to a half landing and two flights back to a gallery over the vestibule.
+    - The data files carry each hall (`Hall`: lamp, figure, props, `hang` piece, `drop`, `range`, candle `flames`). `BlenderLot.dressHall` hangs the new **Chandelier** (furniture.py) or the bare bulb and places the props. `HouseService` lights the flames along with the light.
+- **Texture flicker hunt (2026-10-24, the user saw textures glitching):** `art/scripts/zfight.py` finds faces lying in one plane, facing the same way and overlapping (z-fighting).
+  - Run it on an exported FBX, or on a build with `--zfight` (`victorian.py`, `farmhouse.py`, `mansard.py`; `furniture.py -- --zfight --self`). `--detail` lists each patch with its bounds and `--pair A,B` dumps triangles.
+  - Faces buried inside a solid are left out. Faces against a wall or under a floor still show up in the report (backs of trims, wall bottoms and tops); read those as hidden.
+  - **Fixed:**
+    - `victorian.slab()` built every roof board, rake and bargeboard inside out (a mirrored basis), so the underside showed and fought the gable walls. All three houses were affected.
+    - Room floors sat at the height of the Victorian trim band and the Farmhouse stone, and the porch decks at the foundation stones. The band, stone and Mansard frieze are now rings or have a recess.
+    - Walls doubled up at every corner; they now stop `EPS` short.
+    - Every Mansard window had a crown and a hood 0.005 apart, and its hood and dormer outlines crossed themselves.
+    - The window glass, sash stiles, rails and muntins shared a depth. Sills dipped into the openings.
+    - Smaller ones: the porch lattice slats, the attic vents, the Victorian's tower plinth (two squares made a star), the back stoop, friezes and the belt flush with the corner boards.
+    - Furniture and yard: the trunk lid, the pram rim, portrait layers, the desk papers, the crib slats and the mailbox front.
+    - The Mansard frieze had been a solid slab that filled the top of every upper room.
+  - **Gotcha:** Python's `write_text` on Windows writes CRLF. The generators pass `newline="\n"` now, and a patch script must too.
 - **Look (reworked 2026-10-23, the user found everything too dark):** the moon hangs ~40° up over the far end of each street (`World.LIGHTING.latitude` -26.5 at midnight), brighter cool moonlit ambient per street (later streets darker), exposure +0.4, light grade (saturation -0.12, contrast 0.08), depth of field only far away, and a shadowless cool `MoonFill_<house>` light over each lot's sidewalk, because the low moon throws each house's shadow over the next yard. Faint scanlines; grain off; a flashlight (F). Recommended manual step: Lighting → Technology = Future (MCP can't set it).
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)

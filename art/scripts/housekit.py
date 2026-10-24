@@ -49,7 +49,7 @@ def gothic_window(V, frame, x, y, w, h, wall=None, grp="Trim"):
     outer, _ = arch_points(x, y - 0.3, w + 1.0, h + 0.8)
     ring = V.prism(grp, outer, 0.3, frame @ Matrix.Translation((0, -0.3, 0)), name="Surround")
     V.cut(ring, [V.prism("_cutters", pts, 1.0, frame @ Matrix.Translation((0, -0.6, 0)))])
-    V.box(grp, (w + 1.6, 0.9, 0.3), (x, -0.3, y - 0.15), bevel=0.05, matrix=frame)  # sill
+    V.box(grp, (w + 1.6, 0.9, 0.3), (x, -0.45, y - 0.15), bevel=0.05, matrix=frame)  # sill, against the wall
     inset = 0.5
     V.prism("Glass", pts, 0.05, frame @ Matrix.Translation((0, inset + 0.1, 0)))
     # Y-tracery: a mullion that forks into the arch, a transom.
@@ -114,7 +114,6 @@ class Data:
         self.rooms = []
         self.yard = {}
         self.hall = None
-        self.props = []
 
     def front_door(self, x, y, sill):
         """The front door slab's centre: x, the plane it sits in (y), and its threshold height."""
@@ -141,15 +140,17 @@ class Data:
 
         self.rooms.append(interiors.room_entry(room, Vector(lamp), role, front))
 
-    def entrance(self, lamp, figure):
-        """The entrance hall behind the front door: its light (at its lamp), and where a figure
-        can stand at its far end looking out (World/BlenderLot, the open houses)."""
-        self.hall = (Vector(lamp), Vector(figure))
+    def entrance(self, lamp, figure, hang=None, drop=None, range_=None, flames=()):
+        """The entrance hall behind the front door (interiors.entrance): its light, what hangs
+        there, and where a figure can stand looking out (World/BlenderLot, the open houses)."""
+        import interiors
+
+        self.hall = interiors.entrance(lamp, figure, hang, drop, range_, flames)
 
     def prop(self, at, yaw, pieces, chance=1.0):
         """A spot in the entrance hall: one of the furniture `pieces` goes there (or, `chance`
         aside, nothing), turned `yaw` degrees from facing the street."""
-        self.props.append((Vector(at), yaw, list(pieces), chance))
+        self.hall["props"].append((Vector(at), yaw, list(pieces), chance))
 
     def write(self, root):
         def v3(p):
@@ -205,12 +206,7 @@ class Data:
             "\t},",
         ]
         if self.hall:
-            lamp, figure = self.hall
-            lines += ["\thall = {", f"\t\tlamp = {v3(lamp)},", f"\t\tfigure = {v3(figure)},", "\t\tprops = {"]
-            for at, yaw, pieces, chance in self.props:
-                names = ", ".join(f'"{n}"' for n in pieces)
-                lines.append(f"\t\t\t{{ at = {v3(at)}, yaw = {yaw:.1f}, pieces = {{ {names} }}, chance = {chance:.2f} }},")
-            lines += ["\t\t},", "\t},"]
+            lines += interiors.hall_lines(self.hall)
         lines += [
             "}",
             "",
@@ -219,5 +215,5 @@ class Data:
         ]
         path = root.parent / "src" / "server" / "World" / "HouseData" / f"{self.style}.luau"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(lines), encoding="utf-8")
+        path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
         print("WROTE", path)

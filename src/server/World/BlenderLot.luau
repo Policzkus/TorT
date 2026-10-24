@@ -504,15 +504,18 @@ function BlenderLot.furnish(
 end
 
 local HALL_LIGHT = Color3.fromRGB(255, 168, 104)
+local HALL_FLAME = Color3.fromRGB(255, 196, 120)
 
 -- The entrance hall behind the front door (Data.hall): a few pieces where the door opens onto,
--- each spot picking its own (or staying empty), a bare bulb on a cord where there's no lamp, a
--- light that's off until the house stands open ("HallLight": HouseService switches it), and
--- "HallFigure", where an open house's figure stands looking out (HouseVisualController).
+-- each spot picking its own (or staying empty), the chandelier or bare bulb that hangs there, a
+-- light that's off until the house stands open ("HallLight": HouseService switches it, and the
+-- chandelier's candle flames with it), and "HallFigure", where an open house's figure stands
+-- looking out (HouseVisualController).
 function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: HouseData.Hall)
 	local function at(p: Vector3, yaw: number): CFrame
 		return base * CFrame.new(-p.X, p.Z, p.Y) * CFrame.Angles(0, math.rad(yaw), 0)
 	end
+	local turn = rng:range(0, 360) -- the hanging piece's, and its flames'
 	local set = BlenderLot.furnitureSet()
 	if set then
 		local folder = house:FindFirstChild("Furniture") or Instance.new("Folder")
@@ -525,11 +528,11 @@ function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: Ho
 				piece.Parent = folder
 			end
 		end
-		local bulb = set:FindFirstChild("HangingBulb") :: BasePart?
-		if hall.bulb and bulb then
-			local hanging = bulb:Clone()
-			hanging.CastShadow = false -- the hall light hangs right under its glass
-			hanging:PivotTo(at(hall.lamp, rng:range(0, 360)))
+		local template = if hall.hang then set:FindFirstChild(hall.hang) :: BasePart? else nil
+		if template then
+			local hanging = template:Clone()
+			hanging.CastShadow = false -- the hall light hangs right under it
+			hanging:PivotTo(at(hall.lamp, turn))
 			hanging.Parent = folder
 		end
 		folder.Parent = house
@@ -544,11 +547,9 @@ function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: Ho
 		part.Parent = house
 		return part
 	end
-	-- A bulb on a cord hangs about 4.2 studs (the light just under its glass); a room's lamp shade
-	-- is already at the lamp.
-	local glow = marker("HallLight", at(hall.lamp - Vector3.new(0, 0, if hall.bulb then 4.45 else 0.6), 0))
+	local glow = marker("HallLight", at(hall.lamp - Vector3.new(0, 0, hall.drop or 0.6), 0))
 	local light = Instance.new("PointLight")
-	light.Range = 15
+	light.Range = hall.range or 15
 	light.Brightness = 1.3
 	light.Color = HALL_LIGHT
 	-- No shadows: the hall's own trim and ceiling shadowed it to black (and so it spills out of
@@ -556,6 +557,21 @@ function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: Ho
 	light.Shadows = false
 	light.Enabled = false
 	light.Parent = glow
+	-- The candles' flames, out until the house stands open.
+	local hung = at(hall.lamp, turn)
+	for _, offset in hall.flames or {} do
+		local flame = Instance.new("Part")
+		flame.Name = "Flame"
+		flame.Shape = Enum.PartType.Ball
+		flame.Size = Vector3.one * 0.24
+		flame.Material = Enum.Material.Neon
+		flame.Color = HALL_FLAME
+		flame.Transparency = 1
+		flame.Anchored, flame.CanCollide, flame.CanQuery, flame.CanTouch, flame.CastShadow =
+			true, false, false, false, false
+		flame.CFrame = hung * CFrame.new(-offset.X, offset.Z, offset.Y)
+		flame.Parent = glow
+	end
 	marker("HallFigure", at(hall.figure, 0))
 end
 

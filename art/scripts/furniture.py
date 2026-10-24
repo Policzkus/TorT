@@ -7,7 +7,8 @@ furnished differently.
 
 Most pieces come from interiors.py; new here: a coffin on trestles, an upright piano, a seance
 table, a trunk, a birdcage, floor candles, toy blocks, and for the entrance halls a coat rack, a
-mirror, an umbrella stand, a runner, a console table, a porcelain doll, a pram and a hanging bulb. Exports art/export/furniture/Furniture.fbx;
+mirror, an umbrella stand, a runner, a console table, a porcelain doll, a pram, a hanging bulb and a
+chandelier. Exports art/export/furniture/Furniture.fbx;
 tools/setup_furniture.luau files it under ReplicatedStorage.Assets.Furniture.
 """
 
@@ -96,8 +97,9 @@ def seance():
 def trunk():
     m = at0()
     V.box("FurnitureWood", (1.0, 0.55, 0.5), (0, 0, 0.27), bevel=0.02, matrix=m)
-    V.lathe("FurnitureWood", [(0.27, 0), (0.27, 1.0), (0.0, 1.0)], (0, 0, 0), segments=10,
-            matrix=m @ Matrix.Translation((-0.5, 0, 0.52)) @ Matrix.Rotation(math.pi / 2, 4, "Y") @ Matrix.Diagonal((0.55 / 0.54, 1, 1, 1)))
+    # The round lid, its ends just inside the box's (flush, they flickered).
+    V.lathe("FurnitureWood", [(0.27, 0), (0.27, 0.98), (0.0, 0.98)], (0, 0, 0), segments=10,
+            matrix=m @ Matrix.Translation((-0.49, 0, 0.52)) @ Matrix.Rotation(math.pi / 2, 4, "Y") @ Matrix.Diagonal((0.55 / 0.54, 1, 1, 1)))
     for x in (-0.35, 0.35):
         V.box("Iron", (0.05, 0.57, 0.52), (x, 0, 0.28), matrix=m)
     V.box("Iron", (0.12, 0.04, 0.14), (0, -0.29, 0.48), matrix=m)  # hasp
@@ -185,7 +187,10 @@ def console():
     V.lathe("Iron", [(0.0, 0.84), (0.11, 0.85), (0.13, 0.9), (0.12, 0.91), (0.09, 0.86)], (-0.22, 0, 0), segments=12, matrix=m)
     V.lathe("Iron", [(0.05, 0.84), (0.02, 0.88), (0.015, 1.02), (0.03, 1.04)], (0.3, 0.02, 0), segments=8, matrix=m)
     V.lathe("Pale", [(0.016, 1.04), (0.016, 1.1), (0.0, 1.11)], (0.3, 0.02, 0), segments=6, matrix=m)
-    I.portrait(V, m @ V.frame_matrix((0.06, 0.1, 0.98), (-0.25, 0, 0.2)) @ Matrix.Scale(0.3, 4))
+    # A little photograph in a frame, propped up (the glass a hair in front of the frame).
+    photo = m @ V.frame_matrix((0.06, 0.1, 0.98), (-0.25, 0, 0.2))
+    V.box("FurnitureWood", (0.2, 0.02, 0.25), (0, 0, 0), bevel=0.005, matrix=photo)
+    V.box("Canvas", (0.15, 0.01, 0.2), (0, -0.018, 0), matrix=photo)
 
 
 def doll():
@@ -216,7 +221,7 @@ def pram():
     # The tub: a deep, rounded basket in faded velvet, dark inside, a black rim round its mouth.
     tub = [(math.cos(a) * 0.25, math.sin(a) * 0.42) for a in [k * math.pi / 8 for k in range(16)]]
     outline_slab("Velvet", tub, 0.36, 0.68, m)
-    outline_slab("Interior", [(x * 0.9, y * 0.93) for x, y in tub], 0.68, 0.685, m)
+    outline_slab("Interior", [(x * 0.9, y * 0.93) for x, y in tub], 0.682, 0.7, m)  # standing proud of the tub's top
     V.torus("Canvas", (0, 0, 0), 0.25, 0.018, m @ Matrix.Translation((0, 0, 0.69)) @ Matrix.Diagonal((1, 1.68, 1, 1)), segments=20, sides=4)
     # The hood, curving up over the head end in black panels.
     for k in range(6):
@@ -224,6 +229,30 @@ def pram():
         V.box("Canvas", (0.5, 0.02, 0.085), (0, 0.12 + math.cos(a) * 0.3, 0.7 + math.sin(a) * 0.3), rot=(a, 0, 0), matrix=m)
     V.tube("Iron", [m @ Vector((0, -0.4, 0.62)), m @ Vector((0, -0.6, 0.95)), m @ Vector((0, -0.66, 1.0))], [0.015 * U] * 3, sides=0)
     V.box("Iron", (0.5, 0.03, 0.03), (0, -0.66, 1.0), matrix=m)
+
+
+def chandelier():
+    """A wrought-iron chandelier: six candle arms curling out from a turned stem, wax run down the
+    candles. It hangs from its hook at the origin (the house's chain comes down to it); the game
+    lights flames on the candles (interiors.CHANDELIER, chandelier_flames)."""
+    c = I.CHANDELIER
+    m = at0()
+    V.torus("Iron", (0, 0, 0), 0.035, 0.009, m @ Matrix.Translation((0, 0, -0.035)), segments=8, sides=4)
+    V.lathe("Iron", [(0.016, -0.06), (0.03, -0.08), (0.016, -0.2), (0.05, -0.26), (0.06, -0.3), (0.045, -0.34), (0.02, -0.38),
+                     (0.08, -0.44), (0.095, -0.5), (0.06, -0.56), (0.025, -0.61), (0.035, -0.67), (0.0, -0.76)], (0, 0, 0), segments=12, matrix=m)
+    for k in range(c["arms"]):
+        a = k * 2 * math.pi / c["arms"]
+        d = Vector((math.cos(a), math.sin(a), 0))
+        r = c["reach"]
+        arm = [d * 0.07 + Vector((0, 0, -0.47)), d * 0.48 * r + Vector((0, 0, -0.58)), d * 0.81 * r + Vector((0, 0, -0.54)), d * r + Vector((0, 0, -0.41))]
+        V.tube("Iron", [m @ p for p in arm], [0.015 * U] * len(arm), sides=1)
+        curl = [d * 0.48 * r + Vector((0, 0, -0.58)), d * 0.36 * r + Vector((0, 0, -0.66)), d * 0.24 * r + Vector((0, 0, -0.63)), d * 0.29 * r + Vector((0, 0, -0.6))]
+        V.tube("Iron", [m @ p for p in curl], [0.009 * U] * len(curl), sides=1)
+        cup = d * c["reach"]
+        V.lathe("Iron", [(0.012, -0.425), (0.05, -0.375), (0.056, -0.36), (0.02, -0.355)], (cup.x, cup.y, 0), segments=10, matrix=m)
+        V.lathe("Pale", [(0.019, -0.36), (0.019, -c["tip"] - 0.012), (0.013, -c["tip"]), (0.0, -c["tip"] + 0.004)], (cup.x, cup.y, 0), segments=8, matrix=m)
+        drip = cup + Vector((-d.y, d.x, 0)) * 0.016
+        V.lathe("Pale", [(0.0, -0.33), (0.008, -0.31), (0.006, -0.26), (0.0, -0.25)], (drip.x, drip.y, 0), segments=5, matrix=m)
 
 
 def hanging_bulb():
@@ -279,6 +308,7 @@ PIECES = {
     "Doll": doll,
     "Pram": pram,
     "HangingBulb": hanging_bulb,
+    "Chandelier": chandelier,
 }
 
 
@@ -322,6 +352,10 @@ def build():
 
 if __name__ == "__main__":
     merged = build()
+    if "--zfight" in ARGS:  # faces in one plane that would flicker (zfight.py)
+        import zfight
+
+        zfight.analyze("Furniture (built)")
     if "--render" in ARGS:
         # --only A,B,C: just those pieces, in a row, closer up.
         only = ARGS[ARGS.index("--only") + 1].split(",") if "--only" in ARGS else None
@@ -329,7 +363,7 @@ if __name__ == "__main__":
         for name, obj in merged.items():
             obj.hide_render = only is not None and name not in only
         cols = 7 if only is None else len(shown)
-        hung = {"HallMirror": 5.5, "Portrait": 5.5, "HangingBulb": 6.5}  # shown at about their height
+        hung = {"HallMirror": 5.5, "Portrait": 5.5, "HangingBulb": 6.5, "Chandelier": 7.0}  # shown at about their height
         spacing = 7.5 if only is None else 5.0
         for i, (name, obj) in enumerate(shown):
             obj.location = ((i % cols) * spacing - (cols - 1) * spacing / 2, (i // cols) * 9.0, hung.get(name, 0))

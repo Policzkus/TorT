@@ -212,7 +212,8 @@ def mailbox():
     box("MailboxPost", (0.9, 0.5, 0.18), (0, 0, 3.4), bevel=0.03, matrix=lean)
     top = lean @ Matrix.Translation((0, 0, 3.5))
     box("Mailbox", (0.9, 1.9, 0.55), (0, 0, 0.28), bevel=0.03, matrix=top)
-    lathe("Mailbox", [(0.45, 0), (0.45, 1.9), (0.0, 1.9)], (0, 0, 0), segments=12, matrix=top @ Matrix.Translation((0, -0.95, 0.55)) @ Matrix.Rotation(-math.pi / 2, 4, "X"))
+    # The round top, its ends set in from the box's (flush, the mailbox's front flickered).
+    lathe("Mailbox", [(0.45, 0), (0.45, 1.78), (0.0, 1.78)], (0, 0, 0), segments=12, matrix=top @ Matrix.Translation((0, -0.89, 0.55)) @ Matrix.Rotation(-math.pi / 2, 4, "X"))
     box("Mailbox", (0.06, 0.6, 0.5), (0.5, 0.3, 0.9), rot=(0, 0, 0), matrix=top)  # the flag, down
     box("Mailbox", (0.06, 0.25, 0.25), (0.5, 0.55, 1.15), matrix=top)
 

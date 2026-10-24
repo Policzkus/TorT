@@ -306,7 +306,9 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		return start * CFrame.new(x, y, -z) -- z measured down the street
 	end
 
-	-- Ground, road, sidewalks, centre line.
+	-- Ground, road, sidewalks, centre line. Every other street sits a hair higher: where one street
+	-- bends into the next their slabs overlap, and two tops in one plane flicker.
+	local lift = if neighborhood.tier % 2 == 0 then 0.06 else 0
 	local ground = Instance.new("Folder")
 	ground.Name = "Ground"
 	ground.Parent = folder
@@ -314,7 +316,7 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		ground,
 		"Grass",
 		Vector3.new(World.GROUND_WIDTH, 2, length),
-		at(0, -1, length / 2),
+		at(0, -1 + lift, length / 2),
 		colors.ground,
 		M.Grass
 	)
@@ -322,7 +324,7 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		ground,
 		"Road",
 		Vector3.new(World.ROAD_WIDTH, 0.2, length),
-		at(0, 0.1, length / 2),
+		at(0, 0.1 + lift, length / 2),
 		colors.road,
 		M.Asphalt
 	)
@@ -331,7 +333,7 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 			ground,
 			"Sidewalk",
 			Vector3.new(World.SIDEWALK_WIDTH, 0.5, length),
-			at(side * walkOffset, 0.25, length / 2),
+			at(side * walkOffset, 0.25 + lift, length / 2),
 			colors.sidewalk,
 			M.Concrete
 		)
@@ -340,7 +342,7 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 			ground,
 			"Treeline",
 			Vector3.new(4, 14, length),
-			at(side * (half - 2), 7, length / 2),
+			at(side * (half - 2), 7 + lift, length / 2),
 			"18301E",
 			M.LeafyGrass
 		)
@@ -351,7 +353,9 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		)
 	end
 	for z = 8, length - 8, 14 do
-		Parts.decor(Parts.block(ground, "Line", Vector3.new(0.5, 0.05, 6), at(0, 0.22, z), "D9B44A", M.SmoothPlastic))
+		Parts.decor(
+			Parts.block(ground, "Line", Vector3.new(0.5, 0.05, 6), at(0, 0.22 + lift, z), "D9B44A", M.SmoothPlastic)
+		)
 	end
 	-- Round plaza at the far end so the next street can bend off at an angle without gaps.
 	Parts.disc(ground, "Bend", World.GROUND_WIDTH, 2, at(0, -2, length), colors.ground, M.Grass)
