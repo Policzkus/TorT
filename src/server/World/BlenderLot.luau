@@ -528,6 +528,7 @@ function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: Ho
 		local bulb = set:FindFirstChild("HangingBulb") :: BasePart?
 		if hall.bulb and bulb then
 			local hanging = bulb:Clone()
+			hanging.CastShadow = false -- the hall light hangs right under its glass
 			hanging:PivotTo(at(hall.lamp, rng:range(0, 360)))
 			hanging.Parent = folder
 		end
@@ -543,13 +544,16 @@ function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: Ho
 		part.Parent = house
 		return part
 	end
-	-- A bulb on a cord hangs about 4 studs; a room's lamp shade is already at the lamp.
-	local glow = marker("HallLight", at(hall.lamp - Vector3.new(0, 0, if hall.bulb then 4.1 else 0.6), 0))
+	-- A bulb on a cord hangs about 4.2 studs (the light just under its glass); a room's lamp shade
+	-- is already at the lamp.
+	local glow = marker("HallLight", at(hall.lamp - Vector3.new(0, 0, if hall.bulb then 4.45 else 0.6), 0))
 	local light = Instance.new("PointLight")
-	light.Range = 17
-	light.Brightness = 1.2
+	light.Range = 15
+	light.Brightness = 1.3
 	light.Color = HALL_LIGHT
-	light.Shadows = true
+	-- No shadows: the hall's own trim and ceiling shadowed it to black (and so it spills out of
+	-- the open door onto the porch, the way a lit hall does).
+	light.Shadows = false
 	light.Enabled = false
 	light.Parent = glow
 	marker("HallFigure", at(hall.figure, 0))

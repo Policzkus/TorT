@@ -7,9 +7,9 @@
 export type Clip = { sprite: string, parts: { { number } } }
 
 local sprites: { [string]: number } = {
-	Steps = 0, -- art/export/audio/TorT_Steps.ogg: upload it, put its id here
-	Ui = 0, -- art/export/audio/TorT_Ui.ogg: upload it, put its id here
-	Foley = 0, -- art/export/audio/TorT_Foley.ogg: upload it, put its id here
+	Steps = 115265565370713, -- art/export/audio/TorT_Steps.ogg: upload it, put its id here
+	Ui = 123767613377104, -- art/export/audio/TorT_Ui.ogg: upload it, put its id here
+	Foley = 131412185957969, -- art/export/audio/TorT_Foley.ogg: upload it, put its id here
 }
 
 local clips: { [string]: Clip } = {
