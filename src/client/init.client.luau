@@ -9,6 +9,7 @@ Loader.run(script.Controllers, {
 	"StateController",
 	"SoundController",
 	"CameraController",
+	"MovementController",
 	"FlashlightController",
 	"ViewmodelController",
 	"CharacterAnimController",

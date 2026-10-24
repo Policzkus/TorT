@@ -11,7 +11,6 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Houses = require(Shared.Modules.Houses)
-local Dialogue = require(Shared.Config.Dialogue)
 local Events = require(Shared.Config.Events)
 local HouseTypes = require(Shared.Config.HouseTypes)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -154,9 +153,10 @@ local function decorate(entry: Tracked)
 	entry.decor = folder
 end
 
+-- The badge over the door: what kind of house it is and which costume they like. Never who lives
+-- there: you find that out when the door opens.
 local function badgeText(model: Model): (string, string)
 	local houseType = model:GetAttribute("HouseType")
-	local owner = Dialogue.personalities[model:GetAttribute("Owner") :: string]
 	local preference = model:GetAttribute("Preference") :: string?
 	local icon = if preference then HouseTypes.PREFERENCE_ICONS[preference] or "" else ""
 	if houseType == "LightsOff" then
@@ -164,9 +164,8 @@ local function badgeText(model: Model): (string, string)
 	elseif houseType == "Bowl" then
 		return "🍬", "Please take one"
 	end
-	local name = if owner then `{owner.emoji} {owner.name}` else ""
 	local tag = if houseType == "Decorated" then "  ✨" else ""
-	return icon .. tag, name
+	return icon .. tag, ""
 end
 
 local function updateBadge(entry: Tracked)

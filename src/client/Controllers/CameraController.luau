@@ -1,13 +1,15 @@
 --!strict
 -- First-person PSX horror look (PROMPT §V2.3): a cold, washed-out colour grade with crushed blacks,
 -- the distance going soft (depth of field) like a low-res console, a heavy vignette, faint film
--- grain and scanlines, head-bob while walking and a gentle handheld sway.
+-- grain and scanlines, head-bob while walking (stronger running), a dip when you land, a wider view
+-- while sprinting, a gentle handheld sway, and no mouse cursor in the middle of the view.
 -- Settings → "PSX effects" switches the heavy parts off (grade/blur/grain); the bob stays.
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Images = require(ReplicatedStorage:WaitForChild("Shared").Config.Images)
@@ -39,6 +41,12 @@ local overlay: ScreenGui
 local enabled = true
 local bobTime = 0
 local bobWeight = 0
+local fovOffset = 0 -- now (eases toward fovTarget)
+local fovTarget = 0
+local wasAirborne = false
+local fallSpeed = 0 -- fastest downward speed in the current fall
+local dip = 0 -- landing dip: a spring pulled down when you land
+local dipSpeed = 0
 
 local function applySetting()
 	grade.Enabled = enabled
@@ -48,30 +56,49 @@ local function applySetting()
 	scanlines.Visible = enabled
 end
 
+-- Widens the view by `degrees` (eased): sprinting (MovementController).
+function CameraController.setFovOffset(degrees: number)
+	fovTarget = degrees
+end
+
 -- Called by JumpscareController etc. so effects don't fight a scripted camera.
 function CameraController.isFirstPerson(): boolean
 	return Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson
 end
 
 local function onRender(dt: number)
+	-- No cursor in the middle of the view: it only shows while a menu has freed the mouse.
+	UserInputService.MouseIconEnabled = UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
 	local camera = Workspace.CurrentCamera
 	if camera == nil or camera.CameraType ~= Enum.CameraType.Custom then
 		return
 	end
-	camera.FieldOfView = FOV
+	fovOffset += (fovTarget - fovOffset) * math.min(1, dt * 5)
+	camera.FieldOfView = FOV + fovOffset
 	local character = Players.LocalPlayer.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local moving = humanoid ~= nil
-		and humanoid.MoveDirection.Magnitude > 0.1
-		and humanoid.FloorMaterial ~= Enum.Material.Air
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local airborne = humanoid ~= nil and humanoid.FloorMaterial == Enum.Material.Air
+	local moving = humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.1 and not airborne
 	local speed = if humanoid then humanoid.WalkSpeed / 16 else 1
 	bobWeight += ((if moving then 1 else 0) - bobWeight) * math.min(1, dt * 8)
 	bobTime += dt * BOB_SPEED * speed * bobWeight
+	-- Landing: the view drops with the impact and springs back (harder falls, deeper dips).
+	if airborne and root then
+		fallSpeed = math.max(fallSpeed, -root.AssemblyLinearVelocity.Y)
+	elseif wasAirborne then
+		dipSpeed -= math.clamp(fallSpeed / 45, 0.08, 0.7) * 6
+		fallSpeed = 0
+	end
+	wasAirborne = airborne
+	dipSpeed += (-dip * 120 - dipSpeed * 14) * math.min(dt, 0.05)
+	dip += dipSpeed * math.min(dt, 0.05)
 	local now = os.clock()
-	-- Walking bob + a slow handheld breathing sway, always a little alive.
-	local x = math.sin(bobTime) * BOB_AMOUNT.X * bobWeight + math.sin(now * 0.7) * 0.012
-	local y = math.abs(math.cos(bobTime)) * BOB_AMOUNT.Y * bobWeight + math.sin(now * 1.1) * 0.01
-	local roll = math.sin(bobTime) * 0.006 * bobWeight + math.sin(now * 0.5) * 0.0025
+	-- Walking bob (stronger when running) + a slow handheld breathing sway, always a little alive.
+	local stride = BOB_AMOUNT * (0.75 + 0.25 * math.clamp(speed, 0.5, 2))
+	local x = math.sin(bobTime) * stride.X * bobWeight + math.sin(now * 0.7) * 0.012
+	local y = math.abs(math.cos(bobTime)) * stride.Y * bobWeight + math.sin(now * 1.1) * 0.01 + dip
+	local roll = math.sin(bobTime) * 0.006 * speed * bobWeight + math.sin(now * 0.5) * 0.0025
 	camera.CFrame *= CFrame.new(x, y, 0) * CFrame.Angles(0, 0, roll)
 end
 

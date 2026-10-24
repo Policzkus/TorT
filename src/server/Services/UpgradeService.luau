@@ -18,7 +18,9 @@ local function applyMovement(player: Player)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if data and humanoid then
-		humanoid.WalkSpeed = Formulas.walkSpeed(data.upgrades.sneakers)
+		local speed = Formulas.walkSpeed(data.upgrades.sneakers)
+		humanoid.WalkSpeed = speed
+		humanoid:SetAttribute("BaseSpeed", speed) -- the client's MovementController sprints from this
 	end
 end
 

@@ -9,8 +9,11 @@ local TweenService = game:GetService("TweenService")
 
 local Music = require(ReplicatedStorage:WaitForChild("Shared").Config.Music)
 local Sound = require(script.Parent.SoundController)
+local StateController = require(script.Parent.StateController)
 
 local MusicController = {}
+
+local SETTINGS_WAIT = 10
 
 local playing: Sound? = nil
 local playingId = 0
@@ -55,6 +58,13 @@ local function refresh()
 end
 
 function MusicController.Start()
+	-- Not a note before the saved settings are in: Settings → Music may be off, and the default
+	-- volume would blare until they arrived. (The data store answers in a second or two; after
+	-- SETTINGS_WAIT the defaults go.)
+	local waited = 0
+	while not StateController.isLoaded() and waited < SETTINGS_WAIT do
+		waited += task.wait(0.1)
+	end
 	state = ReplicatedStorage:WaitForChild("WorldState", 15)
 	if state then
 		state:GetAttributeChangedSignal("Witching"):Connect(refresh)
