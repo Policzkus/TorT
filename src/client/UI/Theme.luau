@@ -1,7 +1,8 @@
 --!strict
 -- Visual identity (PROMPT §V2.3): minimal noir HUD in the spirit of the user's Watch Dogs reference.
--- Near-black translucent tiles, hairline borders, sharp corners, a typewriter face for headings.
--- Every UI file pulls colors and fonts from here.
+-- Near-black translucent tiles, hairline borders, sharp corners, one clean sans face, monochrome
+-- with green for good and red for bad. Everything on screen is in this style (the user asked for
+-- it: "everything that shows as UI is HUD style"). Every UI file pulls colors and fonts from here.
 
 local Theme = {}
 
@@ -11,8 +12,9 @@ Theme.Colors = {
 	PanelDark = Color3.fromHex("050507"),
 	Stroke = Color3.fromHex("000000"),
 	Hairline = Color3.fromHex("E6E6E6"),
-	Orange = Color3.fromHex("D89A3C"),
-	OrangeLight = Color3.fromHex("E8C27A"),
+	-- The old warm accents, now as near-whites: emphasis is brightness, not colour.
+	Orange = Color3.fromHex("DADADA"),
+	OrangeLight = Color3.fromHex("F0F0F0"),
 	Slime = Color3.fromHex("A6E07C"),
 	Text = Color3.fromHex("F0F0F0"),
 	TextDim = Color3.fromHex("8E8E96"),
@@ -31,7 +33,7 @@ Theme.Rarity = {
 }
 
 Theme.Fonts = {
-	Heading = Font.fromEnum(Enum.Font.SpecialElite),
+	Heading = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold),
 	Body = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Medium),
 	BodyHeavy = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold),
 	Hud = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.SemiBold),
@@ -41,5 +43,9 @@ Theme.Corner = UDim.new(0, 3)
 Theme.StrokeThickness = 1
 -- Background transparency of HUD tiles and panels.
 Theme.TileTransparency = 0.35
+-- The hairline outline every tile has: Hairline colour at this transparency, 1 px.
+Theme.HairlineTransparency = 0.85
+-- How things appear and go: quick and flat, never bouncy.
+Theme.Ease = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 return Theme

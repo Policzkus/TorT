@@ -169,7 +169,7 @@ end
 local function flyPop(text: string, color: Color3, from: Vector2, target: GuiObject, onArrive: (() -> ())?)
 	local label = floatingText(text, color, from, 24)
 	local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 		:Play()
 	TweenService:Create(label, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Position = UDim2.fromOffset(from.X, from.Y - 36),
@@ -197,7 +197,7 @@ local function callout(text: string, color: Color3, from: Vector2, delay: number
 	task.delay(delay, function()
 		local label = floatingText(text, color, from - Vector2.new(0, 70), 22, Theme.Fonts.Heading)
 		local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 		TweenService:Create(label, TweenInfo.new(1.5, Enum.EasingStyle.Quad), {
 			Position = UDim2.fromOffset(from.X, from.Y - 120),
@@ -580,7 +580,7 @@ local function onStashed(moved: number, boxFull: boolean)
 		local at = centreOf(candyChip) - Vector2.new(0, 34)
 		local label = floatingText(`+{Format.number(moved)} STASHED`, Theme.Colors.Slime, at, 16)
 		local scale = label:FindFirstChildOfClass("UIScale") :: UIScale
-		TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 		task.delay(1, function()
 			TweenService:Create(label, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()

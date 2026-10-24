@@ -40,10 +40,10 @@ for _, kind in { "TimingBar", "KnockRhythm", "NerveHold", "CostumeLine" } do
 end
 
 local GRADE_STYLE: { [string]: { text: string, color: Color3, sound: string } } = {
-	MISS = { text = "MISS", color = Color3.fromHex("FF4D5E"), sound = "Miss" },
-	GOOD = { text = "GOOD", color = Color3.fromHex("FFFFFF"), sound = "Pop" },
-	GREAT = { text = "GREAT!", color = Color3.fromHex("FFD23F"), sound = "Coin" },
-	PERFECT = { text = "PERFECT!!", color = Color3.fromHex("7CFF4F"), sound = "Perfect" },
+	MISS = { text = "MISS", color = Theme.Colors.Danger, sound = "Miss" },
+	GOOD = { text = "GOOD", color = Theme.Colors.TextDim, sound = "Pop" },
+	GREAT = { text = "GREAT", color = Theme.Colors.Text, sound = "Coin" },
+	PERFECT = { text = "PERFECT", color = Theme.Colors.Success, sound = "Perfect" },
 }
 
 local MinigameController = {}
@@ -69,11 +69,11 @@ local function showGrade(grade: string, big: boolean)
 	local style = GRADE_STYLE[grade] or GRADE_STYLE.MISS
 	gradeLabel.Text = style.text
 	gradeLabel.TextColor3 = style.color
-	gradeLabel.TextSize = if big then 64 else 44
+	gradeLabel.TextSize = if big then 34 else 24
 	gradeLabel.Visible = true
 	local scale = gradeLabel:FindFirstChildOfClass("UIScale") :: UIScale
-	scale.Scale = 1.6
-	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	scale.Scale = 1.15
+	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 		:Play()
 	Sound.play(style.sound)
 end
@@ -167,7 +167,7 @@ function MinigameController.Init()
 		Visible = false,
 		ZIndex = 5,
 		create("UIScale", {}),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 4 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	catcher = create("TextButton", {
 		Name = "TapCatcher",

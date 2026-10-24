@@ -18,13 +18,14 @@ export type Callbacks = {
 	onDone: (input: { number }, spec: any) -> (),
 }
 
-local DOT_IDLE = Color3.fromHex("3D2A56")
-local DOT_PLAY = Color3.fromHex("FFB347")
+-- HUD style: dark tiles that flash white as the knocks play; your taps go green to red.
+local DOT_IDLE = Theme.Colors.Panel
+local DOT_PLAY = Theme.Colors.Text
 local GRADE_COLOR = {
-	PERFECT = Color3.fromHex("7CFF4F"),
-	GREAT = Color3.fromHex("FFD23F"),
-	GOOD = Color3.fromHex("FF8A00"),
-	MISS = Color3.fromHex("FF4D5E"),
+	PERFECT = Theme.Colors.Success,
+	GREAT = Theme.Colors.Text,
+	GOOD = Theme.Colors.TextDim,
+	MISS = Theme.Colors.Danger,
 }
 
 local KnockRhythm = {}
@@ -33,7 +34,7 @@ local function bump(object: GuiObject)
 	local scale = object:FindFirstChildOfClass("UIScale")
 	if scale then
 		scale.Scale = 1.35
-		TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 	end
 end
@@ -44,35 +45,29 @@ function KnockRhythm.run(parent: Frame, challenge: any, callbacks: Callbacks)
 
 	local title = create("TextLabel", {
 		Name = "Title",
-		Size = UDim2.new(1, 0, 0, 44),
+		Size = UDim2.new(1, 0, 0, 22),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Heading,
-		Text = "👂 LISTEN...",
+		Text = "LISTEN",
 		TextColor3 = Theme.Colors.Text,
-		TextSize = 34,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
+		TextSize = 17,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	local door = create("TextLabel", {
 		Name = "Door",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 48),
-		Size = UDim2.fromOffset(84, 84),
-		BackgroundColor3 = Theme.Colors.PanelDark,
-		FontFace = Theme.Fonts.Heading,
-		Text = "🚪",
-		TextSize = 56,
-		create("UICorner", { CornerRadius = UDim.new(0, 18) }),
-		create(
-			"UIStroke",
-			{ Color = Theme.Colors.Orange, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }
-		),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.fromOffset(0, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		Visible = false, -- the dots carry the rhythm now
 		create("UIScale", {}),
 	})
 	local row = create("Frame", {
 		Name = "Dots",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 142),
-		Size = UDim2.fromOffset(count * 46, 36),
+		Position = UDim2.new(0.5, 0, 0, 30),
+		Size = UDim2.fromOffset(count * 28, 18),
 		BackgroundTransparency = 1,
 		create("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -85,13 +80,16 @@ function KnockRhythm.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		dots[i] = create("Frame", {
 			Name = "Dot" .. i,
 			LayoutOrder = i,
-			Size = UDim2.fromOffset(36, 36),
+			Size = UDim2.fromOffset(18, 18),
 			BackgroundColor3 = DOT_IDLE,
-			create("UICorner", { CornerRadius = UDim.new(1, 0) }),
-			create(
-				"UIStroke",
-				{ Color = Theme.Colors.Stroke, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }
-			),
+			BackgroundTransparency = 0.2,
+			create("UICorner", { CornerRadius = Theme.Corner }),
+			create("UIStroke", {
+				Color = Theme.Colors.Hairline,
+				Transparency = 0.6,
+				Thickness = 1,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			}),
 			create("UIScale", {}),
 			Parent = row,
 		})
@@ -99,21 +97,21 @@ function KnockRhythm.run(parent: Frame, challenge: any, callbacks: Callbacks)
 	local hint = create("TextLabel", {
 		Name = "Hint",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 186),
-		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.new(0.5, 0, 0, 58),
+		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Body,
-		Text = "Remember the rhythm...",
+		Text = "Remember the rhythm",
 		TextColor3 = Theme.Colors.TextDim,
-		TextSize = 17,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
+		TextSize = 14,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
-	local popScale = create("UIScale", { Scale = 0.6 })
+	local popScale = create("UIScale", { Scale = 1 }) -- grows a little as it appears
 	local root = create("Frame", {
 		Name = "KnockRhythm",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.62),
-		Size = UDim2.fromOffset(620, 214),
+		Position = UDim2.fromScale(0.5, 0.7),
+		Size = UDim2.fromOffset(460, 80),
 		BackgroundTransparency = 1,
 		popScale,
 		title,
@@ -122,7 +120,7 @@ function KnockRhythm.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		hint,
 		Parent = parent,
 	})
-	TweenService:Create(popScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(popScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.2 })
 		:Play()
 
 	local startedAt = os.clock()
@@ -160,9 +158,8 @@ function KnockRhythm.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		end
 		if not yourTurn and t >= spec.turnAt - 0.25 then
 			yourTurn = true
-			title.Text = "✊ YOUR TURN!"
-			title.TextColor3 = Theme.Colors.Slime
-			hint.Text = "Knock the same rhythm  •  Space / Click / Tap / Ⓐ"
+			title.Text = "YOUR TURN"
+			hint.Text = "Knock the same rhythm   ·   Space / Click / Tap / Ⓐ"
 			for _, dot in dots do
 				dot.BackgroundColor3 = DOT_IDLE
 			end

@@ -111,8 +111,14 @@ local function refresh()
 				if check == "ok" then "READY!" else `{math.floor(math.min(fraction, 0.99) * 100)}% to afford`
 			)
 			row.buy.Text = `🍬 {Format.number(cost :: number)}`
-			row.buy.BackgroundColor3 = if check == "ok" then Theme.Colors.Slime else Theme.Colors.PanelDark
-			row.buy.TextColor3 = if check == "ok" then Theme.Colors.Text else Theme.Colors.TextDim
+			-- HUD style: affordable is green text and a green outline, not a filled button.
+			row.buy.BackgroundColor3 = if check == "ok" then Theme.Colors.PanelLight else Theme.Colors.PanelDark
+			row.buy.TextColor3 = if check == "ok" then Theme.Colors.Success else Theme.Colors.TextDim
+			local outline = row.buy:FindFirstChild("Outline") :: UIStroke?
+			if outline then
+				outline.Color = if check == "ok" then Theme.Colors.Success else Theme.Colors.Hairline
+				outline.Transparency = if check == "ok" then 0.2 else 0.75
+			end
 			row.glow.Enabled = check == "ok"
 		end
 	end
@@ -138,7 +144,7 @@ local function buildRow(trackId: string, order: number, parent: Instance): Row
 	local glow = create("UIStroke", {
 		Name = "Glow",
 		Color = Theme.Colors.Slime,
-		Thickness = 3,
+		Thickness = 1,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Enabled = false,
 	})
@@ -152,7 +158,7 @@ local function buildRow(trackId: string, order: number, parent: Instance): Row
 		TextSize = 22,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	local effect = create("TextLabel", {
 		Name = "Effect",
@@ -170,7 +176,7 @@ local function buildRow(trackId: string, order: number, parent: Instance): Row
 		Size = UDim2.new(1, -8, 0, 96),
 		BackgroundColor3 = Theme.Colors.PanelLight,
 		create("UICorner", { CornerRadius = Theme.Corner }),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 		title,
 		effect,
 		Parent = parent,

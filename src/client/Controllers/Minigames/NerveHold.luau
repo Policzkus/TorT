@@ -58,32 +58,33 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 
 	local title = create("TextLabel", {
 		Name = "Title",
-		Size = UDim2.new(1, 0, 0, 44),
+		Size = UDim2.new(1, 0, 0, 22),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Heading,
-		Text = "😨 HOLD TO BE BRAVE!",
+		Text = "HOLD",
 		TextColor3 = Theme.Colors.Text,
-		TextSize = 34,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	local hint = create("TextLabel", {
 		Name = "Hint",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 96),
-		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.new(0.5, 0, 0, 58),
+		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Body,
-		Text = "Hold Space / Mouse / Tap / Ⓐ  •  don't let go!",
+		Text = "Hold Space / Mouse / Tap / Ⓐ   ·   don't let go",
 		TextColor3 = Theme.Colors.TextDim,
-		TextSize = 17,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
+		TextSize = 14,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
-	local popScale = create("UIScale", { Scale = 0.6 })
+	local popScale = create("UIScale", { Scale = 1 }) -- grows a little as it appears
 	local root = create("Frame", {
 		Name = "NerveHold",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.66),
-		Size = UDim2.fromOffset(620, 130),
+		Position = UDim2.fromScale(0.5, 0.7),
+		Size = UDim2.fromOffset(460, 80),
 		BackgroundTransparency = 1,
 		popScale,
 		title,
@@ -91,15 +92,15 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		Parent = parent,
 	})
 	local bar = ProgressBar.new({
-		size = UDim2.new(1, -60, 0, 34),
-		position = UDim2.new(0.5, 0, 0, 52),
+		size = UDim2.new(1, 0, 0, 18),
+		position = UDim2.new(0.5, 0, 0, 32),
 		anchor = Vector2.new(0.5, 0),
-		color = Theme.Colors.Info,
-		textSize = 18,
+		color = Theme.Colors.Text,
+		textSize = 12,
 		parent = root,
 	})
 	bar:setText("BRAVERY")
-	TweenService:Create(popScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(popScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.2 })
 		:Play()
 
 	-- Full-screen effects live in their own layer under everything else.
@@ -122,7 +123,7 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		TextColor3 = Theme.Colors.Danger,
 		TextSize = 72,
 		TextTransparency = 1,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 4 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 		Parent = parent,
 	})
 	local peek = ghostPeek()
@@ -177,7 +178,7 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		elseif kind == "face" then
 			Sound.play("GhostWail", { volume = 0.6, speed = 1.2 })
 			peek.Position = UDim2.new(1, 240, 1, 0)
-			TweenService:Create(peek, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			TweenService:Create(peek, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Position = UDim2.new(1, -10, 1, 20),
 			}):Play()
 			task.delay(0.8, function()
@@ -209,7 +210,7 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 			nextScare += 1
 		end
 		if t >= spec.duration then
-			title.Text = "😤 BRAVE!"
+			title.Text = "BRAVE"
 			finish()
 		end
 	end)
@@ -224,7 +225,7 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 				return
 			end
 			pressAt = t
-			title.Text = "😬 KEEP HOLDING..."
+			title.Text = "KEEP HOLDING"
 			Sound.play("Heartbeat")
 		end,
 		release = function()
@@ -232,7 +233,7 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 				return
 			end
 			releaseAt = os.clock() - startedAt
-			title.Text = "😱 FLINCHED!"
+			title.Text = "FLINCHED"
 			title.TextColor3 = Theme.Colors.Danger
 			finish()
 		end,

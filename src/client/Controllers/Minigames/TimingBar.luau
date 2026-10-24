@@ -22,10 +22,11 @@ export type Session = {
 	cancel: () -> (),
 }
 
-local ZONE_COLORS = {
-	GOOD = Color3.fromHex("FF8A00"),
-	GREAT = Color3.fromHex("FFD23F"),
-	PERFECT = Color3.fromHex("7CFF4F"),
+-- HUD style: the zones are brightness, not colour (green only where it's perfect).
+local ZONES = {
+	GOOD = { color = Theme.Colors.Hairline, transparency = 0.78 },
+	GREAT = { color = Theme.Colors.Hairline, transparency = 0.5 },
+	PERFECT = { color = Theme.Colors.Success, transparency = 0.1 },
 }
 
 local TimingBar = {}
@@ -46,7 +47,8 @@ function TimingBar.run(parent: Frame, challenge: any, callbacks: Callbacks): Ses
 			Name = grade,
 			AnchorPoint = Vector2.new(0.5, 0),
 			Size = UDim2.fromScale((spec.widths :: any)[grade], 1),
-			BackgroundColor3 = ZONE_COLORS[grade],
+			BackgroundColor3 = ZONES[grade].color,
+			BackgroundTransparency = ZONES[grade].transparency,
 			BorderSizePixel = 0,
 			Parent = track,
 		})
@@ -55,51 +57,52 @@ function TimingBar.run(parent: Frame, challenge: any, callbacks: Callbacks): Ses
 		Name = "Needle",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.new(0, 8, 1, 22),
+		Size = UDim2.new(0, 3, 1, 10),
 		BackgroundColor3 = Theme.Colors.Text,
+		BorderSizePixel = 0,
 		ZIndex = 3,
-		create("UICorner", { CornerRadius = UDim.new(1, 0) }),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2.5 }),
 	})
 	local bar = create("Frame", {
 		Name = "Bar",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 58),
-		Size = UDim2.new(1, -40, 0, 48),
-		BackgroundColor3 = Theme.Colors.PanelDark,
-		create("UICorner", { CornerRadius = UDim.new(0, 10) }),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 4 }),
+		Position = UDim2.new(0.5, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 22),
+		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = Theme.TileTransparency,
+		create("UICorner", { CornerRadius = Theme.Corner }),
+		create("UIStroke", { Color = Theme.Colors.Hairline, Transparency = Theme.HairlineTransparency, Thickness = 1 }),
 		track,
 		needle,
 	})
 	local title = create("TextLabel", {
 		Name = "Title",
-		Size = UDim2.new(1, 0, 0, 44),
+		Size = UDim2.new(1, 0, 0, 22),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Heading,
-		Text = if hits > 1 then "KNOCK KNOCK!  HIT 1 / " .. hits else "KNOCK KNOCK!",
+		Text = if hits > 1 then "KNOCK   1 / " .. hits else "KNOCK",
 		TextColor3 = Theme.Colors.Text,
-		TextSize = 32,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
+		TextSize = 17,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	local hint = create("TextLabel", {
 		Name = "Hint",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 118),
-		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.new(0.5, 0, 0, 60),
+		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Body,
-		Text = "Stop the needle in the GREEN  •  Space / Click / Tap / Ⓐ",
+		Text = "Stop it in the green   ·   Space / Click / Tap / Ⓐ",
 		TextColor3 = Theme.Colors.TextDim,
-		TextSize = 17,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
+		TextSize = 14,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
-	local popScale = create("UIScale", { Scale = 0.6 })
+	local popScale = create("UIScale", { Scale = 1 }) -- grows a little as it appears
 	local root = create("Frame", {
 		Name = "TimingBar",
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.66),
-		Size = UDim2.fromOffset(620, 150),
+		Position = UDim2.fromScale(0.5, 0.7),
+		Size = UDim2.fromOffset(460, 80),
 		BackgroundTransparency = 1,
 		popScale,
 		title,
@@ -107,7 +110,7 @@ function TimingBar.run(parent: Frame, challenge: any, callbacks: Callbacks): Ses
 		hint,
 		Parent = parent,
 	})
-	TweenService:Create(popScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(popScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.2 })
 		:Play()
 
 	local function showZone(hit: number)
@@ -160,14 +163,14 @@ function TimingBar.run(parent: Frame, challenge: any, callbacks: Callbacks): Ses
 		local hit = #taps
 		local grade = Rules.gradeAt(spec, hit, t)
 		callbacks.onTap(hit, grade, hits)
-		needle.BackgroundColor3 = ZONE_COLORS[grade] or Theme.Colors.Danger
+		needle.BackgroundColor3 = if ZONES[grade] then ZONES[grade].color else Theme.Colors.Danger
 		task.delay(0.12, function()
 			needle.BackgroundColor3 = Theme.Colors.Text
 		end)
 		if hit >= hits then
 			finish()
 		else
-			title.Text = `NICE!  HIT {hit + 1} / {hits}`
+			title.Text = `KNOCK   {hit + 1} / {hits}`
 			showZone(hit + 1)
 		end
 	end

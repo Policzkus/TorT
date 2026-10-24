@@ -44,7 +44,7 @@ local function applyInfo(board: Instance)
 	local line2 = board:FindFirstChild("Line2") :: TextLabel?
 	local line3 = board:FindFirstChild("Line3") :: TextLabel?
 	if line1 and neighborhood then
-		line1.Text = "✅ " .. string.upper(neighborhood.name)
+		line1.Text = string.upper(neighborhood.name) .. "  UNLOCKED"
 	end
 	if line2 then
 		line2.Text = "UNLOCKED"

@@ -88,7 +88,7 @@ local function render()
 			Size = UDim2.new(1, -8, 0, 64),
 			BackgroundColor3 = if unlocked then Theme.Colors.PanelLight else Theme.Colors.PanelDark,
 			create("UICorner", { CornerRadius = Theme.Corner }),
-			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 			create("TextLabel", {
 				Name = "Name",
 				Position = UDim2.fromOffset(14, 6),
@@ -99,7 +99,7 @@ local function render()
 				TextColor3 = if unlocked then Theme.Colors.Text else Theme.Colors.TextDim,
 				TextSize = 24,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+				create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 			}),
 			create("TextLabel", {
 				Name = "Status",

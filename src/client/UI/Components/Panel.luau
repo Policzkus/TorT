@@ -1,6 +1,6 @@
 --!strict
 -- Centered modal window with a title bar and close button. Opening one panel closes the others.
--- Bouncy Back-easing open/close (PROMPT §3.18).
+-- Opens and closes with a quick flat ease (HUD style, no bounce).
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -29,8 +29,8 @@ local Panel = {}
 Panel.__index = Panel
 
 local all: { Panel } = {}
-local OPEN = TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-local CLOSE = TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+local OPEN = TweenInfo.new(0.32, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local CLOSE = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
 function Panel.new(options: Options): Panel
 	local popScale = create("UIScale", { Name = "Pop", Scale = 0 })

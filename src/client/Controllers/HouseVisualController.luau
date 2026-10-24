@@ -13,6 +13,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Houses = require(Shared.Modules.Houses)
 local Events = require(Shared.Config.Events)
 local HouseTypes = require(Shared.Config.HouseTypes)
+local Chip = require(script.Parent.Parent.UI.Components.Chip)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
@@ -174,38 +175,22 @@ local function updateBadge(entry: Tracked)
 	if badge == nil then
 		badge = create("BillboardGui", {
 			Name = "HouseBadge",
-			Size = UDim2.fromOffset(150, 52),
+			Size = UDim2.fromOffset(170, 30),
 			StudsOffsetWorldSpace = Vector3.new(0, entry.door.Size.Y / 2 + 2.6, 0),
 			MaxDistance = 48,
 			LightInfluence = 0,
 			Adornee = entry.door,
-			create("TextLabel", {
-				Name = "Icon",
-				Size = UDim2.fromScale(1, 0.6),
-				BackgroundTransparency = 1,
-				FontFace = Theme.Fonts.Heading,
-				TextScaled = true,
-				TextColor3 = Theme.Colors.Text,
-			}),
-			create("TextLabel", {
-				Name = "Owner",
-				Position = UDim2.fromScale(0, 0.6),
-				Size = UDim2.fromScale(1, 0.4),
-				BackgroundTransparency = 1,
-				FontFace = Theme.Fonts.Heading,
-				TextScaled = true,
-				TextColor3 = Theme.Colors.OrangeLight,
-				create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
-			}),
 			Parent = entry.door,
 		})
+		Chip.new({ name = "Chip", parent = badge })
 		entry.badge = badge
 	end
 	local gui = badge :: BillboardGui
-	local icon = gui:FindFirstChild("Icon") :: TextLabel
-	local owner = gui:FindFirstChild("Owner") :: TextLabel
-	icon.Text = top
-	owner.Text = bottom
+	local chip = gui:FindFirstChild("Chip") :: Frame
+	local label = chip:FindFirstChild("Text") :: TextLabel
+	-- One HUD chip: the icons, then the words for houses that won't answer.
+	label.Text = if top ~= "" and bottom ~= "" then `{top}  {bottom}` else top .. bottom
+	chip.Visible = label.Text ~= ""
 	-- Hidden while they're at the door: it would hang right behind their head (and a real door
 	-- carries it into the house as it swings open).
 	gui.Enabled = entry.model:GetAttribute("OwnerOut") ~= true
@@ -310,7 +295,7 @@ local function showBeam(position: Vector3)
 			Text = `🍫 FULL-SIZE BAR ×{Events.FULL_SIZE_MULTIPLIER}`,
 			TextColor3 = Color3.fromHex("FFD23F"),
 			TextScaled = true,
-			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
+			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 		}),
 		Parent = column,
 	})

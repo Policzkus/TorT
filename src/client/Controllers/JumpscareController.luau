@@ -85,7 +85,7 @@ local function popBoo(text: string)
 	boo.Visible = true
 	local scale = boo:FindFirstChildOfClass("UIScale") :: UIScale
 	scale.Scale = 0.2
-	TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(scale, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 		:Play()
 	task.delay(1.1, function()
 		boo.Visible = false
@@ -152,7 +152,7 @@ local function fullScare(door: BasePart, gentle: boolean, reduceFlash: boolean, 
 	lunge.Changed:Connect(function(value: CFrame)
 		ghost:PivotTo(value)
 	end)
-	TweenService:Create(lunge, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	TweenService:Create(lunge, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Value = target,
 	}):Play()
 	if gentle then
@@ -227,7 +227,7 @@ function JumpscareController.Init()
 		TextSize = 120,
 		Visible = false,
 		create("UIScale", {}),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 6 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	lineLabel = create("TextLabel", {
 		Name = "Line",
@@ -239,7 +239,7 @@ function JumpscareController.Init()
 		TextColor3 = Theme.Colors.Danger,
 		TextSize = 36,
 		Visible = false,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 4 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	local gui = create("ScreenGui", {
 		Name = "Jumpscare",

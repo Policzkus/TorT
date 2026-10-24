@@ -17,6 +17,7 @@ local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
 local Dialog = require(script.Parent.DialogController)
 local Homeowner = require(script.Parent.HomeownerController)
 local Sound = require(script.Parent.SoundController)
+local Chip = require(script.Parent.Parent.UI.Components.Chip)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
@@ -55,25 +56,17 @@ local function setBadge(houseId: string, door: BasePart?, secondsLeft: number?)
 		end
 		badge = create("BillboardGui", {
 			Name = "Cooldown",
-			Size = UDim2.fromOffset(110, 46),
+			Size = UDim2.fromOffset(120, 30),
 			StudsOffsetWorldSpace = Vector3.new(0, 5.5, 0),
 			MaxDistance = 90,
 			LightInfluence = 0,
 			Adornee = door,
-			create("TextLabel", {
-				Name = "Text",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 1,
-				FontFace = Theme.Fonts.Heading,
-				TextColor3 = Theme.Colors.TextDim,
-				TextScaled = true,
-				create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
-			}),
 			Parent = door,
 		})
+		Chip.new({ name = "Chip", color = Theme.Colors.TextDim, parent = badge })
 		badges[houseId] = badge
 	end
-	local text = (badge :: BillboardGui):FindFirstChild("Text") :: TextLabel
+	local text = (badge :: BillboardGui):FindFirstChild("Text", true) :: TextLabel
 	text.Text = `💤 {math.ceil(secondsLeft :: number)}s`
 end
 

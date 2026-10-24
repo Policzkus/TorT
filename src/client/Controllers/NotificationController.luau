@@ -54,10 +54,11 @@ function NotificationController.show(text: string, kind: string?)
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = Theme.Colors.Panel,
+		BackgroundTransparency = Theme.TileTransparency,
 		Parent = container,
 		scale,
 		create("UICorner", { CornerRadius = Theme.Corner }),
-		create("UIStroke", { Color = accent, Thickness = Theme.StrokeThickness }),
+		create("UIStroke", { Color = accent, Thickness = Theme.StrokeThickness, Transparency = 0.35 }),
 		create("UIPadding", {
 			PaddingTop = UDim.new(0, 8),
 			PaddingBottom = UDim.new(0, 8),
@@ -71,13 +72,13 @@ function NotificationController.show(text: string, kind: string?)
 			FontFace = Theme.Fonts.Heading,
 			Text = text,
 			TextColor3 = Theme.Colors.Text,
-			TextSize = 20,
+			TextSize = 17,
 			TextWrapped = true,
-			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1.5 }),
+			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 		}),
 	})
 	table.insert(toasts, toast)
-	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 		:Play()
 
 	while #toasts > MAX_VISIBLE do

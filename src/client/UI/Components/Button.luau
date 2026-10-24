@@ -1,5 +1,6 @@
 --!strict
--- Chunky cartoon button: bouncy hover/press scaling and a click sound (PROMPT §3.18).
+-- HUD button: a dark tile with a hairline outline that brightens on hover, a slight press, a
+-- hover tick and a click sound.
 
 local TweenService = game:GetService("TweenService")
 
@@ -23,7 +24,7 @@ export type Options = {
 
 local Button = {}
 
-local HOVER = TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local HOVER = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 function Button.new(options: Options): TextButton
 	local scale = create("UIScale", { Scale = 1 })

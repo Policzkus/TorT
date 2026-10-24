@@ -38,14 +38,14 @@ function CelebrationController.show(title: string, sub: string?, color: Color3?,
 	banner.Visible = true
 	subtitle.Visible = sub ~= nil
 	popScale.Scale = 0.3
-	TweenService:Create(popScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	TweenService:Create(popScale, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1 })
 		:Play()
 	Sound.play(sound or "Unlock")
 	task.delay(2.8, function()
 		if showing == token then
 			local out = TweenService:Create(
 				popScale,
-				TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+				TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 				{ Scale = 0 }
 			)
 			out:Play()
@@ -76,10 +76,10 @@ function CelebrationController.Init()
 		Size = UDim2.new(1, 0, 0, 70),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Heading,
-		TextSize = 58,
+		TextSize = 34,
 		TextColor3 = Theme.Colors.OrangeLight,
 		Visible = false,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 5 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	subtitle = create("TextLabel", {
 		Name = "Subtitle",
@@ -90,7 +90,7 @@ function CelebrationController.Init()
 		TextSize = 26,
 		TextColor3 = Theme.Colors.Text,
 		Visible = false,
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 3 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 	})
 	local gui = create("ScreenGui", {
 		Name = "Celebration",

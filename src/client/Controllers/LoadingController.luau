@@ -28,7 +28,7 @@ function LoadingController.Init()
 			FontFace = Theme.Fonts.Heading,
 			Text = "TRICK OR TREAT",
 			TextColor3 = Theme.Colors.Text,
-			TextSize = 44,
+			TextSize = 30,
 		}),
 		create("TextLabel", {
 			Name = "Status",

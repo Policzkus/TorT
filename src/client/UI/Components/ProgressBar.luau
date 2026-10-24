@@ -1,5 +1,5 @@
 --!strict
--- Rounded progress bar with an optional centred label.
+-- HUD progress bar: a translucent track with a hairline, a near-white fill, an optional label.
 
 local TweenService = game:GetService("TweenService")
 
@@ -37,6 +37,7 @@ function ProgressBar.new(options: Options): ProgressBar
 		Name = "Fill",
 		Size = UDim2.fromScale(0, 1),
 		BackgroundColor3 = options.color or Theme.Colors.Orange,
+		BackgroundTransparency = 0.2,
 		create("UICorner", { CornerRadius = UDim.new(0, 2) }),
 	})
 	local label = create("TextLabel", {
@@ -48,6 +49,7 @@ function ProgressBar.new(options: Options): ProgressBar
 		TextColor3 = Theme.Colors.Text,
 		TextSize = options.textSize or 14,
 		ZIndex = 2,
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.3 }),
 	})
 	local frame = create("Frame", {
 		Name = options.name or "ProgressBar",

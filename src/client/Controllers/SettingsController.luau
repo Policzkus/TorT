@@ -51,7 +51,7 @@ local function row(parent: Instance, order: number, label: string): Frame
 		Size = UDim2.new(1, -8, 0, 64),
 		BackgroundColor3 = Theme.Colors.PanelLight,
 		create("UICorner", { CornerRadius = Theme.Corner }),
-		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 		create("TextLabel", {
 			Name = "Label",
 			Position = UDim2.fromOffset(14, 0),
@@ -62,7 +62,7 @@ local function row(parent: Instance, order: number, label: string): Frame
 			TextColor3 = Theme.Colors.Text,
 			TextSize = 22,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 2 }),
+			create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),
 		}),
 		Parent = parent,
 	})
@@ -150,7 +150,14 @@ local function jumpscareRow(parent: Instance, order: number)
 	end
 	table.insert(refreshers, function()
 		for mode, button in buttons do
-			button.BackgroundColor3 = if current.jumpscare == mode then Theme.Colors.Orange else Theme.Colors.PanelDark
+			-- HUD style: the chosen one is a brighter tile with a bright outline.
+			local chosen = current.jumpscare == mode
+			button.BackgroundColor3 = if chosen then Theme.Colors.PanelLight else Theme.Colors.PanelDark
+			button.TextColor3 = if chosen then Theme.Colors.Text else Theme.Colors.TextDim
+			local outline = button:FindFirstChild("Outline") :: UIStroke?
+			if outline then
+				outline.Transparency = if chosen then 0.15 else 0.75
+			end
 		end
 		info.Text = JUMPSCARE_INFO[current.jumpscare] or ""
 	end)
@@ -174,7 +181,13 @@ local function toggleRow(parent: Instance, order: number, label: string, key: "r
 	})
 	table.insert(refreshers, function()
 		toggle.Text = if current[key] then "ON" else "OFF"
-		toggle.BackgroundColor3 = if current[key] then Theme.Colors.Slime else Theme.Colors.PanelDark
+		toggle.BackgroundColor3 = if current[key] then Theme.Colors.PanelLight else Theme.Colors.PanelDark
+		toggle.TextColor3 = if current[key] then Theme.Colors.Success else Theme.Colors.TextDim
+		local outline = toggle:FindFirstChild("Outline") :: UIStroke?
+		if outline then
+			outline.Color = if current[key] then Theme.Colors.Success else Theme.Colors.Hairline
+			outline.Transparency = if current[key] then 0.2 else 0.75
+		end
 	end)
 end
 
