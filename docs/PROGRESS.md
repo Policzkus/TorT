@@ -123,7 +123,7 @@
     - The figure turns to watch you. While you watch the door from within 36 studs, the hall blinks dark every 3.5–7 s and it's a spot closer. It vanishes in a blackout when you come within 13 studs, and may return at the far end once you're 40 away.
   - **Doorstep sequence:** the server gives each challenge an `intro` (homeowner out + hello; `Homeowners.OUT_AFTER`, `HELLO_TIME` 4.2), and the mini-game's clock starts after it. The client holds you and starts the game after the intro.
     - Lines type at 20 letters a second, with real pauses and trailing "...", and stay for 1.8 s + 0.22 s a word.
-    - A line follows the face while it's on screen and becomes a subtitle while it isn't. It fades when the speaker goes inside or you're 26 studs off; it used to freeze where the face was last seen.
+    - A line stays pinned by the speaker's face wherever you go: smaller the farther off, hidden while they're off screen. It fades when they go inside or you're 32 studs off; it used to freeze where the face was last seen.
     - Homeowners linger 3.8 s after the game (`LEAVE_DELAY`), so their reaction gets read.
     - The Costume Line question types at 20 letters a second (max 4.5 s).
   - `/housetype Open` works.

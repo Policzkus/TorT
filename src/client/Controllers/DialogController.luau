@@ -4,8 +4,8 @@
 -- letter by letter, every letter shivering a little (the user's 1023.mp4 reference), with a low
 -- muttering voice under them. Your replies are HUD chips stacked under it, a hairline under them
 -- running out with the time. say() for lines, ask() for Costume Line's questions.
--- A line follows the speaker's face; when the face is off screen it waits low in the middle of the
--- view like a subtitle, and it fades once the speaker has gone back inside or you've walked off.
+-- A line stays by the speaker's face wherever you go (smaller the farther you are; hidden while
+-- they're off screen), and fades once they've gone back inside or you've walked too far off.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -34,9 +34,10 @@ local PAUSES = { ["."] = 0.34, [","] = 0.18, ["?"] = 0.38, ["!"] = 0.34, [";"] =
 local ELLIPSIS_DOT = 0.16 -- a dot followed by another dot ("...") trails off instead of stopping
 local HOLD = 1.8 -- seconds a line stays once it's all out, plus reading time per word
 local HOLD_PER_WORD = 0.22
-local FAR = 26 -- studs from the speaker beyond which the line is dropped
+local FAR = 32 -- studs from the speaker beyond which the line is dropped
 local LOST_GRACE = 0.5 -- seconds a line outlives its speaker going back inside
-local SUBTITLE_Y = 0.74 -- share of the view's height where an off-screen speaker's line waits
+local SHRINK = { near = 8, far = 32, least = 0.7 } -- studs, and how small a line gets far off
+local SUBTITLE_Y = 0.3 -- share of the view's height where a line with no speaker sits
 local SHIVER = 1 -- pixels a letter wanders
 local SHIVER_EVERY = 0.09 -- seconds between shivers (a low frame rate, like the rest)
 local LEADER = 16 -- pixels the leader line runs from the panel's corner toward the face
@@ -56,6 +57,7 @@ type Bubble = {
 	at: Vector2?, -- where the panel's corner is on screen (eased toward where it should be)
 	lost: number?, -- when its speaker was last seen gone
 	leader: Frame,
+	shrink: UIScale, -- smaller the farther off the speaker is
 }
 
 local gui: ScreenGui
@@ -207,43 +209,47 @@ local function newBubble(speaker: Model?, text: string, voice: number, duration:
 		at = nil,
 		lost = nil,
 		leader = frame:FindFirstChild("Leader") :: Frame,
+		shrink = create("UIScale", { Parent = frame }),
 	}
 end
 
--- Where the panel's bottom-right corner should be and whether the leader shows: up and left of the
--- speaker's face while it's on screen, low in the middle of the view while it isn't (or there's no
--- speaker). Nil when the line should end: its speaker went back inside, or you walked off.
-local function placement(bubble: Bubble, viewport: Vector2, scale: number): (Vector2?, boolean)
+-- Where the panel's bottom-right corner should be and how: "face" up and left of the speaker's
+-- face (its size for how far off they are), "hidden" while they're off screen, "alone" in the
+-- upper middle of the view for a line with no speaker. Nil when the line should end: its speaker
+-- went back inside, or you walked too far off.
+local function placement(bubble: Bubble, viewport: Vector2, scale: number): (Vector2?, string, number)
 	local camera = Workspace.CurrentCamera
-	local subtitle = Vector2.new(viewport.X * 0.5 + bubble.size.X * 0.5 * scale, viewport.Y * SUBTITLE_Y)
 	local speaker = bubble.speaker
 	if speaker == nil or camera == nil then
-		return subtitle, false
+		return Vector2.new(viewport.X * 0.5 + bubble.size.X * 0.5 * scale, viewport.Y * SUBTITLE_Y), "alone", 1
 	end
 	local face = if speaker.Parent then Homeowner.face(speaker) else nil
 	if face == nil then
 		bubble.lost = bubble.lost or os.clock()
 		if os.clock() - (bubble.lost :: number) > LOST_GRACE then
-			return nil, false
+			return nil, "gone", 1
 		end
-		return bubble.at or subtitle, false
+		return bubble.at, "face", 1
 	end
 	bubble.lost = nil
 	local character = Players.LocalPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if root and (root.Position - face).Magnitude > FAR then
-		return nil, false
+	local distance = if root then (root.Position - face).Magnitude else 0
+	if distance > FAR then
+		return nil, "gone", 1
 	end
 	local point, onScreen = camera:WorldToViewportPoint(face)
 	if not onScreen or point.Z <= 0 then
-		return subtitle, false
+		return nil, "hidden", 1
 	end
+	local size =
+		math.clamp(1 - (distance - SHRINK.near) / (SHRINK.far - SHRINK.near) * (1 - SHRINK.least), SHRINK.least, 1)
 	-- Leave room for the head itself: about a stud on screen.
 	local edge = camera:WorldToViewportPoint(face + camera.CFrame.RightVector * 0.9)
 	local radius = math.abs(edge.X - point.X)
-	local reach = LEADER * scale * 0.75
-	local tip = Vector2.new(point.X - radius - GAP.X, point.Y - GAP.Y)
-	return Vector2.new(tip.X - reach, tip.Y - reach * 0.85), true
+	local reach = LEADER * scale * size * 0.75
+	local tip = Vector2.new(point.X - radius - GAP.X * size, point.Y - GAP.Y * size)
+	return Vector2.new(tip.X - reach, tip.Y - reach * 0.85), "face", size
 end
 
 local function update()
@@ -257,20 +263,27 @@ local function update()
 	local scale = Scale.get()
 	local camera = Workspace.CurrentCamera
 	local viewport = if camera then camera.ViewportSize else Vector2.new(1100, 620)
-	local want, pointing = placement(bubble, viewport, scale)
-	if want == nil then
+	local want, how, size = placement(bubble, viewport, scale)
+	if how == "gone" then
 		current = nil
 		destroyBubble(bubble, true)
 		return
 	end
-	-- Ease toward it (snap the first time), and keep the whole panel on screen.
-	local at = if bubble.at then (bubble.at :: Vector2):Lerp(want, 1 - math.exp(-dt * 14)) else want
-	bubble.at = at
-	local w, h = bubble.size.X * scale, bubble.size.Y * scale
-	local x = math.clamp(at.X, w + 8, viewport.X - 8)
-	local y = math.clamp(at.Y, h + 8, viewport.Y - 8)
-	bubble.frame.Position = UDim2.fromOffset(x / scale, y / scale)
-	bubble.leader.Visible = pointing
+	if how == "hidden" or want == nil then
+		bubble.frame.Visible = false
+		bubble.at = nil -- snap back to them when they're in view again
+	else
+		bubble.frame.Visible = true
+		bubble.shrink.Scale = size
+		-- Ease toward it (snap the first time), and keep the whole panel on screen.
+		local at = if bubble.at then (bubble.at :: Vector2):Lerp(want, 1 - math.exp(-dt * 14)) else want
+		bubble.at = at
+		local w, h = bubble.size.X * scale * size, bubble.size.Y * scale * size
+		local x = math.clamp(at.X, w + 8, viewport.X - 8)
+		local y = math.clamp(at.Y, h + 8, viewport.Y - 8)
+		bubble.frame.Position = UDim2.fromOffset(x / scale, y / scale)
+		bubble.leader.Visible = how == "face"
+	end
 
 	local elapsed = os.clock() - bubble.started
 	local shiver = os.clock() >= shiverAt
