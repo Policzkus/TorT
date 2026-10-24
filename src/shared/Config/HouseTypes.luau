@@ -1,7 +1,9 @@
 --!strict
 -- House types, rolled per house at every Dawn (PROMPT §3.5), and homeowner preferences.
 
-export type HouseType = "Normal" | "Decorated" | "Trick" | "Bowl" | "LightsOff"
+-- Open: the front door stands open on a lit hall and nobody answers (one day you'll be able to walk
+-- in: the heists). Only houses with a real door and a hall can be open (HouseService).
+export type HouseType = "Normal" | "Decorated" | "Trick" | "Bowl" | "LightsOff" | "Open"
 
 return {
 	-- Candy multiplier and added mini-game difficulty per type.
@@ -10,12 +12,12 @@ return {
 
 	-- Roll weights per neighborhood tier (index = tier). Tier 1 never has trick houses.
 	WEIGHTS = {
-		{ Normal = 60, Decorated = 10, Trick = 0, Bowl = 10, LightsOff = 10 },
-		{ Normal = 54, Decorated = 12, Trick = 5, Bowl = 9, LightsOff = 9 },
-		{ Normal = 48, Decorated = 14, Trick = 10, Bowl = 8, LightsOff = 8 },
-		{ Normal = 42, Decorated = 16, Trick = 15, Bowl = 7, LightsOff = 7 },
-		{ Normal = 36, Decorated = 18, Trick = 20, Bowl = 6, LightsOff = 6 },
-		{ Normal = 30, Decorated = 20, Trick = 25, Bowl = 5, LightsOff = 5 },
+		{ Normal = 60, Decorated = 10, Trick = 0, Bowl = 10, LightsOff = 10, Open = 8 },
+		{ Normal = 54, Decorated = 12, Trick = 5, Bowl = 9, LightsOff = 9, Open = 8 },
+		{ Normal = 48, Decorated = 14, Trick = 10, Bowl = 8, LightsOff = 8, Open = 8 },
+		{ Normal = 42, Decorated = 16, Trick = 15, Bowl = 7, LightsOff = 7, Open = 8 },
+		{ Normal = 36, Decorated = 18, Trick = 20, Bowl = 6, LightsOff = 6, Open = 8 },
+		{ Normal = 30, Decorated = 20, Trick = 25, Bowl = 5, LightsOff = 5, Open = 8 },
 	} :: { { [string]: number } },
 
 	-- Take-One Bowl: take one safely, or hold TAKE ALL for a big haul and a chance to get caught.

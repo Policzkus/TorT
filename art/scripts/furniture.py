@@ -6,7 +6,8 @@ furnished differently.
     blender -b --factory-startup --python art/scripts/furniture.py -- [--render NAME] [--export]
 
 Most pieces come from interiors.py; new here: a coffin on trestles, an upright piano, a seance
-table, a trunk, a birdcage, floor candles, toy blocks. Exports art/export/furniture/Furniture.fbx;
+table, a trunk, a birdcage, floor candles, toy blocks, and for the entrance halls a coat rack, a
+mirror, an umbrella stand, a runner, a console table, a porcelain doll, a pram and a hanging bulb. Exports art/export/furniture/Furniture.fbx;
 tools/setup_furniture.luau files it under ReplicatedStorage.Assets.Furniture.
 """
 
@@ -128,6 +129,112 @@ def toy_blocks():
         V.box("FurnitureWood", (0.16, 0.16, 0.16), (x, y, z + 0.08), rot=(0, 0, r), bevel=0.01, matrix=m)
 
 
+# The entrance halls (seen through an opened door, and the open houses): ------------------------
+
+
+def coat_rack():
+    """A bentwood coat stand: three splayed feet, two old coats on its hooks and a hat on top."""
+    m = at0()
+    V.lathe("FurnitureWood", [(0.035, 0.05), (0.03, 0.9), (0.028, 1.75), (0.05, 1.8), (0.0, 1.86)], (0, 0, 0), segments=8, matrix=m)
+    for i in range(3):
+        a = i * 2 * math.pi / 3
+        V.box("FurnitureWood", (0.04, 0.34, 0.04), (math.cos(a) * 0.15, math.sin(a) * 0.15, 0.06), rot=(0.25, 0, a + math.pi / 2), matrix=m)
+    for i in range(4):
+        a = i * math.pi / 2 + 0.4
+        V.box("Iron", (0.02, 0.13, 0.02), (math.cos(a) * 0.07, math.sin(a) * 0.07, 1.68), rot=(-0.6, 0, a + math.pi / 2), matrix=m)
+    # The coats: long, heavy, slumped, hanging off two hooks.
+    I.lump(V, "Cloth", (0.42, 0.2, 1.05), m @ V.frame_matrix((0.12, -0.09, 0.62), (0.05, 0, 0.4)), droop=0.08, seed=7)
+    I.lump(V, "Velvet", (0.38, 0.18, 0.92), m @ V.frame_matrix((-0.1, 0.1, 0.72), (-0.04, 0, -0.9)), droop=0.08, seed=8)
+    # A hat on the top hook.
+    V.lathe("Canvas", [(0.0, 0.0), (0.17, 0.0), (0.17, 0.015), (0.1, 0.02), (0.1, 0.14), (0.0, 0.15)], (0.05, -0.03, 1.74), segments=14, matrix=m)
+
+
+def hall_mirror():
+    """A tall mirror in a heavy frame, hung on the wall (origin at its centre, glass toward -Y)."""
+    m = at0()
+    w, h = 0.6, 1.2
+    V.box("FurnitureWood", (w + 0.14, 0.05, h + 0.14), (0, 0.02, 0), bevel=0.02, matrix=m)
+    V.box("Mirror", (w, 0.02, h), (0, -0.01, 0), matrix=m)
+    V.lathe("FurnitureWood", [(0.0, 0.0), (0.06, 0.0), (0.05, 0.04), (0.0, 0.08)], (0, -0.02, h / 2 + 0.07), segments=8, matrix=m)
+
+
+def umbrella_stand():
+    m = at0()
+    V.lathe("Iron", [(0.0, 0.0), (0.13, 0.0), (0.14, 0.04), (0.12, 0.3), (0.14, 0.52), (0.12, 0.54), (0.11, 0.06)], (0, 0, 0), segments=12, matrix=m)
+    for i, (x, y, lean) in enumerate(((0.04, 0.02, 0.12), (-0.05, -0.03, -0.18))):
+        tilt = m @ V.frame_matrix((x, y, 0.05), (lean, lean * 0.5, 0))
+        V.lathe("Canvas", [(0.0, 0.0), (0.03, 0.05), (0.055, 0.35), (0.04, 0.78), (0.0, 0.84)], (0, 0, 0), segments=8, matrix=tilt)
+        V.lathe("Iron", [(0.008, 0.84), (0.008, 0.96)], (0, 0, 0), segments=5, matrix=tilt)
+        hook = [tilt @ Vector(p) for p in ((0, 0, 0.96), (0, -0.03, 1.02), (0, -0.08, 1.0), (0, -0.08, 0.96))]
+        V.tube("FurnitureWood", hook, [0.012 * U] * 4, sides=0)
+
+
+def runner():
+    I.rug(V, at0(), 0.8, 2.4)
+
+
+def console():
+    """A narrow hall table: a bowl of keys nobody uses, a candle stub, a little frame."""
+    m = at0()
+    V.box("FurnitureWood", (0.95, 0.32, 0.04), (0, 0, 0.82), bevel=0.01, matrix=m)
+    V.box("FurnitureWood", (0.88, 0.26, 0.1), (0, 0, 0.75), matrix=m)
+    V.box("FurnitureWood", (0.84, 0.24, 0.02), (0, 0, 0.2), matrix=m)
+    for sx in (-0.42, 0.42):
+        for sy in (-0.12, 0.12):
+            V.lathe("FurnitureWood", [(0.02, 0), (0.028, 0.1), (0.018, 0.5), (0.024, 0.8)], (sx, sy, 0), segments=6, matrix=m)
+    V.lathe("Iron", [(0.0, 0.84), (0.11, 0.85), (0.13, 0.9), (0.12, 0.91), (0.09, 0.86)], (-0.22, 0, 0), segments=12, matrix=m)
+    V.lathe("Iron", [(0.05, 0.84), (0.02, 0.88), (0.015, 1.02), (0.03, 1.04)], (0.3, 0.02, 0), segments=8, matrix=m)
+    V.lathe("Pale", [(0.016, 1.04), (0.016, 1.1), (0.0, 1.11)], (0.3, 0.02, 0), segments=6, matrix=m)
+    I.portrait(V, m @ V.frame_matrix((0.06, 0.1, 0.98), (-0.25, 0, 0.2)) @ Matrix.Scale(0.3, 4))
+
+
+def doll():
+    """A porcelain doll sitting with its legs out: cracked face, one eye gone."""
+    m = at0()
+    I.lump(V, "Velvet", (0.2, 0.16, 0.2), m @ Matrix.Translation((0, 0.02, 0.12)), droop=0.04, seed=3)
+    V.lathe("Pale", [(0.0, 0.2), (0.05, 0.21), (0.07, 0.26), (0.06, 0.31), (0.0, 0.33)], (0, 0.02, 0), segments=10, matrix=m)
+    head = m @ Matrix.Translation((0, 0.01, 0.4))
+    V.lathe("Pale", [(0.0, -0.07), (0.055, -0.06), (0.07, 0.0), (0.06, 0.05), (0.0, 0.075)], (0, 0, 0), segments=12, matrix=head)
+    V.lathe("Canvas", [(0.0, 0.0), (0.065, 0.02), (0.075, 0.05), (0.0, 0.085)], (0, 0.01, 0), segments=12, matrix=head)
+    V.lathe("Interior", [(0.0, -0.012), (0.014, 0.0), (0.0, 0.012)], (0.025, -0.058, 0.005), segments=6, matrix=head @ Matrix.Rotation(math.pi / 2, 4, "X"))
+    V.lathe("Interior", [(0.0, -0.016), (0.019, 0.0), (0.0, 0.016)], (-0.026, -0.05, 0.005), segments=6, matrix=head @ Matrix.Rotation(math.pi / 2, 4, "X"))
+    V.box("Canvas", (0.004, 0.003, 0.06), (-0.012, -0.065, -0.01), rot=(0, 0.4, 0), matrix=head)
+    for sx in (-1, 1):
+        V.tube("Pale", [m @ Vector((sx * 0.07, 0.0, 0.27)), m @ Vector((sx * 0.1, -0.04, 0.18)), m @ Vector((sx * 0.09, -0.07, 0.12))], [0.018 * U, 0.016 * U, 0.015 * U], sides=0)
+        V.tube("Pale", [m @ Vector((sx * 0.05, -0.02, 0.06)), m @ Vector((sx * 0.06, -0.14, 0.04)), m @ Vector((sx * 0.07, -0.24, 0.03))], [0.022 * U, 0.02 * U, 0.018 * U], sides=0)
+
+
+def pram():
+    """An old baby carriage, hood up, left in the hall. Nothing in it. Probably."""
+    m = at0()
+    for x in (-0.3, 0.3):
+        for y in (-0.38, 0.38):
+            V.torus("Iron", (0, 0, 0), 0.17, 0.012, m @ Matrix.Translation((x, y, 0.18)) @ Matrix.Rotation(math.pi / 2, 4, "Y"), segments=16, sides=4)
+            for k in range(4):
+                V.box("Iron", (0.006, 0.006, 0.32), (x, y, 0.18), rot=(k * math.pi / 4, 0, 0), matrix=m)
+        V.box("Iron", (0.015, 0.9, 0.015), (x, 0, 0.3), matrix=m)
+    # The tub: a deep, rounded basket in faded velvet, dark inside, a black rim round its mouth.
+    tub = [(math.cos(a) * 0.25, math.sin(a) * 0.42) for a in [k * math.pi / 8 for k in range(16)]]
+    outline_slab("Velvet", tub, 0.36, 0.68, m)
+    outline_slab("Interior", [(x * 0.9, y * 0.93) for x, y in tub], 0.68, 0.685, m)
+    V.torus("Canvas", (0, 0, 0), 0.25, 0.018, m @ Matrix.Translation((0, 0, 0.69)) @ Matrix.Diagonal((1, 1.68, 1, 1)), segments=20, sides=4)
+    # The hood, curving up over the head end in black panels.
+    for k in range(6):
+        a = (k + 0.5) * math.pi / 12
+        V.box("Canvas", (0.5, 0.02, 0.085), (0, 0.12 + math.cos(a) * 0.3, 0.7 + math.sin(a) * 0.3), rot=(a, 0, 0), matrix=m)
+    V.tube("Iron", [m @ Vector((0, -0.4, 0.62)), m @ Vector((0, -0.6, 0.95)), m @ Vector((0, -0.66, 1.0))], [0.015 * U] * 3, sides=0)
+    V.box("Iron", (0.5, 0.03, 0.03), (0, -0.66, 1.0), matrix=m)
+
+
+def hanging_bulb():
+    """A bare bulb under a tin shade on a long cord (origin at the ceiling; it hangs down from it)."""
+    m = at0()
+    V.lathe("Iron", [(0.04, 0.0), (0.03, -0.02), (0.0, -0.03)], (0, 0, 0), segments=8, matrix=m)
+    V.lathe("Canvas", [(0.006, -0.02), (0.006, -0.9)], (0, 0, 0), segments=5, matrix=m)
+    V.lathe("Iron", [(0.02, -0.9), (0.03, -0.94), (0.16, -1.04), (0.17, -1.06), (0.03, -0.96)], (0, 0, 0), segments=14, matrix=m)
+    V.lathe("Pale", [(0.0, -0.95), (0.025, -0.98), (0.04, -1.04), (0.03, -1.09), (0.0, -1.11)], (0, 0, 0), segments=10, matrix=m)
+
+
 PIECES = {
     "Armchair": lambda: I.armchair(V, at0()),
     "SideTable": lambda: I.side_table(V, at0()),
@@ -164,6 +271,14 @@ PIECES = {
     "Birdcage": birdcage,
     "Candles": candles,
     "ToyBlocks": toy_blocks,
+    "CoatRack": coat_rack,
+    "HallMirror": hall_mirror,
+    "UmbrellaStand": umbrella_stand,
+    "Runner": runner,
+    "Console": console,
+    "Doll": doll,
+    "Pram": pram,
+    "HangingBulb": hanging_bulb,
 }
 
 
@@ -171,6 +286,8 @@ def build():
     V.reset()
     V.build_materials()
     I.materials(V)
+    # The hall mirror's glass: nearly black, glossy, so it catches the light.
+    V.MATERIALS["Mirror"] = V.textured("Mirror", None, tint=(0.05, 0.055, 0.06, 1), rough=0.12)
     for name, fn in PIECES.items():
         before = set(bpy.data.objects)
         fn()
@@ -206,14 +323,22 @@ def build():
 if __name__ == "__main__":
     merged = build()
     if "--render" in ARGS:
-        cols = 7
-        for i, (name, obj) in enumerate(merged.items()):
-            obj.location = ((i % cols) * 7.5 - 22, (i // cols) * 9.0, 0)
+        # --only A,B,C: just those pieces, in a row, closer up.
+        only = ARGS[ARGS.index("--only") + 1].split(",") if "--only" in ARGS else None
+        shown = [(n, o) for n, o in merged.items() if only is None or n in only]
+        for name, obj in merged.items():
+            obj.hide_render = only is not None and name not in only
+        cols = 7 if only is None else len(shown)
+        hung = {"HallMirror": 5.5, "Portrait": 5.5, "HangingBulb": 6.5}  # shown at about their height
+        spacing = 7.5 if only is None else 5.0
+        for i, (name, obj) in enumerate(shown):
+            obj.location = ((i % cols) * spacing - (cols - 1) * spacing / 2, (i // cols) * 9.0, hung.get(name, 0))
         cam, _ = V.setup_render("furniture", night=False)
         scene = bpy.context.scene
         scene.camera = cam
-        cam.location = (0, -42, 30)
-        cam.rotation_euler = (Vector((0, 16, 0)) - Vector(cam.location)).to_track_quat("-Z", "Y").to_euler()
+        cam.location = (0, -42, 30) if only is None else (0, -2.6 * len(shown) - 7, 6)
+        look = Vector((0, 16, 0)) if only is None else Vector((0, 0, 3))
+        cam.rotation_euler = (look - Vector(cam.location)).to_track_quat("-Z", "Y").to_euler()
         scene.render.filepath = str(V.RENDERS / f"{ARGS[ARGS.index('--render') + 1]}.png")
         bpy.ops.render.render(write_still=True)
         print("RENDERED", scene.render.filepath)

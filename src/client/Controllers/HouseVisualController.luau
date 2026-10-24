@@ -1,33 +1,52 @@
 --!strict
 -- Draws each house's "tells" from the attributes HouseService sets (PROMPT §3.5), all locally:
---   homeowner + preference badge over the door, dark windows for Lights Off, a flickering porch
---   light for Trick houses, string lights + extra pumpkins for Decorated houses, and the gold
---   beam over the Full-Size Bar house (from ReplicatedStorage.WorldState). Jack-o'-lantern candles
---   on the Blender houses flicker.
+--   preference badge over the door, dark windows for Lights Off, a flickering porch light for
+--   Trick houses, string lights + extra pumpkins for Decorated houses, the front door standing
+--   open on a lit hall for Open houses (with someone at the end of the hall who's gone when you
+--   come close), and the gold beam over the Full-Size Bar house (from ReplicatedStorage.WorldState).
+--   Jack-o'-lantern candles on the Blender houses flicker.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Houses = require(Shared.Modules.Houses)
 local Events = require(Shared.Config.Events)
 local HouseTypes = require(Shared.Config.HouseTypes)
+local Sound = require(script.Parent.SoundController)
 local Chip = require(script.Parent.Parent.UI.Components.Chip)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
 local HouseVisualController = {}
 
+type Open = {
+	hinge: Model,
+	closed: CFrame,
+	light: PointLight?,
+	steady: number,
+	spot: BasePart?,
+	figure: BasePart?,
+	gone: boolean,
+}
+
 type Tracked = {
 	door: BasePart,
 	model: Model,
 	decor: Folder?,
 	badge: BillboardGui?,
+	open: Open?, -- standing open (an Open house)
 	saved: { [Instance]: { [string]: any } }, -- original properties of things we changed
 }
 
+local OPEN_SHARE = 0.92 -- of its OpenAngle an open house's door stands at
+local FIGURE_GONE = 13 -- studs: come this close and whoever stood at the end of the hall is gone
+local FIGURE_BACK = 40 -- studs: walk this far away and they may be back
+
 local tracked: { [Model]: Tracked } = {}
+local opened: { [Model]: Tracked } = {}
 local tricky: { [Model]: boolean } = {}
 local candles: { [PointLight]: number } = {} -- jack-o'-lantern candles and their steady brightness
 local beam: Model? = nil
@@ -196,7 +215,107 @@ local function updateBadge(entry: Tracked)
 	gui.Enabled = entry.model:GetAttribute("OwnerOut") ~= true
 end
 
-local function apply(entry: Tracked)
+local function frontHinge(model: Model): Model?
+	local door = model:FindFirstChild("FrontDoor", true)
+	if door and door:IsA("Model") and CollectionService:HasTag(door, "Hinged") and door.PrimaryPart then
+		return door
+	end
+	return nil
+end
+
+-- An Open house: the front door swings open (or already stands open if it just streamed in), the
+-- hall light (HouseService switches it on) gutters like a candle, and someone stands at the far end
+-- of the hall, looking out.
+local function standOpen(entry: Tracked, animate: boolean)
+	local hinge = frontHinge(entry.model)
+	if hinge == nil then
+		return
+	end
+	local closed = hinge:GetPivot()
+	local angle = math.rad(((hinge:GetAttribute("OpenAngle") :: number?) or 90) * OPEN_SHARE)
+	local glow = entry.model:FindFirstChild("HallLight")
+	local light = glow and glow:FindFirstChildOfClass("PointLight")
+	local spot = entry.model:FindFirstChild("HallFigure") :: BasePart?
+	local open: Open = {
+		hinge = hinge,
+		closed = closed,
+		light = light,
+		steady = if light then light.Brightness else 1,
+		spot = spot,
+		figure = nil,
+		gone = false,
+	}
+	entry.open = open
+	opened[entry.model] = entry
+	if animate then
+		Sound.play("Creak", { at = hinge.PrimaryPart, speed = 0.65, volume = 0.8 })
+		task.spawn(function()
+			local t = 0
+			while t < 1 and entry.open == open do
+				t = math.min(1, t + RunService.Heartbeat:Wait() / 2.2)
+				hinge:PivotTo(closed * CFrame.Angles(0, angle * (1 - (1 - t) ^ 3), 0))
+			end
+		end)
+	else
+		hinge:PivotTo(closed * CFrame.Angles(0, angle, 0))
+	end
+	if light then
+		candles[light] = open.steady
+	end
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local furniture = assets and assets:FindFirstChild("Furniture")
+	local template = furniture and furniture:FindFirstChild("Figure") :: BasePart?
+	if spot and template then
+		local figure = template:Clone()
+		figure:PivotTo(spot.CFrame)
+		figure.Parent = entry.model
+		open.figure = figure
+	end
+end
+
+local function closeUp(entry: Tracked)
+	local open = entry.open
+	if open == nil then
+		return
+	end
+	entry.open = nil
+	opened[entry.model] = nil
+	open.hinge:PivotTo(open.closed)
+	if open.light then
+		candles[open.light] = nil
+		open.light.Brightness = open.steady
+	end
+	if open.figure then
+		open.figure:Destroy()
+	end
+end
+
+-- Whoever stands at the end of an open house's hall: there when you look from the street, gone
+-- when you come close, maybe back once you've walked away.
+local function watchFigures()
+	local camera = Workspace.CurrentCamera
+	if camera == nil then
+		return
+	end
+	for model, entry in opened do
+		local open = entry.open
+		if open == nil or open.figure == nil or open.spot == nil or model.Parent == nil then
+			continue
+		end
+		local distance = (camera.CFrame.Position - open.spot.Position).Magnitude
+		if not open.gone and distance < FIGURE_GONE then
+			open.gone = true
+			open.figure.Parent = nil
+			Sound.play("Whispers", { at = open.spot, volume = 0.9 })
+		elseif open.gone and distance > FIGURE_BACK and math.random() < 0.03 then
+			open.gone = false
+			open.figure.Parent = model
+		end
+	end
+end
+
+local function apply(entry: Tracked, fresh: boolean?)
+	closeUp(entry)
 	restore(entry)
 	if entry.decor then
 		entry.decor:Destroy()
@@ -213,6 +332,8 @@ local function apply(entry: Tracked)
 		decorate(entry)
 	elseif houseType == "Trick" then
 		tricky[entry.model] = true
+	elseif houseType == "Open" then
+		standOpen(entry, not fresh)
 	end
 	updateBadge(entry)
 end
@@ -239,12 +360,13 @@ local function track(door: Instance)
 			updateBadge(entry)
 		end
 	end)
-	apply(entry)
+	apply(entry, true)
 end
 
 local function untrack(door: Instance)
 	local model = Houses.of(door)
 	if model and tracked[model] then
+		closeUp(tracked[model])
 		tracked[model] = nil
 		tricky[model] = nil
 	end
@@ -345,6 +467,7 @@ function HouseVisualController.Start()
 	-- Trick houses: a porch light that can't make up its mind. Candles gutter everywhere.
 	while true do
 		task.wait(0.12)
+		watchFigures()
 		for light, steady in candles do
 			if light.Parent == nil then
 				candles[light] = nil

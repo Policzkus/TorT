@@ -26,6 +26,15 @@ export type Room = {
 	box: { x0: number, x1: number, y0: number, y1: number, floor: number, ceil: number },
 }
 
+-- A spot in the entrance hall: one of the furniture `pieces` stands there (or, `chance` aside,
+-- nothing), turned `yaw` degrees from facing the street.
+export type Prop = { at: Vector3, yaw: number, pieces: { string }, chance: number }
+
+-- The entrance hall behind the front door: what you see when it opens. Its light hangs at `lamp`
+-- (with `bulb`, a bare bulb on a cord hangs from the ceiling there too); an open house's figure
+-- stands at `figure`, looking out.
+export type Hall = { lamp: Vector3, figure: Vector3, props: { Prop }, bulb: boolean? }
+
 export type Data = {
 	style: string,
 	door: { x: number, y: number, sill: number }, -- front door slab centre (y is its plane)
@@ -35,6 +44,7 @@ export type Data = {
 	anchors: { { name: string, at: Vector3, yaw: number } },
 	rooms: { Room },
 	yard: { fence: string, pathFrom: number, tree: Vector3, graves: { Vector3 } },
+	hall: Hall?,
 }
 
 return nil

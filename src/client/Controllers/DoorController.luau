@@ -70,11 +70,11 @@ local function setBadge(houseId: string, door: BasePart?, secondsLeft: number?)
 	text.Text = `💤 {math.ceil(secondsLeft :: number)}s`
 end
 
--- Lights-off and bowl houses never answer the door.
+-- Lights-off, bowl and open houses never answer the door.
 local function answers(door: BasePart): boolean
 	local model = Houses.of(door)
 	local houseType = model and model:GetAttribute("HouseType")
-	return houseType ~= "LightsOff" and houseType ~= "Bowl"
+	return houseType ~= "LightsOff" and houseType ~= "Bowl" and houseType ~= "Open"
 end
 
 local function apply(houseId: string)

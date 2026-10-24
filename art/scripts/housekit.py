@@ -113,6 +113,8 @@ class Data:
         self.anchors = []
         self.rooms = []
         self.yard = {}
+        self.hall = None
+        self.props = []
 
     def front_door(self, x, y, sill):
         """The front door slab's centre: x, the plane it sits in (y), and its threshold height."""
@@ -138,6 +140,16 @@ class Data:
         import interiors
 
         self.rooms.append(interiors.room_entry(room, Vector(lamp), role, front))
+
+    def entrance(self, lamp, figure):
+        """The entrance hall behind the front door: its light (at its lamp), and where a figure
+        can stand at its far end looking out (World/BlenderLot, the open houses)."""
+        self.hall = (Vector(lamp), Vector(figure))
+
+    def prop(self, at, yaw, pieces, chance=1.0):
+        """A spot in the entrance hall: one of the furniture `pieces` goes there (or, `chance`
+        aside, nothing), turned `yaw` degrees from facing the street."""
+        self.props.append((Vector(at), yaw, list(pieces), chance))
 
     def write(self, root):
         def v3(p):
@@ -191,6 +203,15 @@ class Data:
             f"\t\ttree = {v3(Vector(y['tree']))},",
             f"\t\tgraves = {{ {graves} }},",
             "\t},",
+        ]
+        if self.hall:
+            lamp, figure = self.hall
+            lines += ["\thall = {", f"\t\tlamp = {v3(lamp)},", f"\t\tfigure = {v3(figure)},", "\t\tprops = {"]
+            for at, yaw, pieces, chance in self.props:
+                names = ", ".join(f'"{n}"' for n in pieces)
+                lines.append(f"\t\t\t{{ at = {v3(at)}, yaw = {yaw:.1f}, pieces = {{ {names} }}, chance = {chance:.2f} }},")
+            lines += ["\t\t},", "\t},"]
+        lines += [
             "}",
             "",
             "return data",

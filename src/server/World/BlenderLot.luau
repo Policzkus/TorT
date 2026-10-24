@@ -503,7 +503,60 @@ function BlenderLot.furnish(
 	folder.Parent = house
 end
 
--- The whole dressing: the yard (when the yard set is there), the room lights and the furniture. Returns false
+local HALL_LIGHT = Color3.fromRGB(255, 168, 104)
+
+-- The entrance hall behind the front door (Data.hall): a few pieces where the door opens onto,
+-- each spot picking its own (or staying empty), a bare bulb on a cord where there's no lamp, a
+-- light that's off until the house stands open ("HallLight": HouseService switches it), and
+-- "HallFigure", where an open house's figure stands looking out (HouseVisualController).
+function BlenderLot.dressHall(house: Model, base: CFrame, rng: Rng.Rng, hall: HouseData.Hall)
+	local function at(p: Vector3, yaw: number): CFrame
+		return base * CFrame.new(-p.X, p.Z, p.Y) * CFrame.Angles(0, math.rad(yaw), 0)
+	end
+	local set = BlenderLot.furnitureSet()
+	if set then
+		local folder = house:FindFirstChild("Furniture") or Instance.new("Folder")
+		folder.Name = "Furniture"
+		for _, prop in hall.props do
+			local template = set:FindFirstChild(rng:pick(prop.pieces)) :: BasePart?
+			if template and rng:chance(prop.chance) then
+				local piece = template:Clone()
+				piece:PivotTo(at(prop.at, prop.yaw + rng:range(-6, 6)))
+				piece.Parent = folder
+			end
+		end
+		local bulb = set:FindFirstChild("HangingBulb") :: BasePart?
+		if hall.bulb and bulb then
+			local hanging = bulb:Clone()
+			hanging:PivotTo(at(hall.lamp, rng:range(0, 360)))
+			hanging.Parent = folder
+		end
+		folder.Parent = house
+	end
+	local function marker(name: string, cframe: CFrame): Part
+		local part = Instance.new("Part")
+		part.Name = name
+		part.Anchored, part.CanCollide, part.CanQuery, part.CanTouch, part.CastShadow = true, false, false, false, false
+		part.Transparency = 1
+		part.Size = Vector3.one * 0.2
+		part.CFrame = cframe
+		part.Parent = house
+		return part
+	end
+	-- A bulb on a cord hangs about 4 studs; a room's lamp shade is already at the lamp.
+	local glow = marker("HallLight", at(hall.lamp - Vector3.new(0, 0, if hall.bulb then 4.1 else 0.6), 0))
+	local light = Instance.new("PointLight")
+	light.Range = 17
+	light.Brightness = 1.2
+	light.Color = HALL_LIGHT
+	light.Shadows = true
+	light.Enabled = false
+	light.Parent = glow
+	marker("HallFigure", at(hall.figure, 0))
+end
+
+-- The whole dressing: the yard (when the yard set is there), the room lights, the furniture and
+-- the entrance hall. Returns false
 -- when the yard set is missing, so the caller can build a yard of its own.
 function BlenderLot.dress(
 	house: Model,
@@ -519,6 +572,9 @@ function BlenderLot.dress(
 	end
 	local figureRoom = BlenderLot.roomLights(house, base, rng, data.rooms)
 	BlenderLot.furnish(house, base, rng, data.rooms, figureRoom)
+	if data.hall then
+		BlenderLot.dressHall(house, base, rng, data.hall)
+	end
 	return set ~= nil
 end
 

@@ -345,8 +345,17 @@ def rooms():
         role, front = roles[room["id"]]
         D.room(room, lamp, role, front)
         if room["id"] == "G2":  # the hall keeps its grand stair and clock; the game furnishes the rest
-            I.stairs(V, I.at(V, 1.6, 2.0, room["floor"]), steps=12)
-            I.clock(V, I.at(V, -3.5 + 0.16 * U, 6.0, room["floor"], pi / 2))
+            f = room["floor"]
+            I.stairs(V, I.at(V, 1.6, 2.0, f), steps=12)
+            I.clock(V, I.at(V, -3.5 + 0.16 * U, 6.0, f, pi / 2))
+            # What the game may stand in it (seen through the door when it opens).
+            D.entrance(lamp, (-1.8, 9.8, f))
+            D.prop((-0.6, 0.6, f), 0, ["Runner"], 0.85)
+            D.prop((-2.7, -0.9, f), 90, ["CoatRack", "UmbrellaStand"], 0.9)
+            D.prop((-3.15, 2.9, f), 90, ["Console"], 0.85)
+            D.prop((-3.45, 2.9, f + 5.0), 90, ["HallMirror", "Portrait"], 0.8)
+            D.prop((-2.0, 8.9, f), 165, ["Pram", "Doll", "SheetTall"], 0.75)
+            D.prop((1.2, 2.0 + 3 * 0.95, f + 0.18 * 4 * U), 10, ["Doll"], 0.3)  # on the fourth stair
 
 
 def colliders():

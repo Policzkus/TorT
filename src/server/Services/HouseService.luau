@@ -3,6 +3,7 @@
 -- as attributes on the house model (HouseType, Owner, Preference) for the client to draw the tells.
 -- Take-One Bowls get a bowl with two prompts; BowlTriggered tells DoorService what was picked.
 
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
@@ -134,8 +135,14 @@ local function apply(houseId: string, state: HouseState)
 	house.model:SetAttribute("Preference", state.preference)
 	-- Never who lives there: you find out when the door opens.
 	house.prompt.ObjectText = if state.houseType == "LightsOff" then "Nobody's home..." else "Trick or treat!"
-	-- Lights off and bowl houses don't answer the door.
-	house.prompt.Enabled = state.houseType ~= "LightsOff" and state.houseType ~= "Bowl"
+	-- Lights off, bowl and open houses don't answer the door.
+	house.prompt.Enabled = state.houseType ~= "LightsOff" and state.houseType ~= "Bowl" and state.houseType ~= "Open"
+	-- An open house's hall is lit (World/BlenderLot.dressHall); the client swings its door open.
+	local hallLight = house.model:FindFirstChild("HallLight")
+	local light = hallLight and hallLight:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Enabled = state.houseType == "Open"
+	end
 end
 
 function HouseService.setType(houseId: string, houseType: string)
@@ -149,17 +156,46 @@ function HouseService.setType(houseId: string, houseType: string)
 	end
 end
 
--- Dawn: every house gets a new type, owner and preference.
+-- Only a house with a real front door that swings and a hall behind it can stand open.
+local function canOpen(model: Model): boolean
+	local door = model:FindFirstChild("FrontDoor", true)
+	return door ~= nil
+		and door:IsA("Model")
+		and CollectionService:HasTag(door, "Hinged")
+		and model:FindFirstChild("HallLight") ~= nil
+end
+
+-- Dawn: every house gets a new type, owner and preference. Every street that can have an open
+-- house gets at least one.
 function HouseService.reroll()
+	local openable: { [string]: { string } } = {} -- neighbourhood -> houses that could be open
+	local opened: { [string]: boolean } = {}
 	for houseId, house in WorldService.info().houses do
 		local neighborhood = Neighborhoods.byId[house.neighborhood]
 		local weights = HouseTypes.WEIGHTS[math.clamp(neighborhood.tier, 1, #HouseTypes.WEIGHTS)]
+		local houseType = rng:weighted(weights) or "Normal"
+		local able = canOpen(house.model)
+		if houseType == "Open" and not able then
+			houseType = "Normal"
+		end
+		if able and houseType == "Normal" then
+			openable[house.neighborhood] = openable[house.neighborhood] or {}
+			table.insert(openable[house.neighborhood], houseId)
+		end
+		if houseType == "Open" then
+			opened[house.neighborhood] = true
+		end
 		apply(houseId, {
-			houseType = rng:weighted(weights) or "Normal",
+			houseType = houseType,
 			owner = rng:pick(Dialogue.ORDER),
 			preference = rng:pick(HouseTypes.PREFERENCES),
 		})
 		HomeownerService.roll(house.model, house.neighborhood)
+	end
+	for neighborhood, ids in openable do
+		if not opened[neighborhood] then
+			HouseService.setType(rng:pick(ids), "Open")
+		end
 	end
 	HouseService.Rerolled:Fire()
 end

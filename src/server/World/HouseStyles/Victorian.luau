@@ -1145,6 +1145,36 @@ local BLENDER_LOT: HouseData.Data = {
 		tree = Vector3.new(-16.5, -13.9, 0),
 		graves = { Vector3.new(-7.5, -10.2, 0), Vector3.new(-10.8, -10.8, 0) },
 	},
+	-- The corridor behind the front door (victorian.py door(): 6.6 wide, 9 deep, 10.6 high from
+	-- the threshold), a short stair up its right side at the back; the left side is free.
+	hall = {
+		lamp = Vector3.new(DOOR.x, 4.5, FOUND + 10.6),
+		bulb = true,
+		figure = Vector3.new(DOOR.x - 1.3, 9.3, FOUND),
+		props = {
+			{ at = Vector3.new(DOOR.x - 1.5, 4.6, FOUND), yaw = 0, pieces = { "Runner" }, chance = 0.85 },
+			{
+				at = Vector3.new(DOOR.x - 2.5, 2.3, FOUND),
+				yaw = 90,
+				pieces = { "CoatRack", "UmbrellaStand" },
+				chance = 0.9,
+			},
+			{ at = Vector3.new(DOOR.x - 2.85, 5.2, FOUND), yaw = 90, pieces = { "Console" }, chance = 0.85 },
+			{
+				at = Vector3.new(DOOR.x - 3.15, 5.2, FOUND + 5),
+				yaw = 90,
+				pieces = { "HallMirror", "Portrait" },
+				chance = 0.8,
+			},
+			{
+				at = Vector3.new(DOOR.x - 1.6, 8.4, FOUND),
+				yaw = 170,
+				pieces = { "Pram", "UmbrellaStand", "Doll" },
+				chance = 0.7,
+			},
+			{ at = Vector3.new(DOOR.x + 1.65, 6.2, FOUND + 1.8), yaw = -10, pieces = { "Doll" }, chance = 0.3 }, -- on a stair
+		},
+	},
 }
 
 -- Dresses the lot around the imported Blender model (ReplicatedStorage.Assets.Houses.Victorian,

@@ -202,6 +202,28 @@ local data: HouseData.Data = {
 		tree = Vector3.new(-10.50, -13.00, 0.00),
 		graves = { Vector3.new(8.00, -11.00, 0.00), Vector3.new(10.60, -12.20, 0.00) },
 	},
+	hall = {
+		lamp = Vector3.new(0.00, 4.35, 12.70),
+		figure = Vector3.new(-1.80, 9.80, 3.50),
+		props = {
+			{ at = Vector3.new(-0.60, 0.60, 3.50), yaw = 0.0, pieces = { "Runner" }, chance = 0.85 },
+			{
+				at = Vector3.new(-2.70, -0.90, 3.50),
+				yaw = 90.0,
+				pieces = { "CoatRack", "UmbrellaStand" },
+				chance = 0.90,
+			},
+			{ at = Vector3.new(-3.15, 2.90, 3.50), yaw = 90.0, pieces = { "Console" }, chance = 0.85 },
+			{ at = Vector3.new(-3.45, 2.90, 8.50), yaw = 90.0, pieces = { "HallMirror", "Portrait" }, chance = 0.80 },
+			{
+				at = Vector3.new(-2.00, 8.90, 3.50),
+				yaw = 165.0,
+				pieces = { "Pram", "Doll", "SheetTall" },
+				chance = 0.75,
+			},
+			{ at = Vector3.new(1.20, 4.85, 6.24), yaw = 10.0, pieces = { "Doll" }, chance = 0.30 },
+		},
+	},
 }
 
 return data

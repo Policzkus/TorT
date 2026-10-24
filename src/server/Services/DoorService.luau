@@ -181,7 +181,7 @@ end
 
 local function knock(player: Player, houseId: string)
 	local houseType = HouseService.houseType(houseId)
-	if houseType == "LightsOff" or houseType == "Bowl" then
+	if houseType == "LightsOff" or houseType == "Bowl" or houseType == "Open" then
 		return -- nobody answers
 	end
 	local house, neighborhood = canVisit(player, houseId)
