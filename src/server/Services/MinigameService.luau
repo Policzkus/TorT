@@ -60,6 +60,12 @@ function MinigameService.isBusy(player: Player): boolean
 	return pending[player] ~= nil
 end
 
+-- Whether this challenge is still the player's open one (coming up or being played).
+function MinigameService.isOpen(player: Player, id: number): boolean
+	local open = pending[player]
+	return open ~= nil and open.challenge.id == id
+end
+
 -- Drops the player's open challenge without a result (e.g. they left or teleported).
 function MinigameService.cancel(player: Player)
 	local open = pending[player]
@@ -146,6 +152,13 @@ function MinigameService.Start()
 		record(player, grade)
 		open.onResult(grade)
 	end, { rate = 4, burst = 6 })
+
+	-- The player walked away from the door before or during the game.
+	Net.connect("MinigameCancel", function(player: Player, id: any)
+		if type(id) == "number" and MinigameService.isOpen(player, id) then
+			MinigameService.cancel(player)
+		end
+	end, { rate = 2, burst = 4 })
 
 	Players.PlayerRemoving:Connect(function(player)
 		MinigameService.cancel(player)

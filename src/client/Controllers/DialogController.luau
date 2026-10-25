@@ -526,6 +526,15 @@ function DialogController.ask(
 	}
 end
 
+-- Ends what `speaker` is saying, if anything (you walked away from them).
+function DialogController.hush(speaker: Model)
+	if current and current.speaker == speaker then
+		closeChoices()
+		destroyBubble(current, true)
+		current = nil
+	end
+end
+
 -- Ends whatever is being said right now.
 function DialogController.clear()
 	closeChoices()

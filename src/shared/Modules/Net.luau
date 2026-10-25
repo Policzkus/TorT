@@ -21,6 +21,8 @@ local EVENTS: { [string]: string } = {
 	-- Doors and mini-games
 	MinigameStart = "S→C play a mini-game: (challenge: {id, kind, difficulty, seed, context})",
 	MinigameSubmit = "C→S raw input for a challenge: (id: number, taps: {number})",
+	MinigameCancel = "C→S you walked away from the door: drop the challenge (id: number)",
+	MinigameCancelled = "S→C your challenge was dropped, you left the door: (id: number)",
 	DoorResult = "S→C candy from a door: (result: DoorService.DoorResult)",
 	Jumpscare = "S→C play a scare: (houseId: string, kind: 'monster' | 'caught', line: string?)",
 	CooldownsReset = "S→C Dawn: every door is ready again",

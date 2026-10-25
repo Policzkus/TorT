@@ -5,14 +5,14 @@
 --   OwnerModel - Config/Homeowners id (rolled per Night from the neighbourhood's pool)
 --   OwnerSeed  - the client turns it into body proportions, tilt and idle quirks
 --   OwnerOut   - true while someone's at the door
+--   OwnerOutAt - when they came out (server time): a client arriving later shows them already out
 --   OwnerVisit - counts visits; with OwnerSeed it picks how they come out (Config/Homeowners.STYLES)
 --   OwnerStyle - that style, for late joiners and the jumpscare
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Characters = require(ReplicatedStorage.Shared.Config.Characters)
+local CharacterRig = require(ReplicatedStorage.Shared.Modules.CharacterRig)
 local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
-local Meshes = require(ReplicatedStorage.Shared.Config.Meshes)
 local WorldService = require(script.Parent.WorldService)
 
 local HomeownerService = {}
@@ -20,28 +20,39 @@ local HomeownerService = {}
 type Visit = { count: number, closing: number }
 local visits: { [string]: Visit } = {}
 local random = Random.new()
+local decks: { [string]: { string } } = {} -- per street: the homeowners not dealt yet
 
+-- A homeowner that can be shown: one whose meshes are in the place.
 local function available(id: string): boolean
-	return Characters[id] ~= nil or Meshes[id] ~= nil
+	return CharacterRig.ready(id)
 end
 
--- Rolls a house's homeowner (called by HouseService at every Dawn).
+-- Deals a house its homeowner (called by HouseService at every Dawn): the street's pool shuffled
+-- like a deck, so every one of them turns up before any comes round again, and a house rarely keeps
+-- the one it had.
 function HomeownerService.roll(model: Model, neighborhoodId: string)
-	local pool = {}
-	for _, id in Homeowners.POOLS[neighborhoodId] or {} do
-		if available(id) then
-			table.insert(pool, id)
+	local deck = decks[neighborhoodId]
+	if deck == nil or #deck == 0 then
+		deck = {}
+		for _, id in Homeowners.POOLS[neighborhoodId] or {} do
+			if available(id) then
+				table.insert(deck, id)
+			end
 		end
+		for i = #deck, 2, -1 do
+			local j = random:NextInteger(1, i)
+			deck[i], deck[j] = deck[j], deck[i]
+		end
+		decks[neighborhoodId] = deck
 	end
-	if #pool == 0 then
+	if #deck == 0 then
 		return
 	end
-	-- Neighbours on the same street rarely share a homeowner twice in a row.
 	local previous = model:GetAttribute("OwnerModel")
-	local pick = pool[random:NextInteger(1, #pool)]
-	if pick == previous and #pool > 1 then
-		pick = pool[random:NextInteger(1, #pool)]
+	if deck[#deck] == previous and #deck > 1 then
+		deck[#deck], deck[1] = deck[1], deck[#deck]
 	end
+	local pick = table.remove(deck) :: string
 	model:SetAttribute("OwnerModel", pick)
 	model:SetAttribute("OwnerSeed", random:NextInteger(1, 2 ^ 30))
 	model:SetAttribute("OwnerOut", false)
@@ -65,6 +76,7 @@ function HomeownerService.appear(houseId: string): number
 	model:SetAttribute("OwnerVisit", number)
 	local style = Homeowners.STYLES[random:NextInteger(1, #Homeowners.STYLES)]
 	model:SetAttribute("OwnerStyle", style)
+	model:SetAttribute("OwnerOutAt", workspace:GetServerTimeNow())
 	model:SetAttribute("OwnerOut", true)
 	return Homeowners.OUT_AFTER[style] or 2.4
 end

@@ -23,11 +23,15 @@ local sounds: { [string]: Sound } = {
 	Latch = { clip = "Latch", volume = 0.55 }, -- a bolt drawn back before the door opens
 	Creak = { clip = "DoorOpen", id = 109033795658503, volume = 0.6 }, -- Kenney door open; fallback Daily Sounds "Creaky Door"
 	DoorSlam = { id = 9114129572, volume = 0.7 }, -- ProSoundEffects "Door Bang Rattle 8"
+	DoorShut = { clip = "DoorClose", id = 9114129572, volume = 0.55 }, -- Kenney door closing (falls back to the slam)
 	-- Homeowners
 	Voice = { id = 9126213744, slice = 0.085, volume = 0.6 }, -- ProSoundEffects "Whisper Bursts Eerie Unintelligible Phrases 2"
 	Thud = { id = 9116908474, volume = 0.6, speed = 0.7 }, -- ProSoundEffects "Metal Whomps Deep Pounding Impacts 13"
 	FloorCreak = { id = 9114495966, volume = 0.6 }, -- ProSoundEffects "Floor Creaks Short Med Wood Creaks 18"
 	Breath = { id = 9113586144, volume = 0.5, speed = 0.8 }, -- ProSoundEffects "Breath Exhale 17"
+	OwnerStep = { clip = "Plank", id = 9114495966, volume = 0.42 }, -- Kenney heavy plank impact: their weight on the boards
+	BoardCreak = { clip = "Creak", id = 9114495966, volume = 0.3 }, -- Kenney creaks: a board giving under them
+	Cloth = { clip = "Cloth", volume = 0.35 }, -- Kenney cloth: clothes moving as they start, stop, turn
 	-- Mini-games and rewards
 	Tick = { clip = "Tick", id = 106984966606682, volume = 0.45 }, -- Kenney tick
 	Pop = { clip = "Drop", id = 106984966606682, volume = 0.5 }, -- Kenney drop (GOOD)

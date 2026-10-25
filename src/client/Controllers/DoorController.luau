@@ -17,6 +17,7 @@ local Houses = require(ReplicatedStorage:WaitForChild("Shared").Modules.Houses)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
 local Dialog = require(script.Parent.DialogController)
 local Homeowner = require(script.Parent.HomeownerController)
+local Minigame = require(script.Parent.MinigameController)
 local Sound = require(script.Parent.SoundController)
 local Chip = require(script.Parent.Parent.UI.Components.Chip)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -24,17 +25,19 @@ local create = require(script.Parent.Parent.UI.create)
 
 local DoorController = {}
 
--- Where you stand to see who answers: straight out from the door, NEAR to FAR studs, on the porch
--- or a step down (LEVEL under the sill) if there's room, else as far down a stoop as DROP. Already
--- standing KEEP or closer, within SIDE of the middle, you stay put.
-local DOORSTEP = { near = 5, far = 8, keep = 10, side = 2.5, level = 1, drop = 3.2 }
-local LOOK_TIME = 2.2 -- seconds your view is drawn up to their face; then it's yours again
+-- Where you stand to watch who answers: straight out from the door, far enough back to see all of
+-- them (VIEW + their height * PER_HEIGHT, between NEAR and FAR studs: they stop 2-4 studs out from
+-- the door, room to turn to you), on the porch or a step down (LEVEL under the sill) if there's
+-- room, else as far down a stoop as DROP.
+local DOORSTEP = { near = 6.5, far = 10.5, view = 4.2, perHeight = 0.6, level = 1, drop = 3.2 }
 local LOOK_BELOW = 0.9 -- aim this far under the face, so it sits above the mini-game panel
+local LOOK_AFTER = 0.8 -- seconds your view stays on them once the visit's over
 
 local doors: { [string]: BasePart } = {}
 local readyAt: { [string]: number } = {}
 local badges: { [string]: BillboardGui } = {}
-local look: { house: Model, guess: Vector3, untilAt: number }? = nil
+-- Your view, held on whoever answered for the whole visit (until `untilAt`, set when it's over).
+local look: { house: Model, houseId: string, guess: Vector3, untilAt: number }? = nil
 
 local function promptOf(door: BasePart): ProximityPrompt?
 	return door:FindFirstChildOfClass("ProximityPrompt")
@@ -118,16 +121,17 @@ function DoorController.getDoor(houseId: string): BasePart?
 	return doors[houseId]
 end
 
--- The farthest clear spot straight out from the door with floor about level with its sill; failing
--- that, the farthest down the stoop. Clear: nothing solid between it and the door.
-local function doorstep(bottom: Vector3, out: Vector3, character: Model): Vector3?
+-- The farthest clear spot straight out from the door, `near` to `far` studs, with floor about
+-- level with its sill; failing that, the farthest down the stoop. Clear: nothing solid between it
+-- and the door.
+local function doorstep(bottom: Vector3, out: Vector3, character: Model, near: number, far: number): Vector3?
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { character }
 	params.RespectCanCollide = true -- the houses' invisible colliders, not their meshes
 	local from = bottom + out * 0.8 + Vector3.new(0, 2.5, 0)
 	local below: Vector3? = nil
-	for distance = DOORSTEP.far, DOORSTEP.near, -0.5 do
+	for distance = far, near, -0.5 do
 		local spot = bottom + out * distance
 		local ground = Workspace:Raycast(spot + Vector3.new(0, 3, 0), Vector3.new(0, -3 - DOORSTEP.drop, 0), params)
 		if ground == nil or ground.Position.Y > bottom.Y + 0.5 then
@@ -152,12 +156,20 @@ end
 
 -- Once they're out (`outIn` seconds after the knock was answered), they say hello; the mini-game
 -- waits for it (Costume Line's question does that job itself).
+local greetings: { [Model]: number } = {} -- the hello each house is about to say (cancelled if you leave)
+
 local function greet(house: Model, outIn: number?)
 	local style = house:GetAttribute("OwnerStyle")
 	local wait = outIn or Homeowners.OUT_AFTER[if type(style) == "string" then style else "Creep"] or 2.4
+	local ticket = (greetings[house] or 0) + 1
+	greetings[house] = ticket
 	task.delay(wait + 0.3, function()
+		local still = Homeowner.arrivesIn(house) -- a long hall can keep them: the hello waits for them
+		if still and still > 0 then
+			task.wait(math.min(still, 2) + 0.2)
+		end
 		local personality = personalityOf(house)
-		if personality and house:GetAttribute("OwnerOut") == true then
+		if personality and greetings[house] == ticket and house:GetAttribute("OwnerOut") == true then
 			Dialog.say(house, personality.hello[math.random(1, #personality.hello)], personality.voice)
 		end
 	end)
@@ -179,8 +191,8 @@ local function react(result: any)
 	end
 end
 
--- Your knock was answered: step back off the door if you're on top of it, and look up at whoever
--- opens it.
+-- Your knock was answered: step back to where you'll see all of whoever opens it (held there: the
+-- mini-game holds your movement), and keep your eyes on them.
 local function onAnswered(houseId: string)
 	local door = doors[houseId]
 	local house = door and Houses.of(door)
@@ -193,20 +205,28 @@ local function onAnswered(houseId: string)
 	local frame = Homeowner.doorFrame(door) -- where it hangs closed (a real door may be swinging)
 	local bottom = (frame * CFrame.new(0, -door.Size.Y / 2, 0)).Position
 	local out = (frame.LookVector * Vector3.new(1, 0, 1)).Unit
-	local offset = root.Position - bottom
-	local along, side = offset:Dot(out), offset:Dot(frame.RightVector)
-	if along < DOORSTEP.near or along > DOORSTEP.keep or math.abs(side) > DOORSTEP.side then
-		local spot = doorstep(bottom, out, character)
-		if spot then
-			humanoid:MoveTo(spot) -- walks there with movement locked; first person keeps you facing the door
-		end
+	local owner = house:GetAttribute("OwnerModel")
+	local height = Homeowner.heightOf(if type(owner) == "string" then owner else "")
+	local want = math.clamp(DOORSTEP.view + height * DOORSTEP.perHeight, DOORSTEP.near, DOORSTEP.far)
+	local spot = doorstep(bottom, out, character, math.max(DOORSTEP.near, want - 1.5), want)
+	if spot and (Vector3.new(root.Position.X, spot.Y, root.Position.Z) - spot).Magnitude > 0.6 then
+		humanoid:MoveTo(spot) -- walks there with movement held; your view stays on the door
 	end
-	-- Until they're out, look about where a face will be: just over the door, on the threshold.
+	-- Until they're out, look about where a face will be: in the doorway, at their height.
 	look = {
 		house = house,
-		guess = bottom + out * 1.5 + Vector3.new(0, door.Size.Y * 0.88, 0),
-		untilAt = os.clock() + LOOK_TIME,
+		houseId = houseId,
+		guess = bottom + out * 1.2 + Vector3.new(0, math.min(height, door.Size.Y) * 0.85, 0),
+		untilAt = math.huge,
 	}
+end
+
+-- The visit's over (a result, or you walked away): your view is yours again shortly after.
+local function releaseLook(houseId: string?, after: number)
+	local active = look
+	if active and (houseId == nil or active.houseId == houseId) then
+		active.untilAt = math.min(active.untilAt, os.clock() + after)
+	end
 end
 
 local function steerLook(dt: number)
@@ -220,6 +240,9 @@ local function steerLook(dt: number)
 		return
 	end
 	local target = (Homeowner.face(active.house) or active.guess) - Vector3.new(0, LOOK_BELOW, 0)
+	if active.house:GetAttribute("OwnerOut") ~= true and Homeowner.face(active.house) == nil then
+		active.untilAt = math.min(active.untilAt, os.clock() + LOOK_AFTER) -- they've gone back in
+	end
 	local at = camera.CFrame
 	local want = CFrame.lookAt(at.Position, target)
 	camera.CFrame = CFrame.new(at.Position) * at.Rotation:Lerp(want.Rotation, 1 - math.exp(-dt * 6))
@@ -251,10 +274,21 @@ function DoorController.Start()
 			end
 		end
 	end)
+	-- You walked away: no hello, nothing more said, your view is yours again.
+	Minigame.abandoned:Connect(function(houseId: string?)
+		local door = if houseId then doors[houseId] else nil
+		local house = door and Houses.of(door)
+		look = nil -- you broke away: your view is yours at once
+		if house then
+			greetings[house] = (greetings[house] or 0) + 1
+			Dialog.hush(house)
+		end
+	end)
 	-- After the camera (and its PSX sway) has moved, so the camera picks up where this leaves it.
 	RunService:BindToRenderStep("DoorstepLook", Enum.RenderPriority.Camera.Value + 2, steerLook)
 
 	Net.event("DoorResult").OnClientEvent:Connect(function(result: any)
+		releaseLook(result.houseId, LOOK_AFTER)
 		readyAt[result.houseId] = result.cooldownUntil
 		apply(result.houseId)
 		react(result)

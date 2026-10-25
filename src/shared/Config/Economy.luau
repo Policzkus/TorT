@@ -24,6 +24,9 @@ return {
 	DOOR_COOLDOWN = 90,
 	-- Max studs between the player and the door for a knock to count (server check).
 	DOOR_RANGE = 12,
+	-- Walk this far from the door while they're coming out or playing and the visit is off: no
+	-- mini-game, no candy, no cooldown (client and server both check).
+	DOOR_LEAVE = 16,
 	-- Radius of a Candy Box drop-off circle.
 	STASH_RADIUS = 10,
 }

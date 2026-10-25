@@ -140,6 +140,75 @@
     - Furniture and yard: the trunk lid, the pram rim, portrait layers, the desk papers, the crib slats and the mailbox front.
     - The Mansard frieze had been a solid slab that filled the top of every upper room.
   - **Gotcha:** Python's `write_text` on Windows writes CRLF. The generators pass `newline="\n"` now, and a patch script must too.
+- **Homeowners rebuilt in Blender (2026-10-24, in progress; the user found the AI ones awful and too metallic):** the approved style is the player kids' style gone wrong: chunky, soft, big heads, simple faces, matte materials, one horror idea each. The user rejected realistic doll, puppet and sack concepts.
+  - `art/scripts/characters.py` builds all 17 owners in the rig's six parts, with their joint positions: `--lineup 0|1|2`, `--close Name,...`, `--sheet Names file`, `--export`.
+  - `--export` writes `art/export/characters/Homeowners.fbx` (meshes `Char_Owner_<Name>_<Part>`, a baked atlas each) and generates `Config/CharacterModels.luau`. That file is an empty placeholder until the first export.
+  - `tools/setup_characters.luau` files the imported meshes under `Assets.Characters`.
+  - `CharacterRig` builds Blender owners from those meshes at their pivots, with no morph. `CharacterRig.ready` decides who `HomeownerService` can pick.
+  - **A scarier pass (2026-10-25, the user said some weren't scary):**
+    - Grinner's teeth were placed at double height; he now has fangs all round and a lolling tongue.
+    - PumpkinSuit is carved with real boolean cuts (angry eyes, a fanged grin), not deleted faces.
+    - TankTop and BagMan got bloodshot eyes; Cardigan got pinprick pupils.
+    - SweaterVest's face is skin grown over his eyes and mouth.
+    - Porcelain got black tears and something glinting inside the hole.
+    - Bathrobe melts further and drips off his chin.
+    - Butler's neck is broken: his head lies on his shoulder (`skin(roll=...)` keeps the face paint on it).
+    - RavenMan now wears a crow-skull mask with red points in the sockets.
+  - Every Blender owner's head carries a `Face` attachment (from `face` in the data). `HomeownerController.face` (dialogue, the doorstep camera) and the jumpscare aim at it, because long hair and veils put the head part's middle far from the face.
+  - **In the game (2026-10-25):** `Homeowners.fbx` was imported: 102 parts, each with its own baked colour, normal and roughness maps (306 textures), with sizes matching the data. The setup script filed them under `Assets.Characters`.
+    - All 17 build through `CharacterRig` with their joints and faces.
+    - Verified at night doors in play: Grinner, Widow, Gown, PumpkinSuit and Butler.
+    - Gotcha when posing a rig by hand: `PivotTo` moves the HumanoidRootPart (PrimaryPart) to the target, not the feet. The game uses the `rootOffset` from `HomeownerController.build`.
+  - **The old AI homeowners are deleted (2026-10-25, the user asked):**
+    - Removed from `Config/Characters` (TankTop, Curlers, SweaterVest, Porcelain, SackMask, PumpkinSuit) and `Config/Meshes` (Cardigan, Nightgown, Lanky, Bathrobe, Grinner).
+    - Removed the fallback to them in `CharacterRig` and `MeshLibrary`, and `HomeownerController`'s one-piece-statue path.
+    - Removed the earlier rejected `art/scripts/homeowners.py` and its renders.
+    - A homeowner whose meshes aren't in the place is now simply never rolled (`CharacterRig.ready`).
+  - **Loaded before play (the user saw them loading in as a door opened):** the loading cover now preloads, in order, `Assets.Characters`, `MeshTemplates`, then `Assets.Furniture` (45 s cap).
+    - `PreloadAsync` fetches the meshes but not SurfaceAppearance maps; those load the first time they're seen. So under the cover each Blender homeowner is shown once, 8 studs in front of the camera.
+    - Then the cover waits for `ContentProvider.RequestQueueSize` to drain (15 s cap) before it lifts.
+    - **Still loading in (the user, 2026-10-25):** `PreloadAsync` skips SurfaceAppearance maps. It also fails on bare id strings, but the same id on an unparented Decal downloads.
+      - The setup scripts now write each part's map ids as a `Maps` attribute (`setup_characters` and `setup_furniture`; already applied in the place). The cover preloads them through Decals: 596 downloads, none failed.
+      - Homeowner meshes are `RenderFidelity.Precise` (no LOD pop).
+  - **Every homeowner shows up:** every street deals from the whole cast (`Homeowners.CAST`) like a shuffled deck (`HomeownerService.roll`), so a street shows 16 different ones before any repeats. Before, each street had a pool of 4–5 and picked at random.
+  - **Walking away calls the visit off:** while they come out and say hello you can move (movement locks only when the game itself starts).
+    - Past `Economy.DOOR_LEAVE` (16 studs) from the door, the client drops the visit: no game, the hello is cancelled, the line is hushed, the look released. It sends `MinigameCancel`.
+    - A server watcher does the same and sends `MinigameCancelled` if the client didn't.
+    - No candy and no cooldown; the homeowner goes back in.
+    - Verified in play: walk off mid-hello → no game frames, no dialogue, and the same door answers again at once. Staying → the game starts after the hello.
+  - **The doorstep, reworked (2026-10-25). The user said they float and clip through things, the sounds needed work, and the player should step back and be held so they see everything. Later: "they appear before the door is open", "they sometimes don't face the player".**
+    - **You step back and are held:**
+      - When the knock is answered, `DoorController` walks you straight out from the door to where all of them is in view. `DOORSTEP` is now 6.5–10.5 studs, by their height, because they stop further out.
+      - The camera stays on their face.
+      - Movement is held from the answer, not only once the game starts. Holding a direction for 0.35 s walks away (a hint shows after 1.5 s), which calls the visit off as above.
+    - **They walk, and it sounds like it:**
+      - The stride follows the ground covered: legs and arms swing and the body bobs.
+      - Every footfall is a heavy board (`OwnerStep`, `StepWood`, now and then `BoardCreak`).
+      - The latch, then each style's creak; cloth and breath as they settle; `DoorShut` (`DoorSlam` for Rush) behind them.
+    - **Nothing passes through the house or the door.** `HomeownerController.measure` works out each body against its doorway:
+      - It samples a real door's swing (20 steps).
+      - It takes the hall's depth from its figures' floor spots (the house collision is one solid box, so raycasts can't measure the hall).
+      - It measures the body as rounded part boxes, the head nodding and turning and the arms and legs swinging (`reachOf`).
+    - **Before the door has moved (the user's "appear before the door is open"):**
+      - They wait deep in the hall, beyond the door's sweep: 5–9 studs.
+      - They aren't in the world until the door moves.
+      - Their walk is timed so they never get ahead of the door (`planGate`, `aheadOfDoor`). Before, they stood 0.6–2.8 studs in, and the inward-swinging 4.1-stud door went through them.
+    - **Short halls:** the Mansard's vestibule is only 4.2 studs before its stairs, too short to wait clear of the door. There they stay out of the world while the door swings past, fade in out of the dark (`FADE`), and fade back out before it closes again.
+    - **Too tall for the door:** they fold down gradually while still in the hall, hold the fold until clear of the wall, then straighten.
+      - The fold turns about the root joint.
+      - A nodding head counts: nodding lifts the back of the head.
+    - **Sideways:** only someone whom turning makes narrower turns sideways through a door, and never while folded (folded, the turn swung the head into the wall).
+    - **They face you (the user's "sometimes don't face the player"):**
+      - They stop 2–4 studs out on the porch, with room to turn, and shuffle round toward you (up to 0.7 rad, small audible steps). The head does the rest.
+      - Before, wide homeowners stayed turned sideways, and the head stopped following you right where they stood.
+    - **Leaving:** they turn back to the door and back into the hall at walking pace (`LEAVE_PACE`), then the door shuts.
+    - **Timing:** `Homeowners.OUT_AFTER` is 0.2–0.4 s longer per style. If a long hall still makes them late, the hello waits for them (`HomeownerController.arrivesIn`).
+    - **Verified in play** with a harness that checks every frame: the Blender silhouettes against the wall over the frame, and rounded part shapes against the frame's sides and the swinging door.
+      - Clean at Farmhouse, Victorian and Mansard doors with Lanky, MaskedLady, Widow, Gown, Butler, Grinner, RavenMan, Curlers, Cardigan and PumpkinSuit, across all five styles. Body and head end up facing an off-centre camera.
+      - Painted Maple doors: nothing shows before the darkness covers the doorway.
+      - A real knock: SackMask came out facing you, and you were stepped back to 8.4 studs.
+    - **Not checked:** the halls' hanging lamps and props. Their paths run down the middle of the hall, clear of the props.
+    - **Test gotcha:** CC_07 and CC_13 are Open houses. Their doors already stand open, so a forced visit there is measured in the wrong frame. Nobody answers there in the game.
 - **Look (reworked 2026-10-23, the user found everything too dark):** the moon hangs ~40° up over the far end of each street (`World.LIGHTING.latitude` -26.5 at midnight), brighter cool moonlit ambient per street (later streets darker), exposure +0.4, light grade (saturation -0.12, contrast 0.08), depth of field only far away, and a shadowless cool `MoonFill_<house>` light over each lot's sidewalk, because the low moon throws each house's shadow over the next yard. Faint scanlines; grain off; a flashlight (F). Recommended manual step: Lighting → Technology = Future (MCP can't set it).
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)

@@ -21,9 +21,15 @@ export type Group = "World" | "Characters"
 local function allMeshes(): { [Group]: { [string]: Meshes.Mesh } }
 	local characters: { [string]: Meshes.Mesh } = {}
 	for characterId, character in Characters do
+		if character.pivots then
+			continue -- a Blender homeowner: its meshes are imported assets (Assets.Characters)
+		end
 		for segment, seg in character.segments do
-			characters[`Char_{characterId}_{segment}`] =
-				{ mesh = seg.mesh, texture = seg.texture, size = seg.size, collision = "Box" }
+			local mesh, texture = seg.mesh, seg.texture
+			if mesh and texture then
+				characters[`Char_{characterId}_{segment}`] =
+					{ mesh = mesh, texture = texture, size = seg.size, collision = "Box" }
+			end
 		end
 	end
 	return { World = Meshes, Characters = characters }

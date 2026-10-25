@@ -87,11 +87,13 @@ local function startCooldown(player: Player, houseId: string): number
 	return readyAt
 end
 
-local function nearHouse(player: Player, houseId: string): boolean
+local function nearHouse(player: Player, houseId: string, range: number?): boolean
 	local house = WorldService.getHouse(houseId)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	return house ~= nil and root ~= nil and (root.Position - house.door.Position).Magnitude <= Economy.DOOR_RANGE
+	return house ~= nil
+		and root ~= nil
+		and (root.Position - house.door.Position).Magnitude <= (range or Economy.DOOR_RANGE)
 end
 
 -- Shared checks for knocking and bowls. Returns the house and its street config if allowed.
@@ -198,8 +200,13 @@ local function knock(player: Player, houseId: string)
 	-- hello): the challenge's intro, which the client plays out and the clock leaves out.
 	local outIn = HomeownerService.appear(houseId)
 	local intro = outIn + (if kind == "CostumeLine" then 0 else Homeowners.HELLO_TIME)
-	local context =
-		{ houseId = houseId, personality = HouseService.owner(houseId), houseType = houseType, outIn = outIn }
+	local context = {
+		houseId = houseId,
+		personality = HouseService.owner(houseId),
+		houseType = houseType,
+		outIn = outIn,
+		door = house.door.Position, -- the client calls the visit off if you walk away from it
+	}
 	local issued = MinigameService.issue(player, kind, difficulty, function(grade)
 		HomeownerService.leave(houseId)
 		finish(player, houseId, houseType, grade)
@@ -210,7 +217,19 @@ local function knock(player: Player, houseId: string)
 	end, context, intro)
 	if issued == nil then
 		HomeownerService.leave(houseId)
+		return
 	end
+	-- Walk away while they're coming out, or mid-game, and it's off (the client usually says so first).
+	task.spawn(function()
+		while MinigameService.isOpen(player, issued.id) do
+			if not nearHouse(player, houseId, Economy.DOOR_LEAVE) then
+				MinigameService.cancel(player)
+				Net.event("MinigameCancelled"):FireClient(player, issued.id)
+				break
+			end
+			task.wait(0.25)
+		end
+	end)
 end
 
 local function takeFromBowl(player: Player, houseId: string, mode: string)

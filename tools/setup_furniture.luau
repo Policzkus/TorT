@@ -25,6 +25,22 @@ local off = table_.Position - origin.Position
 assert(math.abs(off.X) < 0.05 and math.abs(off.Z) < 0.05, "the table should stand on the rug's centre")
 assert(math.abs(table_.Position.Y - table_.Size.Y / 2 - origin.Y) < 0.05, "the table should stand on the floor")
 
+-- The SurfaceAppearance's texture ids, written on the part as "Maps": a game script can't read them
+-- and PreloadAsync skips them, so the loading screen (LoadingController) downloads them from this.
+local function noteMaps(part: MeshPart)
+	local look = part:FindFirstChildOfClass("SurfaceAppearance")
+	if look == nil then
+		return
+	end
+	local ids = {}
+	for _, map in { look.ColorMap, look.NormalMap, look.RoughnessMap, look.MetalnessMap } do
+		if map ~= "" then
+			table.insert(ids, map)
+		end
+	end
+	part:SetAttribute("Maps", table.concat(ids, ","))
+end
+
 local folder = Instance.new("Folder")
 folder.Name = "Furniture"
 local count = 0
@@ -40,6 +56,7 @@ for _, part in imported:GetDescendants() do
 	part.CastShadow = true
 	part.CollisionFidelity = Enum.CollisionFidelity.Box
 	part.PivotOffset = part.CFrame:ToObjectSpace(origin)
+	noteMaps(part)
 	part.Parent = folder
 	count += 1
 end

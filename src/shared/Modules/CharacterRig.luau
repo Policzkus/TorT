@@ -9,8 +9,11 @@
 --   "puppet"  - joints but no Humanoid, root anchored: a client-side figure that code poses by
 --               moving the root and setting Motor6D.Transform (the homeowners).
 -- A Morph (puppets) stretches the body: the uncanny long limbs and wrong-sized heads.
+-- The Blender homeowners (Config/CharacterModels) come from ReplicatedStorage.Assets.Characters,
+-- joined at the pivots they were modelled with, and never morphed: they look as they were made.
 
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Characters = require(script.Parent.Parent.Config.Characters)
 local MeshLibrary = require(script.Parent.MeshLibrary)
@@ -51,6 +54,35 @@ end
 
 function CharacterRig.meshName(characterId: string, segment: string): string
 	return `Char_{characterId}_{segment}`
+end
+
+-- An imported Blender homeowner mesh (tools/setup_characters.luau), or nil.
+local function blenderMesh(name: string): MeshPart?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local folder = assets and assets:FindFirstChild("Characters")
+	local found = folder and folder:FindFirstChild(name)
+	return if found and found:IsA("MeshPart") then found else nil
+end
+
+local function fromBlender(characterId: string, def: Characters.Character): boolean
+	if def.pivots == nil then
+		return false
+	end
+	for segment in PART_NAMES do
+		if blenderMesh(CharacterRig.meshName(characterId, segment)) == nil then
+			return false
+		end
+	end
+	return true
+end
+
+-- Whether build can make this character now (a Blender one needs its meshes imported).
+function CharacterRig.ready(characterId: string): boolean
+	local def = Characters[characterId]
+	if def == nil then
+		return false
+	end
+	return def.pivots == nil or fromBlender(characterId, def)
 end
 
 local function joint(name: string, part0: BasePart, part1: BasePart, pivot: Vector3)
@@ -110,6 +142,13 @@ function CharacterRig.build(characterId: string, mode: Mode?, morph: Morph?): Mo
 	if def == nil then
 		return nil
 	end
+	local blender = fromBlender(characterId, def)
+	if def.pivots and not blender then
+		return nil -- its meshes aren't in the place
+	end
+	if blender then
+		morph = nil
+	end
 	local kind: Mode = mode or "player"
 	local shapes = morphed(def, morph)
 	local model = Instance.new("Model")
@@ -117,7 +156,9 @@ function CharacterRig.build(characterId: string, mode: Mode?, morph: Morph?): Mo
 	local parts: { [string]: BasePart } = {}
 	for segment, partName in PART_NAMES do
 		local shape = shapes[segment]
-		local part = if shape then MeshLibrary.get(CharacterRig.meshName(characterId, segment)) else nil
+		local name = CharacterRig.meshName(characterId, segment)
+		local template = if blender then blenderMesh(name) else nil
+		local part = if shape == nil then nil elseif template then template:Clone() else MeshLibrary.get(name)
 		if shape == nil or part == nil then
 			model:Destroy()
 			return nil
@@ -155,14 +196,32 @@ function CharacterRig.build(characterId: string, mode: Mode?, morph: Morph?): Mo
 	root.Parent = model
 	model.PrimaryPart = root
 
+	-- Where the face is, for whatever looks at it (dialogue, the doorstep camera, the jumpscare).
+	if blender and def.face then
+		local face = Instance.new("Attachment")
+		face.Name = "Face"
+		face.Position = head.CFrame:PointToObjectSpace(vector(def.face))
+		face.Parent = head
+	end
+	-- Where the parts bend: the Blender homeowners say; otherwise from the parts' bounds.
+	local pivots = if blender then def.pivots else nil
+	local function pivot(name: string, default: Vector3): Vector3
+		local at = pivots and pivots[name]
+		return if at then vector(at) else default
+	end
 	joint("RootJoint", root, torso, Vector3.new(0, hip, 0))
-	joint("Neck", torso, head, head.Position - Vector3.new(0, head.Size.Y / 2, 0))
+	joint("Neck", torso, head, pivot("Neck", head.Position - Vector3.new(0, head.Size.Y / 2, 0)))
 	for _, side in { "Left", "Right" } do
 		local arm = parts[side .. "Arm"]
 		local leg = parts[side .. "Leg"]
 		local shoulder = top(arm) - math.min(0.3, arm.Size.Y * 0.12)
-		joint(side .. " Shoulder", torso, arm, Vector3.new(arm.Position.X, shoulder, arm.Position.Z))
-		joint(side .. " Hip", torso, leg, Vector3.new(leg.Position.X, top(leg), leg.Position.Z))
+		joint(
+			side .. " Shoulder",
+			torso,
+			arm,
+			pivot(side .. "Shoulder", Vector3.new(arm.Position.X, shoulder, arm.Position.Z))
+		)
+		joint(side .. " Hip", torso, leg, pivot(side .. "Hip", Vector3.new(leg.Position.X, top(leg), leg.Position.Z)))
 	end
 	model:SetAttribute("CharacterId", characterId)
 	model:SetAttribute("Height", top(head))

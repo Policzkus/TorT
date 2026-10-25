@@ -4,18 +4,40 @@
 -- client turns into the same body (stretched legs, arms hanging too low, a head too small or too
 -- big, a thin frame, a crooked tilt). Later neighbourhoods push those further. Every knock also picks
 -- how they come out (STYLES), so the same door never plays out the same way twice.
--- Owners are Config/Characters ids (rigged: they move, duck, track you with their head) or
--- Config/Meshes names (older one-piece statues: they slide and twitch). Missing ids are skipped.
+-- Owners are Config/Characters ids: the Blender homeowners (art/scripts/characters.py), rigged, so
+-- they move, duck and track you with their head. Ids whose meshes aren't in the place are skipped.
 
 export type Range = { min: number, max: number }
 
+-- The whole cast (art/scripts/characters.py). Every street deals from all of it, like a shuffled
+-- deck (HomeownerService.roll): no homeowner shows up twice on a street until all of them have.
+local CAST = {
+	"Owner_Curlers",
+	"Owner_Lanky",
+	"Owner_Nightgown",
+	"Owner_SackMask",
+	"Owner_TankTop",
+	"Owner_Cardigan",
+	"Owner_SweaterVest",
+	"Owner_Porcelain",
+	"Owner_Grinner",
+	"Owner_PumpkinSuit",
+	"Owner_Widow",
+	"Owner_RavenMan",
+	"Owner_Bathrobe",
+	"Owner_Butler",
+	"Owner_MaskedLady",
+	"Owner_Gown",
+	"Owner_BagMan",
+}
+
 local POOLS: { [string]: { string } } = {
-	CardboardCourt = { "Owner_TankTop", "Owner_Curlers", "Owner_Cardigan", "Owner_Nightgown" },
-	MapleLane = { "Owner_SweaterVest", "Owner_Porcelain", "Owner_Grinner", "Owner_Curlers", "Owner_Cardigan" },
-	PumpkinHollow = { "Owner_SackMask", "Owner_PumpkinSuit", "Owner_Lanky", "Owner_Grinner", "Owner_TankTop" },
-	RavenRidge = { "Owner_Widow", "Owner_RavenMan", "Owner_Bathrobe", "Owner_Lanky", "Owner_SackMask" },
-	MansionHill = { "Owner_Butler", "Owner_MaskedLady", "Owner_Porcelain", "Owner_Bathrobe", "Owner_Widow" },
-	BlackwoodEstates = { "Owner_Gown", "Owner_BagMan", "Owner_Butler", "Owner_Lanky", "Owner_PumpkinSuit" },
+	CardboardCourt = CAST,
+	MapleLane = CAST,
+	PumpkinHollow = CAST,
+	RavenRidge = CAST,
+	MansionHill = CAST,
+	BlackwoodEstates = CAST,
 }
 
 -- How unsettling each neighbourhood's homeowners get (0..1): biases the morphs toward the extremes.
@@ -46,18 +68,20 @@ return {
 	},
 	TILT = 16, -- max head/body tilt in degrees
 
-	-- How they come out of the door:
-	--   Creep    - the door eases open on darkness; they drift out slowly, stiff
-	--   Snap     - the door opens, nothing... then they're just there, inches closer
-	--   Peek     - the door opens a crack, the head leans out sideways first
-	--   Waiting  - the door opens and they were already standing right behind it, head bowed
-	--   Blackout - the porch light dies; when it flickers back they're on the porch
-	STYLES = { "Creep", "Snap", "Peek", "Waiting", "Blackout" },
+	-- How they come out of the door (HomeownerController plays them; they always walk, step by step):
+	--   Creep   - the door eases open on darkness, footsteps up the hall, they walk out slowly
+	--   Waiting - the door opens and they were already standing in the dark, head bowed; two steps
+	--   Peek    - the door opens a crack, their head leans out sideways first; then they come
+	--   Rush    - the door is yanked open and they stride straight out at you, and stop dead
+	--   Flicker - the porch light stutters while something comes up the hall; it steadies as they stop
+	STYLES = { "Creep", "Waiting", "Peek", "Rush", "Flicker" },
 
-	-- Seconds from the knock being answered until they're out on the threshold, per style.
-	OUT_AFTER = { Snap = 1.8, Blackout = 1.7, Peek = 2.7, Waiting = 2.3, Creep = 2.8 } :: { [string]: number },
+	-- Seconds from the knock being answered until they've stopped on the porch, per style (the
+	-- walk's start + length in HomeownerController's WALK; a long hall can make it a little later,
+	-- and their hello waits for them).
+	OUT_AFTER = { Creep = 3.6, Waiting = 3.8, Peek = 4.0, Rush = 1.8, Flicker = 3.6 } :: { [string]: number },
 	HELLO_TIME = 4.2, -- seconds they have for their hello before the mini-game starts (the longest types in ~4.5)
 	LEAVE_DELAY = 3.8, -- seconds they linger after the mini-game (long enough to say what they think)
 	TWITCH_EVERY = { min = 0.6, max = 2.2 } :: Range,
-	STAND_OFF = 0.2, -- studs in front of the door surface they stand: on the threshold, in the doorway
+	STAND_OFF = 0.2, -- studs between the wall round the door and the back of them, once they've turned to you
 }

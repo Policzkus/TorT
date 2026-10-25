@@ -41,8 +41,10 @@ local function monster(door: BasePart): (Model, Vector3)
 		if model and root then
 			model:PivotTo(CFrame.identity)
 			local head = model:FindFirstChild("Head") :: BasePart?
-			local face = if head
-				then head.Position + Vector3.new(0, 0, -head.Size.Z * 0.3)
+			local anchor = head and head:FindFirstChild("Face")
+			local face = if anchor and anchor:IsA("Attachment")
+				then anchor.WorldPosition + Vector3.new(0, 0, -0.9)
+				elseif head then head.Position + Vector3.new(0, 0, -head.Size.Z * 0.3)
 				else Vector3.new(0, root.Size.Y * 0.4, 0) + root.Position
 			return model, face
 		end
