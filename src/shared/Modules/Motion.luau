@@ -114,8 +114,8 @@ function Motion.crouchDrop(hipHeight: number, rootHeight: number): number
 	return (hipHeight + rootHeight) * (1 - Movement.CROUCH_EYE)
 end
 
--- Is someone who says they're crouching really creeping (no faster than a crouch walk), for `base`
--- their walking speed?
+-- Is someone who says they're crouching really creeping (no faster than a creep), for `base` their
+-- Humanoid's BaseSpeed?
 function Motion.creeping(crouching: boolean, speed: number, base: number): boolean
 	return crouching and speed <= base * Movement.CROUCH * Movement.CROUCH_GRACE
 end

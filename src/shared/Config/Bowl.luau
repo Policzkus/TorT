@@ -16,7 +16,7 @@ return {
 	CHASE = {
 		WAIT = 1.6, -- seconds from the lamp bursting to the door flying open
 		BURST = 1.1, -- seconds they stand in the doorway shouting before they come for you
-		SPEED = { chase = 19, investigate = 13, search = 10, home = 9 }, -- studs/s (you walk 16, sprint ~26)
+		SPEED = { chase = 19, investigate = 13, search = 10, home = 9 }, -- studs/s (you walk ~11, sprint ~26)
 		SIGHT = { range = 70, fov = 140, near = 8 }, -- studs, degrees; within `near` they know you're there anyway
 		HIDDEN_NEAR = 6, -- in a HideSpot they only see you closer than this
 		HEAR = { creep = 6, walk = 18, run = 45, walking = 4, running = 20 }, -- studs they hear you within; your speed that counts

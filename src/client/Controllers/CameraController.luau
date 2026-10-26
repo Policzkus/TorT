@@ -9,13 +9,18 @@
 --     comes then, FootstepController), sways over onto the foot you're on and leans with it, and
 --     nods a touch. Running: quicker and harder, but never higher (Shift used to read as a height
 --     change: no widening of the view either). Creeping: slow, low, more side to side.
---   - Crouching lowers your eyes on a spring that settles with a little give.
+--   - Crouching lowers your eyes on a spring that settles with a little give, the head dipping
+--     forward a touch as you go down and lifting as you come up.
 --   - Strafing leans you into it. Landing: the view drops and nods with the impact and springs back
 --     (harder falls, deeper); jumping, a little push-off.
 --   - Standing still it's handheld, always a little alive; out of breath, it rises and falls with each breath.
--- Settings → "Head bob" off keeps all of it small (crouching still lowers your eyes).
--- Only the pitch it adds stays on the camera (Roblox's camera keeps where you look, not the roll or
--- the offsets), so only each frame's change in pitch is added.
+--   - The view has weight: it trails where you're looking by a touch and catches up. Only the
+--     picture: where you really look (your walk, what you face, what you aim at) turns the moment you
+--     move the mouse. Stepping up a kerb or a stair the view rises after you instead of jolting.
+-- Settings → "Head bob" off keeps all of it small and drops the trail (crouching still lowers your eyes).
+-- Roblox's camera works out each frame's look from the last one we drew, so whatever turn we added is
+-- taken back off first: what's left is where you really look (yaw, pitch), and the view is drawn
+-- from that.
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -57,6 +62,13 @@ local BREATH_RISE = 0.035 -- studs the view rises and falls with each breath, fu
 -- Landing and jumping kick springs that settle back (frequency radians/s, damping under 1 bounces a little).
 local LAND = { frequency = 11, damping = 0.6, drop = { 0.6, 3.6 }, nod = { 0.15, 0.85 }, roll = 0.25, jump = 0.4 }
 local REDUCED = 0.2 -- the bob's size with Settings → Head bob off
+-- The view trailing where you look: moved back by each turn, sprung back onto it (`frequency`
+-- radians/s, `damping`), never more than `most` radians behind.
+local TRAIL = { frequency = 24, damping = 0.85, most = math.rad(4) }
+-- Stepping up (or down) a kerb or a stair moves you at once; the view follows at `rate` a second.
+-- More than `most` studs at once is a teleport (or a fall), followed straight away; not in the air.
+local STEP = { rate = 16, most = 2.5 }
+local CROUCH_NOD = { down = 0.32, up = 0.14 } -- radians/s kicked into the nod going down, coming up
 
 local CameraController = {}
 
@@ -73,8 +85,14 @@ local fovTarget = 0
 -- Landing/jumping springs: how far down (studs), nodded (radians) and rolled the view is, and how fast.
 local drop, dropSpeed = 0, 0
 local nod, nodSpeed = 0, 0
+-- How far the view trails where you're looking (radians), and how fast that's changing.
+local trailYaw, trailYawSpeed, trailPitch, trailPitchSpeed = 0, 0, 0, 0
+local lookYaw: number? = nil -- where you really looked last frame
+local lookPitch: number? = nil
+local addedYaw, addedPitch = 0, 0 -- the turn we drew on top of it (still on the camera)
+local shownY: number? = nil -- the view's height, following you up and down steps
+local wasCrouching = false
 local tilt, tiltSpeed = 0, 0
-local pitched = 0 -- the pitch added last frame (still on the camera)
 
 local function applySetting()
 	grade.Enabled = enabled
@@ -128,28 +146,69 @@ local function onLanded(impact: number)
 	tiltSpeed += (if math.random() < 0.5 then -1 else 1) * LAND.roll * impact * scale
 end
 
+local function wrap(angle: number): number
+	return (angle + math.pi) % (2 * math.pi) - math.pi
+end
+
+-- Whoever has the camera now set it outright: nothing of ours is on it, and nothing saved up.
+local function letGo()
+	addedYaw, addedPitch = 0, 0
+	lookYaw, lookPitch, shownY = nil, nil, nil
+	trailYaw, trailYawSpeed, trailPitch, trailPitchSpeed = 0, 0, 0, 0
+	drop, dropSpeed, nod, nodSpeed, tilt, tiltSpeed = 0, 0, 0, 0, 0, 0
+end
+
 local function onRender(dt: number)
 	UserInputService.MouseIconEnabled = menuOpen() or UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
 	local camera = Workspace.CurrentCamera
 	if camera == nil or camera.CameraType ~= Enum.CameraType.Custom then
-		-- Whoever has the camera now set it outright: nothing of ours is on it, and nothing saved up.
-		pitched = 0
-		drop, dropSpeed, nod, nodSpeed, tilt, tiltSpeed = 0, 0, 0, 0, 0, 0
+		letGo()
 		return
 	end
 	fovOffset += (fovTarget - fovOffset) * math.min(1, dt * 5)
 	camera.FieldOfView = FOV + fovOffset
+	local gait = MovementController.gait()
+	local crouching = MovementController.isCrouching()
+	if crouching ~= wasCrouching then
+		wasCrouching = crouching
+		nodSpeed += (if crouching then -CROUCH_NOD.down else CROUCH_NOD.up) * (if bobOn then 1 else 0.5)
+	end
 	drop, dropSpeed = Motion.spring(drop, dropSpeed, 0, LAND.frequency, LAND.damping, dt)
 	nod, nodSpeed = Motion.spring(nod, nodSpeed, 0, LAND.frequency, LAND.damping, dt)
 	tilt, tiltSpeed = Motion.spring(tilt, tiltSpeed, 0, LAND.frequency, LAND.damping, dt)
-	local gait = MovementController.gait()
+
+	-- Where you really look: Roblox's camera turned last frame's view by your mouse; take off what we added.
+	local at = camera.CFrame
+	local seenPitch, seenYaw = at:ToEulerAnglesYXZ()
+	local yaw, pitch = seenYaw - addedYaw, seenPitch - addedPitch
+	-- The view trails it: put back by however far you turned, then sprung back on.
+	if bobOn and lookYaw and lookPitch then
+		trailYaw = math.clamp(trailYaw - wrap(yaw - lookYaw), -TRAIL.most, TRAIL.most)
+		trailPitch = math.clamp(trailPitch - (pitch - lookPitch), -TRAIL.most, TRAIL.most)
+	elseif not bobOn then
+		trailYaw, trailPitch = 0, 0
+	end
+	lookYaw, lookPitch = yaw, pitch
+	trailYaw, trailYawSpeed = Motion.spring(trailYaw, trailYawSpeed, 0, TRAIL.frequency, TRAIL.damping, dt)
+	trailPitch, trailPitchSpeed = Motion.spring(trailPitch, trailPitchSpeed, 0, TRAIL.frequency, TRAIL.damping, dt)
+
+	-- Up and down steps: the view follows your height over a moment (straight away in the air, or a
+	-- jump of more than STEP.most: a teleport, a fall).
+	local position = at.Position
+	local y = position.Y
+	if shownY == nil or gait.airborne or math.abs(y - shownY :: number) > STEP.most then
+		shownY = y
+	else
+		shownY = Motion.ease(shownY :: number, y, STEP.rate, dt)
+	end
+
 	local bob = gait.moving * (if bobOn then 1 else REDUCED)
 	local calm = if bobOn then 1 else 0.5
 	local footfall = Motion.footfall(gait.phase)
 	local side = math.sin(gait.phase) -- over onto the foot you're on, mid-stride
 	local now = os.clock()
-	local x = side * bobOf(gait, "sway") * bob + math.sin(now * 0.7) * IDLE.sway * calm
-	local y = -footfall * bobOf(gait, "dip") * bob
+	local swayX = side * bobOf(gait, "sway") * bob + math.sin(now * 0.7) * IDLE.sway * calm
+	local swayY = -footfall * bobOf(gait, "dip") * bob
 		+ math.sin(now * 1.1) * IDLE.rise * calm
 		+ math.sin(gait.breath) * BREATH_RISE * gait.winded * calm
 		+ drop
@@ -157,13 +216,15 @@ local function onRender(dt: number)
 		- gait.lateral * STRAFE_LEAN * (if bobOn then 1 else 0)
 		+ math.sin(now * 0.5) * IDLE.roll * calm
 		+ tilt
-	local pitch = -footfall * bobOf(gait, "nod") * bob + nod
-	local crouch = Vector3.new(0, -gait.drop * gait.crouch, 0)
-	camera.CFrame = (camera.CFrame + crouch)
-		* CFrame.new(x, y, 0)
-		* CFrame.Angles(pitch - pitched, 0, 0)
+	local addYaw = trailYaw
+	local shownPitch = math.clamp(pitch + trailPitch - footfall * bobOf(gait, "nod") * bob + nod, -1.45, 1.45)
+	local height = (shownY :: number) - y - gait.drop * gait.crouch
+	camera.CFrame = CFrame.new(position + Vector3.new(0, height, 0))
+		* CFrame.Angles(0, yaw + addYaw, 0)
+		* CFrame.Angles(shownPitch, 0, 0)
+		* CFrame.new(swayX, swayY, 0)
 		* CFrame.Angles(0, 0, roll)
-	pitched = pitch
+	addedYaw, addedPitch = addYaw, shownPitch - pitch
 end
 
 function CameraController.Init()

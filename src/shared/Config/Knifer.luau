@@ -21,7 +21,7 @@ return {
 	STAY = { 50, 80 }, -- seconds he roams before he heads back to disappear (a chase runs on)
 	MOST = 45, -- seconds past STAY he's ever around, whatever he's doing
 
-	SPEED = { roam = 9, search = 11, investigate = 14, chase = 20 }, -- studs/s (you walk 16, sprint ~26)
+	SPEED = { roam = 9, search = 11, investigate = 14, chase = 20 }, -- studs/s (you walk ~11, sprint ~26)
 	SIGHT = { range = 90, fov = 150, near = 10 }, -- studs, degrees; within `near` he knows you're there anyway
 	HIDDEN_NEAR = 7, -- in a HideSpot he only sees you closer than this
 	-- Studs he hears you within (creeping: crouched, no faster than a crouch walk), and the speeds that count.
