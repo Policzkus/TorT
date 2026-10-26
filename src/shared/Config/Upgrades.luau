@@ -26,6 +26,10 @@ export type Track = {
 	maxPerRebirth: number?,
 }
 
+-- Every tier carries the plastic jack-o'-lantern (the user: whatever your tier, the pumpkin): it's
+-- the one real model; the part-built ones for the other tiers (Shared/Models/Buckets) wait for theirs.
+local PUMPKIN = "PlasticPumpkin"
+
 local tracks: { [string]: Track } = {
 	bucketTier = {
 		name = "Bucket",
@@ -33,18 +37,18 @@ local tracks: { [string]: Track } = {
 		kind = "tiers",
 		description = "Carry more candy per trip",
 		tiers = {
-			{ name = "Paper Bag", capacity = 15, cost = 0, rebirths = 0, model = "PaperBag" },
-			{ name = "Plastic Pumpkin", capacity = 50, cost = 20, rebirths = 0, model = "PlasticPumpkin" },
-			{ name = "Pillowcase", capacity = 120, cost = 90, rebirths = 0, model = "Pillowcase" },
-			{ name = "Trick Sack", capacity = 300, cost = 350, rebirths = 0, model = "TrickSack" },
-			{ name = "Trash Bag", capacity = 750, cost = 1200, rebirths = 0, model = "TrashBag" },
-			{ name = "Laundry Basket", capacity = 2000, cost = 3500, rebirths = 0, model = "LaundryBasket" },
-			{ name = "Wheelbarrow", capacity = 5000, cost = 10000, rebirths = 0, model = "Wheelbarrow" },
-			{ name = "Wagon", capacity = 12500, cost = 35000, rebirths = 1, model = "Wagon" },
-			{ name = "Coffin", capacity = 30000, cost = 70000, rebirths = 1, model = "Coffin" },
-			{ name = "Cauldron", capacity = 80000, cost = 250000, rebirths = 2, model = "Cauldron" },
-			{ name = "Haunted Wardrobe", capacity = 200000, cost = 1000000, rebirths = 3, model = "Wardrobe" },
-			{ name = "Black Hole Bucket", capacity = 1000000, cost = 4500000, rebirths = 4, model = "BlackHole" },
+			{ name = "Paper Bag", capacity = 15, cost = 0, rebirths = 0, model = PUMPKIN },
+			{ name = "Plastic Pumpkin", capacity = 50, cost = 20, rebirths = 0, model = PUMPKIN },
+			{ name = "Pillowcase", capacity = 120, cost = 90, rebirths = 0, model = PUMPKIN },
+			{ name = "Trick Sack", capacity = 300, cost = 350, rebirths = 0, model = PUMPKIN },
+			{ name = "Trash Bag", capacity = 750, cost = 1200, rebirths = 0, model = PUMPKIN },
+			{ name = "Laundry Basket", capacity = 2000, cost = 3500, rebirths = 0, model = PUMPKIN },
+			{ name = "Wheelbarrow", capacity = 5000, cost = 10000, rebirths = 0, model = PUMPKIN },
+			{ name = "Wagon", capacity = 12500, cost = 35000, rebirths = 1, model = PUMPKIN },
+			{ name = "Coffin", capacity = 30000, cost = 70000, rebirths = 1, model = PUMPKIN },
+			{ name = "Cauldron", capacity = 80000, cost = 250000, rebirths = 2, model = PUMPKIN },
+			{ name = "Haunted Wardrobe", capacity = 200000, cost = 1000000, rebirths = 3, model = PUMPKIN },
+			{ name = "Black Hole Bucket", capacity = 1000000, cost = 4500000, rebirths = 4, model = PUMPKIN },
 		},
 	},
 	charm = {

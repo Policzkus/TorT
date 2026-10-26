@@ -4,7 +4,8 @@
 -- run carries a little further); turning takes a beat; in the air you can steer, and let go and your
 -- momentum carries you; a big drop slows you for a moment.
 -- Jumping: a little lower and quicker than Roblox's, costing a little stamina, and not again
--- straight after landing.
+-- straight after landing. A press a moment too soon still jumps once it can, and so does one just
+-- after you walk off an edge.
 -- Sprint: hold Shift (or click the left stick / the 🏃 button on a touch screen, on until you stop)
 -- while your stamina lasts. It only counts going forward: less the further you turn from where you
 -- look, none sideways or backwards. Run dry and you breathe hard and have to catch your breath before
@@ -99,6 +100,8 @@ local hooked = false -- the ControlModule hands its input to onMove
 local lastMove = 0
 local airTime = 0
 local jumpedAt = -math.huge
+local jumpAskedAt = -math.huge -- the last jump press not yet answered
+local groundedAt = 0 -- the last time your feet were on something
 local fall = 0 -- fastest fall since you left the ground
 local slowFrom, slowUntil = 1, 0 -- after a hard landing: your speed's share, recovering until then
 local stepped = 0 -- footfalls so far (phase / π, rounded down, at the last one)
@@ -413,11 +416,36 @@ local function airborne(dt: number, humanoid: Humanoid, root: BasePart, limp: bo
 			jumpFrom = math.max(jumpFrom, os.clock() + Movement.JUMP.rest) -- find your feet first
 		end
 		airTime, fall = 0, 0
+		groundedAt = os.clock()
 	else
 		airTime += dt
 		fall = math.max(fall, -root.AssemblyLinearVelocity.Y)
 	end
 	gait.airborne = airTime > Movement.AIR_GRACE
+end
+
+-- A jump pressed too soon (coming down, or finding your feet) happens as soon as it can, and one
+-- pressed just after walking off an edge still counts: Roblox's own jump only answers a press held
+-- down while you're standing.
+local function jumpIfAsked(humanoid: Humanoid, down: boolean)
+	local now = os.clock()
+	if now - jumpAskedAt > Movement.JUMP.buffer or not jumpEnabled or down or humanoid.Sit then
+		return
+	end
+	local state = humanoid:GetState()
+	if
+		state == Enum.HumanoidStateType.Jumping
+		or state == Enum.HumanoidStateType.Climbing
+		or state == Enum.HumanoidStateType.Swimming
+	then
+		return
+	end
+	local onGround = humanoid.FloorMaterial ~= Enum.Material.Air
+	local walkedOff = not onGround and now - groundedAt < Movement.JUMP.coyote and now - jumpedAt > 0.3
+	if onGround or walkedOff then
+		jumpAskedAt = -math.huge
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
 end
 
 local function step(dt: number)
@@ -447,6 +475,7 @@ local function step(dt: number)
 		sprintToggled = false
 	end
 	airborne(dt, humanoid, root, down or humanoid.Sit)
+	jumpIfAsked(humanoid, down)
 	crouchDown(dt, humanoid, root)
 	if down or humanoid.Sit then
 		-- Thrown about, fainted or sat down: no walking (and no footsteps from a body tumbling along).
@@ -501,7 +530,7 @@ local function onCharacter(character: Model)
 	stamina, exhausted, shownStamina = 100, false, 100
 	walkX, walkZ, airTime, fall, slowUntil = 0, 0, 0, 0, 0
 	gait.crouch, crouchSpeed, gait.winded, gait.moving, gait.sprint = 0, 0, 0, 0, 0
-	jumpEnabled, jumpFrom = true, 0 -- a new Humanoid can jump
+	jumpEnabled, jumpFrom, jumpAskedAt = true, 0, -math.huge -- a new Humanoid can jump
 	sentCrouch = false
 	sentAt = 0
 	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
@@ -511,6 +540,7 @@ local function onCharacter(character: Model)
 		humanoid.StateChanged:Connect(function(_, new)
 			if new == Enum.HumanoidStateType.Jumping and player.Character == character then
 				jumpedAt = os.clock()
+				jumpAskedAt = -math.huge
 				-- A jump's an effort: it costs stamina, and stamina waits to come back as after a run.
 				stamina = math.max(0, stamina - Movement.JUMP.cost)
 				restAt = os.clock() + Movement.STAMINA.delay
@@ -587,10 +617,12 @@ function MovementController.Start()
 		ContextActionService:SetTitle(CROUCH_ACTION, "🧎")
 		ContextActionService:SetPosition(CROUCH_ACTION, UDim2.new(1, -245, 1, -150))
 	end
-	-- Jump while crouched: you stand up instead.
+	-- Jump while crouched: you stand up instead. Otherwise remember the press (jumpIfAsked).
 	UserInputService.JumpRequest:Connect(function()
 		if crouchToggled then
 			crouchToggled = false
+		elseif not crouched then
+			jumpAskedAt = os.clock()
 		end
 	end)
 	-- Let go of everything if the window loses focus mid-press (the key-up never comes).

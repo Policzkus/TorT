@@ -20,8 +20,11 @@ return {
 	AIR_GRACE = 0.12, -- seconds off the ground before you count as in the air (steps and kerbs aren't)
 	-- Jumping: `height` studs up (Roblox's default 7.2 was a superhero's; 4 was too little to be any
 	-- use, the user said), costing `cost` stamina, the same jump however tired you are. After landing
-	-- you can't jump again for `rest` seconds (no bouncing along).
-	JUMP = { height = 6, cost = 4, rest = 0.2 },
+	-- you find your feet for `rest` seconds first (no bouncing along). A press up to `buffer` seconds
+	-- too soon (just before landing, or while finding your feet) isn't lost: you jump as soon as you
+	-- can. And `coyote` seconds after walking off an edge you can still jump (it felt like a bug that
+	-- you couldn't).
+	JUMP = { height = 6, cost = 4, rest = 0.1, buffer = 0.2, coyote = 0.1 },
 	-- Landing from a fall faster than `felt` studs/s jolts the view (fully at `hardest`; a jump comes
 	-- down at about 48). Faster than `from` it slows you for `time` seconds, to `slow` at `full`: not
 	-- a jump's landing, a drop off a roof a lot.

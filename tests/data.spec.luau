@@ -56,6 +56,17 @@ return {
 		restore()
 		expect(data.version).toBe(1)
 	end,
+	["v2 drops the three lives (health took their place)"] = function()
+		local data = copy(Template)
+		data.version = 1
+		data.lives = 2
+		data.livesRefillAt = 12345
+		expect(Migrations.apply(data)).toBe("migrated")
+		expect(data.version).toBe(Template.version)
+		expect(data.lives).toBe(nil)
+		expect(data.livesRefillAt).toBe(nil)
+		expect(data.candy).toBe(Template.candy)
+	end,
 	["template has the keys the game relies on"] = function()
 		for _, key in { "candy", "bucket", "souls", "rebirths", "upgrades", "stats", "settings", "purchases" } do
 			expect(Template[key] ~= nil).toBe(true)

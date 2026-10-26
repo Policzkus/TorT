@@ -311,13 +311,14 @@ local function onCame(street: any)
 	end
 end
 
-local function onStruck(userId: any)
+-- He stabbed someone (`dead`: it killed them): the body going down, for everyone near.
+local function onStruck(userId: any, dead: any)
 	local victim = if type(userId) == "number" then Players:GetPlayerByUserId(userId) else nil
 	local character = victim and victim.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if root then
 		Sound.play("Thud", { at = root, volume = 0.8, speed = 1.2 })
-		Sound.play("KniferKill", { at = root })
+		Sound.play("KniferKill", { at = root, volume = if dead == true then 1 else 0.6 })
 	end
 end
 

@@ -54,7 +54,7 @@ local order = {
 	"SettingsService",
 	"CharacterService",
 	"CostumeService",
-	"LivesService",
+	"HealthService",
 	"RagdollService",
 	"TrafficService",
 	"KniferService",

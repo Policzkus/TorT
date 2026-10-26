@@ -15,7 +15,7 @@ local Workspace = game:GetService("Workspace")
 
 local Runs = require(ReplicatedStorage.Shared.Config.Runs)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
-local LivesService = require(script.Parent.LivesService)
+local HealthService = require(script.Parent.HealthService)
 local NotifyService = require(script.Parent.NotifyService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -95,7 +95,7 @@ local function friends(player: Player, host: Player): boolean
 end
 
 local function board(player: Player, party: Party)
-	if partyOf[player] == party or LivesService.isFainting(player) then
+	if partyOf[player] == party or HealthService.isFainting(player) then
 		return
 	end
 	if party.departing then

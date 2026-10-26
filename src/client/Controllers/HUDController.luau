@@ -1,6 +1,6 @@
 --!strict
 -- Minimal HUD (PROMPT §V2.3, the user's Watch Dogs reference): a small cluster of monochrome chips
--- bottom-left (candy, bag, lives, souls, night clock), a quiet "next goal" line and streak above it,
+-- bottom-left (candy, bag, health, souls, night clock), a quiet "next goal" line and streak above it,
 -- a centre crosshair dot, and a menu hint bottom-right. Candy pops fly into the bag chip.
 
 local Players = game:GetService("Players")
@@ -14,7 +14,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Events = require(Shared.Config.Events)
 local Images = require(Shared.Config.Images)
 local Mode = require(Shared.Modules.Mode)
-local Lives = require(Shared.Config.Lives)
+local Health = require(Shared.Config.Health)
 local Neighborhoods = require(Shared.Config.Neighborhoods)
 local Upgrades = require(Shared.Config.Upgrades)
 local Format = require(Shared.Modules.Format)
@@ -45,7 +45,10 @@ local candyLabel: TextLabel
 local bagChip: Frame
 local bagLabel: TextLabel
 local bagFill: Frame
-local hearts: { ImageLabel | TextLabel } = {}
+local healthChip: Frame
+local healthLabel: TextLabel
+local healthFill: Frame
+local shownHealth: number? = nil
 local soulsLabel: TextLabel
 local clockChip: Frame
 local clockLabel: TextLabel
@@ -251,16 +254,23 @@ local function refreshBag()
 	bagFill.BackgroundColor3 = if full then Theme.Colors.Danger else Theme.Colors.Text
 end
 
-local function refreshLives()
-	local lives = StateController.get("lives") or Lives.MAX
-	for index, heart in hearts do
-		local alive = index <= lives
-		if heart:IsA("ImageLabel") then
-			heart.ImageTransparency = if alive then 0 else 0.8
-		else
-			heart.TextTransparency = if alive then 0 else 0.8
-		end
+-- Your health (HealthService: the player's Health attribute), red when it's low; the chip jumps
+-- when you're hurt.
+local function refreshHealth()
+	local value = Players.LocalPlayer:GetAttribute("Health")
+	local health = if type(value) == "number" then value else Health.MAX
+	local low = health < Health.LOW
+	healthLabel.Text = tostring(math.ceil(health))
+	healthLabel.TextColor3 = if low then Theme.Colors.Danger else Theme.Colors.Text
+	healthFill.BackgroundColor3 = if low then Theme.Colors.Danger else Theme.Colors.Text
+	TweenService
+		:Create(healthFill, TweenInfo.new(0.25), { Size = UDim2.fromScale(math.clamp(health / Health.MAX, 0, 1), 1) })
+		:Play()
+	if shownHealth and health < (shownHealth :: number) - 1 then
+		bump(healthChip, 1.25)
+		shake(healthChip)
 	end
+	shownHealth = health
 end
 
 local function refreshSouls()
@@ -382,15 +392,25 @@ local function build()
 	})
 	bagChip.Parent = cluster
 
-	local livesChip = chip("Lives", 3)
-	for index = 1, Lives.MAX do
-		local heart = icon(Images.Life, "♥")
-		heart.LayoutOrder = index
-		heart.Size = UDim2.fromOffset(16, 16)
-		heart.Parent = livesChip
-		hearts[index] = heart
-	end
-	livesChip.Parent = cluster
+	healthChip = chip("Health", 3, Images.Life, "♥")
+	healthLabel = chipText(healthChip, tostring(Health.MAX))
+	healthFill = create("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Theme.Colors.Text,
+		BorderSizePixel = 0,
+	})
+	create("Frame", {
+		Name = "Bar",
+		LayoutOrder = 2,
+		Size = UDim2.fromOffset(46, 4),
+		BackgroundColor3 = Theme.Colors.Text,
+		BackgroundTransparency = 0.8,
+		BorderSizePixel = 0,
+		healthFill,
+		Parent = healthChip,
+	})
+	healthChip.Parent = cluster
 
 	local soulsChip = chip("Souls", 4, Images.Soul, "S")
 	soulsLabel = chipText(soulsChip, "0")
@@ -614,9 +634,9 @@ function HUDController.Start()
 		refreshMenuDot()
 	end)
 	StateController.observe("neighborhoods", refreshGoal)
-	StateController.observe("lives", refreshLives)
+	Players.LocalPlayer:GetAttributeChangedSignal("Health"):Connect(refreshHealth)
 	StateController.observe("souls", refreshSouls)
-	refreshLives()
+	refreshHealth()
 
 	Net.event("DoorResult").OnClientEvent:Connect(onDoorResult)
 	Net.event("Stashed").OnClientEvent:Connect(onStashed)

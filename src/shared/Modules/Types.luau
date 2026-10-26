@@ -15,8 +15,6 @@ export type PlayerData = {
 	bucket: number, -- carried (lost by half when caught)
 	souls: number,
 	rebirths: number,
-	lives: number, -- PROMPT §V2.3: die inside a house → -1; at 0 → lose half the banked candy
-	livesRefillAt: number,
 
 	upgrades: {
 		bucketTier: number,

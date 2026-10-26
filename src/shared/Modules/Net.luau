@@ -32,9 +32,9 @@ local EVENTS: { [string]: string } = {
 	ScareSeen = "S→C someone got a scare at a door, everyone near sees it go for them: (houseId, userId, kind)",
 	PlayerPop = "S→C a pop-up over a player's head for everyone else (a grade, a stash): (userId, text, kind)",
 	-- The Knifer (KniferService)
-	Downed = "S→C you're killed and down as a ragdoll, no black screen: (lives, lostBucket, lostBanked, wakeIn)",
+	Downed = "S→C you're killed and down as a ragdoll, no black screen: (lostBucket, wakeIn)",
 	KniferCame = "S→C the Knifer has come onto a street, everyone on it hears the sting: (streetId)",
-	KniferStruck = "S→C the Knifer got someone, everyone near hears it: (userId)",
+	KniferStruck = "S→C the Knifer stabbed someone, everyone near hears it: (userId, dead: boolean)",
 	-- A homeowner after a bowl thief (OwnerChaseService)
 	OwnerGrab = "S→C a homeowner caught the kid who took their bowl and took their candy back, everyone sees it fly: (houseId, userId, lost, seed)",
 	-- The car (TrafficService)
@@ -55,7 +55,7 @@ local EVENTS: { [string]: string } = {
 	PartyFriendsOnly = "C→S the host lets only their friends on board, or anyone: (on: boolean)",
 	PartyStart = "C→S the host sends the bus off (a countdown, then the teleport)",
 	RunLeave = "C→S leave the run and go back to the lobby",
-	Fainted = "S→C you were caught: (lives: number, lostBucket: number, lostBanked: number, wakeIn: number)",
+	Fainted = "S→C you were caught: (lostBucket: number, wakeIn: number)",
 }
 
 local FUNCTIONS: { [string]: string } = {

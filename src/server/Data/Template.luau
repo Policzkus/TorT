@@ -4,14 +4,12 @@
 local Types = require(game:GetService("ReplicatedStorage").Shared.Modules.Types)
 
 local Template: Types.PlayerData = {
-	version = 1,
+	version = 2,
 
 	candy = 0,
 	bucket = 0,
 	souls = 0,
 	rebirths = 0,
-	lives = 3,
-	livesRefillAt = 0, -- os.time() when the next life comes back (0 = full)
 
 	upgrades = {
 		bucketTier = 1,

@@ -15,7 +15,9 @@
 -- own, so they stay on the HUD.
 -- Lines are quick, and yours to skip (the user wanted a faster game): a left click (a tap, Ⓨ) shows
 -- the rest of the line at once, again puts it away; once it's all out, moving the mouse puts it away.
--- (Not Space: that's the mini-games'.)
+-- (Not Space: that's the mini-games'.) A click counts wherever it lands except on a button on the
+-- screen: something else having had it first (a door's prompt in the middle of the view, a panel)
+-- used to swallow it, and the line stayed. A question (Costume Line) isn't skipped: it's timed.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -411,6 +413,24 @@ local function allOut(bubble: Bubble): boolean
 	return os.clock() - bubble.started >= bubble.typed
 end
 
+-- Whether a click at `position` lands on a button on the screen (a reply, a menu's): it's that
+-- button's, not a skip.
+local function onButton(position: Vector3): boolean
+	local playerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if playerGui == nil then
+		return false
+	end
+	for _, object in playerGui:GetGuiObjectsAtPosition(position.X, position.Y) do
+		if object:IsA("GuiButton") and object.Active and object.Name ~= "MouseUnlock" then
+			local holder = object:FindFirstAncestorWhichIsA("LayerCollector")
+			if holder and holder:IsA("ScreenGui") then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- You skip the line being said: the rest of it at once, or (all out already) it goes away. `clicked`
 -- is false when you only looked away. False if there was nothing of yours to skip.
 local function skip(clicked: boolean): boolean
@@ -664,7 +684,11 @@ function DialogController.Start()
 	end, false, Enum.ContextActionPriority.High.Value + 5, table.unpack(SKIP_KEYS))
 	UserInputService.InputBegan:Connect(function(input, processed)
 		local kind = input.UserInputType
-		if not processed and (kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch) then
+		if kind == Enum.UserInputType.MouseButton1 then
+			if current and current.said and not onButton(input.Position) then
+				skip(true)
+			end
+		elseif kind == Enum.UserInputType.Touch and not processed then -- (not the thumbstick, the jump button)
 			skip(true)
 		end
 	end)

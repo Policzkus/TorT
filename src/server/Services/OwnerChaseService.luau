@@ -234,6 +234,7 @@ local function start(houseId: string, thief: Player): boolean
 	Hunter.configure(humanoid, CHASE.SPEED.chase)
 	-- Slim where they collide (their body doesn't): yard gates and the gaps between houses fit them.
 	root.Size = Vector3.new(math.min(root.Size.X, 1.4), root.Size.Y, math.min(root.Size.Z, 1))
+	Hunter.ghost(rig) -- out through the bowl in front of the door, not wedged on it
 	rig:SetAttribute("House", houseId)
 	rig:SetAttribute("Thief", thief.UserId)
 	rig:SetAttribute("Target", 0)
