@@ -35,18 +35,19 @@ end
 
 -- One frame of your walk (vx, vz: studs/s along the ground) easing toward what you're pressing (tx,
 -- tz). Speeding up goes at ACCEL.start up to a walk and ACCEL.sprint past it, slowing down at
--- ACCEL.stop, turning at ACCEL.turn: walking speeds (`walk`) per second, times `scale` (ACCEL.air
--- off the ground).
+-- ACCEL.stop, turning at ACCEL.turn: walking speeds (`walk`) per second. `airborne`: steering at
+-- ACCEL.air of those, drifting on at ACCEL.drift with nothing pressed.
 function Motion.accelerate(
 	vx: number,
 	vz: number,
 	tx: number,
 	tz: number,
 	walk: number,
-	scale: number,
+	airborne: boolean,
 	dt: number
 ): (number, number)
 	local rates = Movement.ACCEL
+	local scale = if not airborne then 1 elseif tx * tx + tz * tz < 1e-4 then rates.drift else rates.air
 	local per = walk * scale
 	local dx, dz = tx - vx, tz - vz
 	local speed = math.sqrt(vx * vx + vz * vz)

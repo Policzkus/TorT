@@ -1,8 +1,8 @@
 --!strict
 -- How you move, in first person (Config/Movement has the numbers, Modules/Motion the maths).
 -- Walking picks up over a moment and settles a moment after you let go (a run carries a little
--- further); turning takes a beat; in the air you keep your momentum; a hard landing slows you for a
--- moment.
+-- further); turning takes a beat; in the air you can steer, and let go and your momentum carries
+-- you; a hard landing slows you for a moment.
 -- Sprint: hold Shift (or click the left stick / the 🏃 button on a touch screen, on until you stop)
 -- while your stamina lasts. It only counts going forward: less the further you turn from where you
 -- look, none sideways or backwards. Run dry and you breathe hard and have to catch your breath before
@@ -96,6 +96,7 @@ local walkX, walkZ = 0, 0 -- the walk we ask the Humanoid for (studs/s)
 local hooked = false -- the ControlModule hands its input to onMove
 local lastMove = 0
 local airTime = 0
+local jumpedAt = -math.huge
 local fall = 0 -- fastest fall since you left the ground
 local slowFrom, slowUntil = 1, 0 -- after a hard landing: your speed's share, recovering until then
 local stepped = 0 -- footfalls so far (phase / π, rounded down, at the last one)
@@ -189,8 +190,10 @@ local function onMove(original: (Player, Vector3, boolean) -> (), who: Player, d
 	share = sprintShare(wantX, wantZ)
 	local walk = walkSpeed(humanoid)
 	local top = walk * pace(share)
-	local scale = if airTime > Movement.AIR_GRACE then Movement.ACCEL.air else 1
-	walkX, walkZ = Motion.accelerate(walkX, walkZ, wantX * top, wantZ * top, walk, scale, dt)
+	-- Off the ground a moment (not a kerb or a step), or a jump from the moment you leave it.
+	local sinceJump = now - jumpedAt
+	local inAir = airTime > Movement.AIR_GRACE or sinceJump < 0.15 or (airTime > 0 and sinceJump < 1)
+	walkX, walkZ = Motion.accelerate(walkX, walkZ, wantX * top, wantZ * top, walk, inAir, dt)
 	local speed = math.sqrt(walkX * walkX + walkZ * walkZ)
 	if speed < 0.05 then
 		-- Standing: hand on what came in (nothing, or a scripted MoveTo, which walks at your walking speed).
@@ -392,9 +395,10 @@ local function crouchDown(dt: number, humanoid: Humanoid, root: BasePart)
 end
 
 -- Off the ground and back: how far you fell, and the landing (the camera dips, a hard one slows you).
-local function airborne(dt: number, humanoid: Humanoid, root: BasePart)
+-- A body thrown about (`limp`: ragdolled, fainted) or sat down doesn't land on its feet.
+local function airborne(dt: number, humanoid: Humanoid, root: BasePart, limp: boolean)
 	if humanoid.FloorMaterial ~= Enum.Material.Air then
-		if gait.airborne and fall > Movement.LANDING.felt then
+		if gait.airborne and fall > Movement.LANDING.felt and not limp then
 			MovementController.landed:Fire(Motion.landingImpact(fall))
 			local slow = Motion.landingSlow(fall)
 			if slow < 1 then
@@ -434,7 +438,7 @@ local function step(dt: number)
 	if wantX * wantX + wantZ * wantZ < 0.01 then
 		sprintToggled = false
 	end
-	airborne(dt, humanoid, root)
+	airborne(dt, humanoid, root, down or humanoid.Sit)
 	crouchDown(dt, humanoid, root)
 	if down or humanoid.Sit then
 		-- Thrown about, fainted or sat down: no walking (and no footsteps from a body tumbling along).
@@ -496,6 +500,7 @@ local function onCharacter(character: Model)
 	if humanoid then
 		humanoid.StateChanged:Connect(function(_, new)
 			if new == Enum.HumanoidStateType.Jumping and player.Character == character then
+				jumpedAt = os.clock()
 				MovementController.jumped:Fire()
 			end
 		end)

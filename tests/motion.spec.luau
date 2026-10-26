@@ -5,10 +5,10 @@ local FRAME = 1 / 60
 local WALK = 16
 
 -- Seconds of 60 fps frames until the walk (vx, vz) is within 0.05 of (tx, tz), and the top speed on the way.
-local function settle(vx, vz, tx, tz, scale)
+local function settle(vx, vz, tx, tz, airborne)
 	local t, top = 0, 0
 	while math.abs(vx - tx) + math.abs(vz - tz) > 0.05 and t < 5 do
-		vx, vz = Motion.accelerate(vx, vz, tx, tz, WALK, scale or 1, FRAME)
+		vx, vz = Motion.accelerate(vx, vz, tx, tz, WALK, airborne or false, FRAME)
 		top = math.max(top, math.sqrt(vx * vx + vz * vz))
 		t += FRAME
 	end
@@ -38,18 +38,24 @@ return {
 		expect(top <= WALK + 1e-6).toBeTruthy()
 		expect(t < 0.3).toBeTruthy()
 	end,
-	["in the air you keep most of your momentum"] = function()
+	["let go in the air and your momentum carries you"] = function()
 		local vx, vz = 0, -WALK
-		for _ = 1, 12 do -- 0.2 s with nothing pressed
-			vx, vz = Motion.accelerate(vx, vz, 0, 0, WALK, Movement.ACCEL.air, FRAME)
+		for _ = 1, 30 do -- 0.5 s, a whole jump, with nothing pressed
+			vx, vz = Motion.accelerate(vx, vz, 0, 0, WALK, true, FRAME)
 		end
-		expect(-vz > WALK * 0.7).toBeTruthy()
+		expect(-vz > WALK * 0.8).toBeTruthy()
+	end,
+	["in the air you can steer, more slowly than on the ground"] = function()
+		local onGround = settle(0, -WALK, WALK, 0)
+		local inAir = settle(0, -WALK, WALK, 0, true)
+		expect(inAir > onGround * 2).toBeTruthy()
+		expect(inAir < 1).toBeTruthy()
 	end,
 	["a long frame can't overshoot"] = function()
-		local vx, vz = Motion.accelerate(0, 0, 0, -WALK, WALK, 1, 2)
+		local vx, vz = Motion.accelerate(0, 0, 0, -WALK, WALK, false, 2)
 		expect(vx).toBe(0)
 		expect(vz).toBe(-WALK)
-		vx, vz = Motion.accelerate(0, -WALK, 0, 0, WALK, 1, 2)
+		vx, vz = Motion.accelerate(0, -WALK, 0, 0, WALK, false, 2)
 		expect(math.abs(vz) < 1e-9).toBeTruthy()
 	end,
 	["the spring settles on its target, overshooting a little under damping 1"] = function()

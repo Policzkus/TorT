@@ -11,8 +11,9 @@ return {
 	-- your direction and your view), not at all under FORWARD.none (sideways, backwards).
 	FORWARD = { none = 0.35, full = 0.8 },
 	-- Picking up speed, slowing down, and changing direction. `sprint` is above a walk (a run builds up
-	-- over a moment). In the air you keep most of your momentum: everything times `air`.
-	ACCEL = { start = 7, sprint = 1.6, stop = 9, turn = 8, air = 0.12 },
+	-- over a moment). In the air you steer at `air` of all that, and with nothing pressed you carry on
+	-- (slowing at only `drift` of it): let go mid-jump and your momentum takes you.
+	ACCEL = { start = 7, sprint = 1.6, stop = 9, turn = 8, air = 0.35, drift = 0.04 },
 	AIR_GRACE = 0.12, -- seconds off the ground before you count as in the air (steps and kerbs aren't)
 	-- Landing from a fall faster than `felt` studs/s jolts the view (fully at `hardest`; a jump comes
 	-- down at about 50). Faster than `from` it slows you for `time` seconds, to `slow` at `full` (a

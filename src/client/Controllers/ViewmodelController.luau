@@ -116,6 +116,7 @@ local function onRender(dt: number)
 		-- Knocked down (RagdollController): your arms are flopping about, no bucket held up in view.
 		model:PivotTo(camera.CFrame * CFrame.new(0, -500, 0))
 		lastLook = nil
+		bounce, bounceSpeed = 0, 0
 		return
 	end
 	-- How fast you're turning: it trails behind (turn left and it's left over to the right, look up

@@ -132,7 +132,9 @@ local function onRender(dt: number)
 	UserInputService.MouseIconEnabled = menuOpen() or UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
 	local camera = Workspace.CurrentCamera
 	if camera == nil or camera.CameraType ~= Enum.CameraType.Custom then
-		pitched = 0 -- whoever has the camera now set it outright
+		-- Whoever has the camera now set it outright: nothing of ours is on it, and nothing saved up.
+		pitched = 0
+		drop, dropSpeed, nod, nodSpeed, tilt, tiltSpeed = 0, 0, 0, 0, 0, 0
 		return
 	end
 	fovOffset += (fovTarget - fovOffset) * math.min(1, dt * 5)
