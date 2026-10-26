@@ -11,6 +11,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local TextChatService = game:GetService("TextChatService")
 
 local Admins = require(ReplicatedStorage.Shared.Config.Admins)
+local Items = require(ReplicatedStorage.Shared.Config.Items)
 local Knifer = require(ReplicatedStorage.Shared.Config.Knifer)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
@@ -194,16 +195,37 @@ local function nearestHouse(admin: Player): string
 end
 
 commands.housetype = {
-	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open> - change the house nearest to you (Bowl: a full bowl, the lamp mended)",
+	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open|Seller> - change the house nearest to you (Bowl: a full bowl, the lamp mended; Seller: his stall)",
 	run = function(admin, args)
 		local wanted = args[1]
-		local valid = { Normal = true, Decorated = true, Trick = true, Bowl = true, LightsOff = true, Open = true }
+		local valid =
+			{ Normal = true, Decorated = true, Trick = true, Bowl = true, LightsOff = true, Open = true, Seller = true }
 		if not valid[wanted] then
-			error("Try Normal, Decorated, Trick, Bowl, LightsOff or Open", 0)
+			error("Try Normal, Decorated, Trick, Bowl, LightsOff, Open or Seller", 0)
 		end
 		local best = nearestHouse(admin)
 		HouseService.setType(best, wanted)
 		return `{best} is now {wanted}`
+	end,
+}
+
+commands.item = {
+	usage = "/item <Bandage|BearTrap|Firecracker|Lockpick|all> [count] [player] - the seller's things, free (up to what you can carry)",
+	run = function(admin, args)
+		local ids = if args[1] == "all" then Items.ORDER elseif Items.sells(args[1]) then { args[1] } else nil
+		if ids == nil then
+			error("Try Bandage, BearTrap, Firecracker, Lockpick or all", 0)
+		end
+		local count = math.floor(tonumber(args[2]) or 1)
+		local target = requireTarget(admin, args[3])
+		DataService.mutate(target, "consumables", function(consumables)
+			for _, itemId in ids do
+				local most = ((Items :: any)[itemId] :: Items.Item).most
+				local now = math.clamp((consumables[itemId] or 0) + count, 0, most)
+				consumables[itemId] = if now > 0 then now else nil
+			end
+		end)
+		return `{target.Name} got {table.concat(ids, ", ")}`
 	end,
 }
 

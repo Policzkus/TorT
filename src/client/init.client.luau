@@ -34,6 +34,8 @@ Loader.run(script.Controllers, {
 	"MinigameController",
 	"RadialMenuController",
 	"ShopController",
+	"SellerController",
+	"ItemsController",
 	"CostumeController",
 	"BusController",
 	"GateController",

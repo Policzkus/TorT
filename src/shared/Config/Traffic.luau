@@ -12,7 +12,7 @@ local Traffic = {
 	EVERY = { 240, 360 }, -- seconds between cars down a street (the user: "every 5min or sum")
 	FIRST = { 60, 150 }, -- seconds before a street's first car
 	RETRY = { 20, 45 }, -- a car is due but nobody's on that street: look again in this long
-	SPEED = { 60, 72 }, -- studs a second (half as fast again as it was, the user asked: 40-48)
+	SPEED = { 75, 90 }, -- studs a second (the user asked: 40-48, then half as fast again, then a quarter more)
 	PAIR = { 0.5, 2 }, -- seconds after the first car that the one the other way comes out of the mist
 	-- How often the one the other way waits (from PAIR[1] on) for someone to step into the road, and
 	-- comes then; nobody does within `wait` seconds and it comes anyway.
@@ -24,9 +24,9 @@ local Traffic = {
 	BODY = { halfWidth = 3.7, halfLength = 8.9, height = 5.6 }, -- the car's box round its pivot (on the road under its middle)
 	PAD = 0.8, -- studs round the box that still count (the root part's own size)
 	LAG = 0.1, -- seconds: the server sees players this far in the past, so it checks the car that far back too
-	KNOCK = { forward = 0.6, up = 34, side = 14 }, -- the throw: share of the car's speed (as hard as before it got faster), then studs/s up and away
+	KNOCK = { forward = 0.48, up = 34, side = 14 }, -- the throw: share of the car's speed (as hard as before it got faster), then studs/s up and away
 	DOWN = 3.2, -- seconds ragdolled
-	HORN = { ahead = 90, wide = 6.5, gap = 1.6, most = 2 }, -- it honks at anyone in front of it, this far ahead (about 1.3 s) and this close to its line (the server decides: CarHonk)
+	HORN = { ahead = 110, wide = 6.5, gap = 1.6, most = 2 }, -- it honks at anyone in front of it, this far ahead (about 1.3 s) and this close to its line (the server decides: CarHonk)
 }
 
 export type Trip = {

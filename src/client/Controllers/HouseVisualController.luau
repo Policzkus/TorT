@@ -330,6 +330,8 @@ local function badgeText(model: Model): (string, string)
 		return "💤", "Lights off"
 	elseif houseType == "Bowl" then
 		return "🍬", "Please take one"
+	elseif houseType == "Seller" then
+		return "🏮", "Seller"
 	end
 	local tag = if houseType == "Decorated" then "  ✨" else ""
 	return icon .. tag, ""

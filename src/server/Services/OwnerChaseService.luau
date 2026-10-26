@@ -109,6 +109,9 @@ end
 
 local function think(owner: Owner)
 	local now = os.clock()
+	if Hunter.held(owner) then
+		return -- in a bear trap
+	end
 	local state = owner.state
 	if state == "burst" then
 		Hunter.stand(owner) -- in the doorway, shouting: you see who's coming first
@@ -129,6 +132,15 @@ local function think(owner: Owner)
 		end
 		Hunter.walk(owner, owner.sill, CHASE.SPEED.home, false)
 		return
+	end
+
+	-- A firecracker's bangs: off to them, seeing no one on the way (Hunter.lure).
+	local lure = Hunter.lure(owner)
+	if lure and owner.lastKnown ~= lure then
+		owner.lastKnown = lure
+		owner.target = nil
+		setState(owner, "investigate")
+		state = owner.state
 	end
 
 	-- Hunting: only the thief, only while they're on the street and up, and not for ever.

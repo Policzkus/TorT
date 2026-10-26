@@ -56,6 +56,9 @@ local EVENTS: { [string]: string } = {
 	PartyStart = "C→S the host sends the bus off (a countdown, then the teleport)",
 	RunLeave = "C→S leave the run and go back to the lobby",
 	Fainted = "S→C you were caught: (lostBucket: number, wakeIn: number)",
+	-- The seller's things (ItemService)
+	UseItem = "C→S use one of your things from the bar: (itemId, aim: Vector3 where you're looking)",
+	ItemUsed = "S→C someone used one of their things, everyone near hears it: (userId, itemId)",
 }
 
 local FUNCTIONS: { [string]: string } = {
@@ -63,6 +66,7 @@ local FUNCTIONS: { [string]: string } = {
 	BuyCostume = "C→S buy a costume with candy and put it on: (costumeId) -> (ok: boolean, message: string)",
 	EquipCostume = "C→S wear an owned costume ('' = take it off): (costumeId) -> (ok: boolean, message: string)",
 	ChooseStarter = "C→S pick which starter kid you are: (starterId) -> (ok: boolean, message: string)",
+	BuyItem = "C→S buy one of the seller's things at his crate: (houseId, itemId) -> (ok: boolean, message: string)",
 }
 
 type Options = {
