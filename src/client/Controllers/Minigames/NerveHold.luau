@@ -74,7 +74,7 @@ function NerveHold.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Body,
-		Text = "Hold Space / Mouse / Tap / Ⓐ   ·   don't let go",
+		Text = "Hold Space / Tap / Ⓐ   ·   don't let go",
 		TextColor3 = Theme.Colors.TextDim,
 		TextSize = 14,
 		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),

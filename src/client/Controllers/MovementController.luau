@@ -2,9 +2,9 @@
 -- How you move, in first person (Config/Movement has the numbers, Modules/Motion the maths).
 -- A slow walk (a horror pace) that picks up over a moment and settles a moment after you let go (a
 -- run carries a little further); turning takes a beat; in the air you can steer, and let go and your
--- momentum carries you; landing slows you a touch (a big drop, a lot).
--- Jumping: a lower, quicker jump than Roblox's (it still clears a yard fence), costing stamina
--- (weaker when you're out of breath), and not again straight after landing.
+-- momentum carries you; a big drop slows you for a moment.
+-- Jumping: a little lower and quicker than Roblox's, costing a little stamina, and not again
+-- straight after landing.
 -- Sprint: hold Shift (or click the left stick / the 🏃 button on a touch screen, on until you stop)
 -- while your stamina lasts. It only counts going forward: less the further you turn from where you
 -- look, none sideways or backwards. Run dry and you breathe hard and have to catch your breath before
@@ -443,11 +443,6 @@ local function step(dt: number)
 		share = sprintShare(wantX, wantZ)
 		humanoid.WalkSpeed = Motion.ease(humanoid.WalkSpeed, base * pace(share), 8, dt)
 	end
-	-- Out of breath, your jump's a weak one.
-	local height = Movement.JUMP.height * (if exhausted or stamina < Movement.JUMP.cost then Movement.JUMP.tired else 1)
-	if math.abs(humanoid.JumpHeight - height) > 0.01 then
-		humanoid.JumpHeight = height
-	end
 	if wantX * wantX + wantZ * wantZ < 0.01 then
 		sprintToggled = false
 	end
@@ -511,7 +506,7 @@ local function onCharacter(character: Model)
 	sentAt = 0
 	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
 	if humanoid then
-		humanoid.UseJumpPower = false -- JumpHeight, set every frame (step)
+		humanoid.UseJumpPower = false
 		humanoid.JumpHeight = Movement.JUMP.height
 		humanoid.StateChanged:Connect(function(_, new)
 			if new == Enum.HumanoidStateType.Jumping and player.Character == character then

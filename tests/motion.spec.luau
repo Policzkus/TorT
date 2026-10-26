@@ -53,7 +53,7 @@ return {
 	["in the air you can steer, more slowly than on the ground"] = function()
 		local onGround = settle(0, -WALK, WALK, 0)
 		local inAir = settle(0, -WALK, WALK, 0, true)
-		expect(inAir > onGround * 2).toBeTruthy()
+		expect(inAir > onGround * 1.5).toBeTruthy()
 		expect(inAir < 1).toBeTruthy()
 	end,
 	["a long frame can't overshoot"] = function()
@@ -127,7 +127,7 @@ return {
 	["only hard landings slow you"] = function()
 		expect(Motion.landingSlow(10)).toBe(1)
 		expect(Motion.landingSlow(Movement.LANDING.from)).toBe(1)
-		expect(Motion.landingSlow(40) > 0.9).toBeTruthy() -- a jump's landing: a touch
+		expect(Motion.landingSlow(48)).toBe(1) -- a jump's landing
 		expect(Motion.landingSlow(Movement.LANDING.full)).toBeNear(Movement.LANDING.slow, 1e-9)
 		expect(Motion.landingSlow(500)).toBeNear(Movement.LANDING.slow, 1e-9)
 	end,

@@ -19,6 +19,7 @@ local Workspace = game:GetService("Workspace")
 
 local Dialogue = require(ReplicatedStorage:WaitForChild("Shared").Config.Dialogue)
 local Economy = require(ReplicatedStorage:WaitForChild("Shared").Config.Economy)
+local Format = require(ReplicatedStorage:WaitForChild("Shared").Modules.Format)
 local Formulas = require(ReplicatedStorage:WaitForChild("Shared").Modules.Formulas)
 local Houses = require(ReplicatedStorage:WaitForChild("Shared").Modules.Houses)
 local Net = require(ReplicatedStorage:WaitForChild("Shared").Modules.Net)
@@ -208,11 +209,23 @@ local function bucketFull(): boolean
 	return upgrades ~= nil and (StateController.get("bucket") or 0) >= Formulas.bucketCapacity(upgrades.bucketTier)
 end
 
--- Lights-off, bowl and open houses never answer the door.
-local function answers(door: BasePart): boolean
+-- Bowl and open houses have no door to knock on (a lights-off one has: nobody comes, DoorService).
+local function knockable(door: BasePart): boolean
 	local model = Houses.of(door)
 	local houseType = model and model:GetAttribute("HouseType")
-	return houseType ~= "LightsOff" and houseType ~= "Bowl" and houseType ~= "Open"
+	return houseType ~= "Bowl" and houseType ~= "Open"
+end
+
+-- A candy bowl's prompt: how much is left in it, or that your bucket's full.
+local function applyBowl(model: Model, full: boolean)
+	local bowl = model:FindFirstChild("CandyBowl")
+	local take = bowl and bowl:FindFirstChild("TakeAll", true)
+	if bowl == nil or take == nil or not take:IsA("ProximityPrompt") then
+		return
+	end
+	local left = (bowl:GetAttribute("Candy") :: number?) or 0
+	take.ActionText = if full then "Bucket full" else "Take it all"
+	take.ObjectText = if full then "Empty it at your Candy Box" else `Candy bowl · {Format.number(left)} left`
 end
 
 local function apply(houseId: string)
@@ -222,7 +235,7 @@ local function apply(houseId: string)
 	if door then
 		local prompt = promptOf(door)
 		if prompt then
-			prompt.Enabled = not onCooldown and answers(door)
+			prompt.Enabled = not onCooldown and knockable(door)
 			local full = bucketFull()
 			prompt.ActionText = if full then "Bucket full" else "Knock"
 			local model = Houses.of(door)
@@ -233,8 +246,11 @@ local function apply(houseId: string)
 				else "Trick or treat!"
 		end
 	end
-	-- Not while they're still at the door: the ring comes once it's shut on them.
 	local house = door and Houses.of(door)
+	if house then
+		applyBowl(house, bucketFull())
+	end
+	-- Not while they're still at the door: the ring comes once it's shut on them.
 	local shut = house == nil or not Homeowner.atDoor(house)
 	setBadge(houseId, door, if onCooldown and shut then left else nil)
 	if not onCooldown then
@@ -258,6 +274,20 @@ local function track(door: Instance)
 				apply(houseId)
 			end)
 			readyAt[houseId] = model:GetAttribute("ReadyAt") :: number?
+			-- A bowl put out (every Dawn), and the candy going out of it.
+			local function watchBowl(child: Instance)
+				if child.Name == "CandyBowl" then
+					child:GetAttributeChangedSignal("Candy"):Connect(function()
+						apply(houseId)
+					end)
+					apply(houseId)
+				end
+			end
+			model.ChildAdded:Connect(watchBowl)
+			local bowl = model:FindFirstChild("CandyBowl")
+			if bowl then
+				watchBowl(bowl)
+			end
 		end
 		apply(houseId)
 	end

@@ -7,9 +7,12 @@ local Costumes = require(ReplicatedStorage.Shared.Config.Costumes)
 local Formulas = require(ReplicatedStorage.Shared.Modules.Formulas)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local DataService = require(script.Parent.DataService)
+local NotifyService = require(script.Parent.NotifyService)
 local WorldEventsService = require(script.Parent.WorldEventsService)
 
 local CandyService = {}
+
+local FULL_NOTICE_AFTER = 1.2 -- seconds: once the candy you got has flown into the bucket on your HUD
 
 CandyService.Stashed = Signal.new() -- (player, moved: number, boxFull: boolean)
 
@@ -63,6 +66,14 @@ function CandyService.addToBucket(player: Player, amount: number): (number, numb
 	if added > 0 then
 		DataService.mutate(player, "stats", function(stats)
 			stats.lifetimeCandy += added
+		end)
+	end
+	-- Just filled it: say so now (not the next time you try a door).
+	if added > 0 and bucket >= Formulas.bucketCapacity(data.upgrades.bucketTier) then
+		task.delay(FULL_NOTICE_AFTER, function()
+			if player.Parent then
+				NotifyService.send(player, "🪣 Your bucket's full! Empty it at your Candy Box", "error")
+			end
 		end)
 	end
 	return added, overflow

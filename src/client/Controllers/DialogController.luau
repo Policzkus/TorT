@@ -13,8 +13,9 @@
 -- same, beside their head (SurfaceGui.AlwaysOnTop didn't draw at all). It stays by them wherever you
 -- go, and fades once they've gone back inside or you've walked too far off. Your replies are your
 -- own, so they stay on the HUD.
--- Lines are quick, and yours to skip (the user wanted a faster game): a click, Enter or Space shows
+-- Lines are quick, and yours to skip (the user wanted a faster game): a left click (a tap, Ⓨ) shows
 -- the rest of the line at once, again puts it away; once it's all out, moving the mouse puts it away.
+-- (Not Space: that's the mini-games'.)
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -50,7 +51,9 @@ local ELLIPSIS_DOT = Dialogue.TIMING.ELLIPSIS_DOT
 local HOLD = Dialogue.TIMING.HOLD
 local HOLD_PER_WORD = Dialogue.TIMING.HOLD_PER_WORD
 local SKIP = "DialogSkip"
-local SKIP_KEYS = { Enum.KeyCode.Return, Enum.KeyCode.Space, Enum.KeyCode.ButtonA }
+-- Put a line away: a left click (or a tap: below), Ⓨ on a gamepad. Not Space: that's the mini-games'
+-- (the user wanted the two apart).
+local SKIP_KEYS = { Enum.KeyCode.ButtonY }
 local LOOK_AWAY = 60 -- pixels of mouse movement, once a line is all out, that put it away
 local FAR = 32 -- studs from the speaker beyond which the line is dropped
 local LOST_GRACE = 0.5 -- seconds a line outlives its speaker going back inside
@@ -652,7 +655,7 @@ end
 
 function DialogController.Start()
 	RunService.RenderStepped:Connect(update)
-	-- Under a question's own keys, over jumping (Space only skips while there's a line to skip).
+	-- Under a question's own keys (Ⓨ only skips while there's a line to skip).
 	ContextActionService:BindActionAtPriority(SKIP, function(_, state)
 		if state == Enum.UserInputState.Begin and skip(true) then
 			return Enum.ContextActionResult.Sink
