@@ -515,17 +515,9 @@ local function onDoorResult(result: any)
 	local from = doorPoint(result.houseId)
 	local color = GRADE_COLORS[result.grade] or Theme.Colors.Text
 	refreshStreak(result.streak or 0)
-	if result.bowl == "caught" then
-		callout(`CAUGHT  -{Format.number(result.lost or 0)}`, Theme.Colors.Danger, from, 0.9)
-		task.delay(1, function()
-			shake(bagChip)
-			Sound.play("Miss")
-		end)
-		return
-	end
 	local delay = 0.15
-	if result.bowl == "all" then
-		callout("TOOK IT ALL  ×12", Theme.Colors.Slime, from, delay)
+	if result.bowl == true then
+		callout("TOOK IT ALL", Theme.Colors.Slime, from, delay)
 		delay += 0.35
 	end
 	if result.brave then

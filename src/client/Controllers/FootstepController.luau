@@ -4,8 +4,8 @@
 -- running, soft when creeping (crouched); a thump when you land from a fall. Roblox's own plastic
 -- footstep loop is silenced.
 -- Your own steps come from your gait (MovementController.footfall), each one as the view dips
--- (CameraController), so what you hear keeps time with what you see. Everyone else's go by the
--- ground they cover, with the same stride (Modules/Motion).
+-- (CameraController), so what you hear keeps time with what you see, and a jump pushes off with one.
+-- Everyone else's go by the ground they cover, with the same stride (Modules/Motion).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -43,6 +43,7 @@ local SOFT: { [string]: boolean } = { StepGrass = true, StepDirt = true, StepCar
 
 type Walker = { travelled: number, last: Vector3?, airborne: boolean, fall: number }
 local walkers: { [Model]: Walker } = {}
+local underfoot: Enum.Material = M.Concrete -- what your feet were last on (a jump pushes off it)
 
 -- RbxCharacterSounds plays a plastic "Running" loop and its own "Landing"; ours replace them.
 local function silence(character: Model)
@@ -101,6 +102,9 @@ local function step(dt: number)
 		local grounded = humanoid.FloorMaterial ~= M.Air
 		local name = STEP[humanoid.FloorMaterial] or "StepConcrete"
 		local at = if mine then nil else root
+		if mine and grounded then
+			underfoot = humanoid.FloorMaterial
+		end
 		if grounded then
 			if walker.airborne and walker.fall > LAND_SPEED then
 				Sound.play(if SOFT[name] then "LandSoft" else "LandWood", {
@@ -159,6 +163,9 @@ end
 
 function FootstepController.Start()
 	MovementController.footfall:Connect(onFootfall)
+	MovementController.jumped:Connect(function()
+		Sound.play(STEP[underfoot] or "StepConcrete", { volume = 1.1, speed = 0.85 + math.random() * 0.1 }) -- pushing off
+	end)
 	Players.PlayerAdded:Connect(watch)
 	for _, player in Players:GetPlayers() do
 		watch(player)

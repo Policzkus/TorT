@@ -301,7 +301,7 @@ local function step(dt: number)
 			chased = true
 		end
 	end
-	MusicController.setChase(chased)
+	MusicController.setChase("knifer", chased)
 end
 
 -- He's come onto a street: everyone on it hears the sting, wherever he is (the only warning).

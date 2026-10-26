@@ -279,6 +279,12 @@ local function burst(character: Model, lost: number, seed: number)
 	end)
 end
 
+-- `lost` candy thrown out of `character`'s bucket (the same throw for everyone from the same `seed`):
+-- also a homeowner taking back their bowl's candy (OwnerChaseController).
+function TrafficController.spill(character: Model, lost: number, seed: number)
+	burst(character, lost, seed)
+end
+
 local function onHit(userId: any, lost: any, seed: any)
 	local victim = if type(userId) == "number" then Players:GetPlayerByUserId(userId) else nil
 	local amount = if type(lost) == "number" then lost else 0

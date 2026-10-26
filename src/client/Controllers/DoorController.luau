@@ -607,7 +607,7 @@ function DoorController.Start()
 			Sound.play("Knock", { at = door })
 		end
 	end)
-	-- Someone else got a scare: whoever's at their door goes for them (a caught bowl thief only gets
+	-- Someone else got a scare: whoever's at their door goes for them (a "caught" scare only gets
 	-- the scream), loud from the door. Theirs is the jumpscare (JumpscareController).
 	Net.event("ScareSeen").OnClientEvent:Connect(function(houseId: any, userId: any, kind: any)
 		local door = if type(houseId) == "string" then doors[houseId] else nil

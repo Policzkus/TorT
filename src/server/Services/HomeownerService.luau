@@ -190,6 +190,7 @@ local function glances()
 			answers
 			and visits[houseId] == nil
 			and glancing[houseId] == nil
+			and model:GetAttribute("OwnerAway") ~= true -- out after a bowl thief (OwnerChaseService)
 			and model:GetAttribute("OwnerModel") ~= nil
 			and now - (lastGlance[houseId] or -math.huge) > GLANCE.rest
 		then

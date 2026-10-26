@@ -2,7 +2,8 @@ local Motion = rbx.require("src/shared/Modules/Motion")
 local Movement = rbx.require("src/shared/Config/Movement")
 
 local FRAME = 1 / 60
-local WALK = 16
+local WALK = 16 * Movement.WALK -- a walk at Roblox's base speed
+local RUN = Movement.SPRINT / Movement.WALK -- a run, in walks
 
 -- Seconds of 60 fps frames until the walk (vx, vz) is within 0.05 of (tx, tz), and the top speed on the way.
 local function settle(vx, vz, tx, tz, airborne)
@@ -22,16 +23,20 @@ return {
 	end,
 	["a walk stops in about 1/ACCEL.stop seconds, a run takes longer"] = function()
 		expect((settle(0, -WALK, 0, 0))).toBeNear(1 / Movement.ACCEL.stop, 0.04)
-		local run = WALK * Movement.SPRINT
-		expect((settle(0, -run, 0, 0))).toBeNear(Movement.SPRINT / Movement.ACCEL.stop, 0.04)
+		expect((settle(0, -WALK * RUN, 0, 0))).toBeNear(RUN / Movement.ACCEL.stop, 0.04)
 	end,
-	["a run builds up more slowly than a walk"] = function()
-		local run = WALK * Movement.SPRINT
-		local t = settle(0, -WALK, 0, -run)
-		expect(t).toBeNear((Movement.SPRINT - 1) / Movement.ACCEL.sprint, 0.04)
+	["a run builds up more slowly than a walk, in under half a second"] = function()
+		local t = settle(0, -WALK, 0, -WALK * RUN)
+		expect(t).toBeNear((RUN - 1) / Movement.ACCEL.sprint, 0.04)
+		expect(t < 0.5).toBeTruthy()
 		-- From standing: quickly to a walk, then the slow part.
-		local fromStill = settle(0, 0, 0, -run)
-		expect(fromStill).toBeNear(1 / Movement.ACCEL.start + (Movement.SPRINT - 1) / Movement.ACCEL.sprint, 0.05)
+		local fromStill = settle(0, 0, 0, -WALK * RUN)
+		expect(fromStill).toBeNear(1 / Movement.ACCEL.start + (RUN - 1) / Movement.ACCEL.sprint, 0.05)
+	end,
+	["walking is slower than Roblox's 16, running as fast as before, creeping slower than walking"] = function()
+		expect(16 * Movement.WALK < 13).toBeTruthy()
+		expect(16 * Movement.SPRINT).toBeNear(25.6, 1e-9)
+		expect(Movement.CROUCH < Movement.WALK).toBeTruthy()
 	end,
 	["turning never goes faster than you were going"] = function()
 		local t, top = settle(0, -WALK, WALK, 0)
@@ -121,8 +126,8 @@ return {
 	end,
 	["only hard landings slow you"] = function()
 		expect(Motion.landingSlow(10)).toBe(1)
-		expect(Motion.landingSlow(53)).toBe(1) -- an ordinary jump
 		expect(Motion.landingSlow(Movement.LANDING.from)).toBe(1)
+		expect(Motion.landingSlow(40) > 0.9).toBeTruthy() -- a jump's landing: a touch
 		expect(Motion.landingSlow(Movement.LANDING.full)).toBeNear(Movement.LANDING.slow, 1e-9)
 		expect(Motion.landingSlow(500)).toBeNear(Movement.LANDING.slow, 1e-9)
 	end,

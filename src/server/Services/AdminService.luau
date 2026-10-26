@@ -18,6 +18,7 @@ local NotifyService = require(script.Parent.NotifyService)
 local HouseService = require(script.Parent.HouseService)
 local LivesService = require(script.Parent.LivesService)
 local KniferService = require(script.Parent.KniferService)
+local OwnerChaseService = require(script.Parent.OwnerChaseService)
 local TrafficService = require(script.Parent.TrafficService)
 local WorldEventsService = require(script.Parent.WorldEventsService)
 local WorldService = require(script.Parent.WorldService)
@@ -172,30 +173,51 @@ commands.event = {
 	end,
 }
 
+-- The house whose door is nearest `admin`.
+local function nearestHouse(admin: Player): string
+	local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root == nil then
+		error("You need a character", 0)
+	end
+	local best, bestDistance = nil, math.huge
+	for houseId, house in WorldService.info().houses do
+		local distance = (house.door.Position - root.Position).Magnitude
+		if distance < bestDistance then
+			best, bestDistance = houseId, distance
+		end
+	end
+	if best == nil then
+		error("No houses", 0)
+	end
+	return best
+end
+
 commands.housetype = {
-	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open> - change the house nearest to you",
+	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open> - change the house nearest to you (Bowl: a full bowl, the lamp mended)",
 	run = function(admin, args)
 		local wanted = args[1]
 		local valid = { Normal = true, Decorated = true, Trick = true, Bowl = true, LightsOff = true, Open = true }
 		if not valid[wanted] then
 			error("Try Normal, Decorated, Trick, Bowl, LightsOff or Open", 0)
 		end
-		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if root == nil then
-			error("You need a character", 0)
-		end
-		local best, bestDistance = nil, math.huge
-		for houseId, house in WorldService.info().houses do
-			local distance = (house.door.Position - root.Position).Magnitude
-			if distance < bestDistance then
-				best, bestDistance = houseId, distance
-			end
-		end
-		if best == nil then
-			error("No houses", 0)
-		end
+		local best = nearestHouse(admin)
 		HouseService.setType(best, wanted)
 		return `{best} is now {wanted}`
+	end,
+}
+
+commands.chase = {
+	usage = "/chase [home] - the homeowner of the house nearest you comes out after you, as if you'd emptied their bowl (home: send everyone who's out back in)",
+	run = function(admin, args)
+		if args[1] == "home" then
+			return `{OwnerChaseService.dismiss()} homeowner(s) sent back in`
+		end
+		local best = nearestHouse(admin)
+		if OwnerChaseService.away(best) then
+			error("They're already out", 0)
+		end
+		OwnerChaseService.raid(admin, best, true)
+		return `{best}'s homeowner is coming out after you`
 	end,
 }
 

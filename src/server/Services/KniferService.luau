@@ -15,13 +15,12 @@ local CollectionService = game:GetService("CollectionService")
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Knifer = require(ReplicatedStorage.Shared.Config.Knifer)
 local World = require(ReplicatedStorage.Shared.Config.World)
 local CharacterRig = require(ReplicatedStorage.Shared.Modules.CharacterRig)
-local Motion = require(ReplicatedStorage.Shared.Modules.Motion)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
+local Hunter = require(script.Parent.Parent.AI.Hunter)
 local HouseService = require(script.Parent.HouseService)
 local LivesService = require(script.Parent.LivesService)
 local WorldService = require(script.Parent.WorldService)
@@ -36,7 +35,7 @@ local ROOT = Vector3.new(1.4, 4, 1.4)
 
 type State = "appear" | "roam" | "investigate" | "chase" | "search" | "kill" | "leave"
 type Exit = { at: Vector3, out: Vector3, door: boolean } -- a place to come out of / go back into, the way out
-type Beat = { at: Vector3, pause: number?, look: Vector3? } -- walk to `at`, then stand `pause` seconds looking toward `look`
+type Beat = Hunter.Beat
 -- What he knows of a house: where it is along the street (`z`, studs down it) and on which side, its
 -- door, the foot of its porch steps (`front`), and the gaps down its sides with where to look from
 -- them (into the back gardens).
@@ -50,35 +49,12 @@ type Lot = {
 	gaps: { { at: Vector3, look: Vector3 } },
 }
 
-type Him = {
-	street: string,
-	model: Model,
-	root: BasePart,
-	humanoid: Humanoid,
-	lift: number, -- his root's middle over his feet
-	path: Path,
-	state: State,
-	since: number, -- os.clock the state began
-	born: number,
+-- A hunter (AI/Hunter: how he sees, hears, walks and searches), and his patrol.
+type Him = Hunter.Hunter & {
 	stay: number,
-	target: Player?,
-	lastSeen: number,
-	lastKnown: Vector3?,
-	goal: Vector3?, -- where he's walking
 	plan: { Beat }, -- roaming: his patrol's next steps
 	heading: number, -- roaming: 1 down the street, -1 back up it
 	beatSince: number,
-	points: { Beat }, -- searching: the hiding places left to look at
-	pauseUntil: number,
-	look: Vector3?, -- standing still: what he's looking toward (his gaze sweeps either side of it)
-	lookFrom: number,
-	waypoints: { Vector3 },
-	waypoint: number,
-	pathGoal: Vector3?,
-	pathAt: number,
-	direct: boolean,
-	stuckSince: number?,
-	gone: boolean,
 }
 
 local WALK_X = World.ROAD_WIDTH / 2 + World.SIDEWALK_WIDTH / 2 -- studs out from the road's centre: the pavements' middle
@@ -87,160 +63,17 @@ local random = Random.new()
 local active: { [string]: Him } = {} -- per street
 local lotsCache: { [string]: { Lot } } = {}
 local lotsBuilding: { [string]: boolean } = {}
--- The paths he walks keep this far off walls: slim enough for a yard gate (wider, and gates and the
--- gaps between houses close up, and every path goes round the block).
-local AGENT = { AgentRadius = 1, AgentHeight = 7.5, AgentCanJump = false, AgentCanClimb = false, WaypointSpacing = 5 }
+local AGENT = Hunter.AGENT
 local nextAt: { [string]: number } = {}
 local folder: Folder
 
-local function between(range: { number }): number
-	return random:NextNumber(range[1], range[2])
-end
+local between, flat, rootOf, huntable = Hunter.between, Hunter.flat, Hunter.rootOf, Hunter.huntable
+local sightParams, clear, sees, hears, groundAt =
+	Hunter.sightParams, Hunter.clear, Hunter.sees, Hunter.hears, Hunter.groundAt
+local stand, arrived, walk, pause = Hunter.stand, Hunter.arrived, Hunter.walk, Hunter.pause
 
-local function flat(v: Vector3): Vector3
-	return Vector3.new(v.X, 0, v.Z)
-end
-
-local function rootOf(player: Player): BasePart?
-	local character = player.Character
-	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-end
-
--- Players on `street` who can still be hunted.
-local function huntable(street: string): { Player }
-	local list = {}
-	for _, player in Players:GetPlayers() do
-		local root = rootOf(player)
-		local character = player.Character
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		if
-			root
-			and humanoid
-			and humanoid.Health > 0
-			and not LivesService.isFainting(player)
-			and WorldService.zoneAt(root.Position) == street
-		then
-			table.insert(list, player)
-		end
-	end
-	return list
-end
-
--- What blocks sight: everything solid but people and him.
-local function sightParams(): RaycastParams
-	local ignore: { Instance } = { folder }
-	for _, player in Players:GetPlayers() do
-		if player.Character then
-			table.insert(ignore, player.Character)
-		end
-	end
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = ignore
-	return params
-end
-
-local function clear(from: Vector3, to: Vector3, params: RaycastParams): boolean
-	return Workspace:Raycast(from, to - from, params) == nil
-end
-
--- In a hiding place (a part tagged HideSpot: a bush, a hedge)?
-local function hidden(at: Vector3): boolean
-	for _, spot in CollectionService:GetTagged("HideSpot") do
-		if spot:IsA("BasePart") then
-			local p = spot.CFrame:PointToObjectSpace(at)
-			local half = spot.Size / 2
-			if math.abs(p.X) <= half.X and math.abs(p.Y) <= half.Y and math.abs(p.Z) <= half.Z then
-				return true
-			end
-		end
-	end
-	return false
-end
-
--- Crouched and creeping: the client says it's crouching (Crouching, CharacterService), and it's
--- moving no faster than a crouch walk, so it's true.
-local function creeping(player: Player, root: BasePart): boolean
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if character == nil or humanoid == nil then
-		return false
-	end
-	local base = (humanoid:GetAttribute("BaseSpeed") :: number?) or 16
-	local speed = flat(root.AssemblyLinearVelocity).Magnitude
-	return Motion.creeping(character:GetAttribute("Crouching") == true, speed, base)
-end
-
--- How much lower a crouched player's eyes (and the rest of them) are than standing: 0 standing up.
-local function crouchDrop(player: Player, root: BasePart): number
-	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if humanoid == nil or not creeping(player, root) then
-		return 0
-	end
-	return Motion.crouchDrop(humanoid.HipHeight, root.Size.Y)
-end
-
-local function eyeOf(him: Him): Vector3
-	local head = him.model:FindFirstChild("Head")
-	return if head and head:IsA("BasePart") then head.Position else him.root.Position + Vector3.new(0, 1.4, 0)
-end
-
-local function sees(him: Him, player: Player, params: RaycastParams): boolean
-	local root = rootOf(player)
-	if root == nil then
-		return false
-	end
-	local eye = eyeOf(him)
-	local offset = root.Position - eye
-	local distance = offset.Magnitude
-	if distance > Knifer.SIGHT.range or (distance > Knifer.HIDDEN_NEAR and hidden(root.Position)) then
-		return false
-	end
-	if distance > Knifer.SIGHT.near then
-		local facing = flat(him.root.CFrame.LookVector)
-		local toward = flat(offset)
-		if
-			facing.Magnitude > 0.01
-			and toward.Magnitude > 0.01
-			and facing.Unit:Dot(toward.Unit) < math.cos(math.rad(Knifer.SIGHT.fov / 2))
-		then
-			return false
-		end
-	end
-	local head = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
-	-- Crouched, your body and head are lower: he can't see you behind what you'd stand up over.
-	local down = Vector3.new(0, crouchDrop(player, root), 0)
-	return clear(eye, root.Position - down / 2, params) or (head ~= nil and clear(eye, head.Position - down, params))
-end
-
--- The nearest player he can hear (walking close by, running further off), and where.
-local function hears(him: Him, players: { Player }): Vector3?
-	local best, bestDistance = nil, math.huge
-	for _, player in players do
-		local root = rootOf(player)
-		if root then
-			local speed = flat(root.AssemblyLinearVelocity).Magnitude
-			local distance = (root.Position - him.root.Position).Magnitude
-			local range = if speed >= Knifer.HEAR.running
-				then Knifer.HEAR.run
-				elseif speed < Knifer.HEAR.walking then 0
-				elseif creeping(player, root) then Knifer.HEAR.creep
-				else Knifer.HEAR.walk
-			if distance <= range and distance < bestDistance then
-				best, bestDistance = root.Position, distance
-			end
-		end
-	end
-	return best
-end
-
--- Ground under `at` (the world's, not people's), or nil.
-local function groundAt(at: Vector3): Vector3?
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Include
-	params.FilterDescendantsInstances = { WorldService.info().folder }
-	local hit = Workspace:Raycast(at + Vector3.new(0, 14, 0), Vector3.new(0, -40, 0), params)
-	return hit and hit.Position
+local function lookAround(him: Him)
+	Hunter.lookAround(him, Knifer.PATROL.sweep)
 end
 
 -- Does anyone near see the spot?
@@ -254,27 +87,6 @@ local function watched(at: Vector3, params: RaycastParams): boolean
 		end
 	end
 	return false
-end
-
-local function configure(humanoid: Humanoid)
-	humanoid.MaxHealth = math.huge
-	humanoid.Health = math.huge
-	humanoid.RequiresNeck = false
-	humanoid.BreakJointsOnDeath = false
-	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-	humanoid.WalkSpeed = Knifer.SPEED.roam
-	for _, state in
-		{
-			Enum.HumanoidStateType.Jumping,
-			Enum.HumanoidStateType.Climbing,
-			Enum.HumanoidStateType.FallingDown,
-			Enum.HumanoidStateType.Ragdoll,
-			Enum.HumanoidStateType.Swimming,
-		}
-	do
-		humanoid:SetStateEnabled(state, false)
-	end
 end
 
 -- Who he is: the sack-mask homeowner (Config/Knifer.CHARACTER, a Blender character rigged like
@@ -322,7 +134,7 @@ local function build(at: Vector3, out: Vector3): (Model, BasePart, Humanoid, num
 		local lift = rigRoot.Position.Y -- (built standing on the origin)
 		rig.Name = "Knifer"
 		rig:PivotTo(CFrame.lookAt(at + Vector3.new(0, lift, 0), at + Vector3.new(0, lift, 0) + out))
-		configure(rigHumanoid)
+		Hunter.configure(rigHumanoid, Knifer.SPEED.roam)
 		-- Slim where he collides (his body doesn't): yard gates and the gaps between houses fit him.
 		rigRoot.Size = Vector3.new(math.min(rigRoot.Size.X, 1.4), rigRoot.Size.Y, math.min(rigRoot.Size.Z, 1))
 		arm(rig)
@@ -374,7 +186,7 @@ local function build(at: Vector3, out: Vector3): (Model, BasePart, Humanoid, num
 	local humanoid = Instance.new("Humanoid")
 	humanoid.RigType = Enum.HumanoidRigType.R15
 	humanoid.HipHeight = HIP
-	configure(humanoid)
+	Hunter.configure(humanoid, Knifer.SPEED.roam)
 	humanoid.Parent = model
 	return model, root, humanoid, lift
 end
@@ -386,85 +198,6 @@ local function setState(him: Him, state: State)
 	if state ~= "chase" then
 		him.model:SetAttribute("Target", 0)
 	end
-end
-
--- Walks toward `goal` at `speed`: straight at it when `straight` (he can see it), else along a path
--- round whatever's in the way (worked out again as the goal moves, or if he gets stuck). True when
--- he was wedged and had to be shoved free (a wanderer should pick somewhere else to go).
-local function walk(him: Him, goal: Vector3, speed: number, straight: boolean): boolean
-	local now = os.clock()
-	him.humanoid.WalkSpeed = speed
-	him.goal = goal
-	local moving = flat(him.root.AssemblyLinearVelocity).Magnitude
-	if moving < 1 and (flat(goal - him.root.Position)).Magnitude > 3 then
-		him.stuckSince = him.stuckSince or now
-	else
-		him.stuckSince = nil
-	end
-	local stuckFor = if him.stuckSince then now - him.stuckSince else 0
-	if stuckFor > 2.5 then
-		-- Wedged where the path says he fits (a box's corner by a kerb): shoved a step on, think again.
-		local point = him.waypoints[him.waypoint] or goal
-		local toward = flat(point - him.root.Position)
-		if toward.Magnitude > 0.1 then
-			him.root.CFrame += toward.Unit * 1.5
-		end
-		him.stuckSince = nil
-		him.pathGoal = nil
-		return true
-	end
-	local stuck = stuckFor > 0.8
-	if straight and not stuck and (goal - him.root.Position).Magnitude < 40 then
-		him.direct = true
-		him.humanoid:MoveTo(goal)
-		return false
-	end
-	him.direct = false
-	local stale = him.pathGoal == nil
-		or (goal - (him.pathGoal :: Vector3)).Magnitude > 5
-		or now - him.pathAt > (if him.state == "chase" then 1 else 5)
-		or (stuck and now - him.pathAt > 0.8)
-		or him.waypoint > #him.waypoints
-	if stale then
-		him.pathGoal = goal
-		him.pathAt = now
-		-- Paths run along the ground: a goal up in the air (where someone's chest was) has none.
-		local target = groundAt(goal) or goal
-		local ok = pcall(function()
-			him.path:ComputeAsync(him.root.Position - Vector3.new(0, him.lift - 0.5, 0), target)
-		end)
-		if him.gone then
-			return false
-		end
-		him.waypoints = {}
-		if ok and him.path.Status == Enum.PathStatus.Success then
-			for _, waypoint in him.path:GetWaypoints() do
-				table.insert(him.waypoints, waypoint.Position)
-			end
-			him.waypoint = math.min(2, #him.waypoints)
-		else
-			him.waypoints = { goal } -- nowhere to go round: straight at it
-			him.waypoint = 1
-		end
-	end
-	local point = him.waypoints[him.waypoint]
-	while point and flat(point - him.root.Position).Magnitude < 2.5 and him.waypoint < #him.waypoints do
-		him.waypoint += 1
-		point = him.waypoints[him.waypoint]
-	end
-	if point then
-		him.humanoid:MoveTo(point)
-	end
-	return false
-end
-
-local function stand(him: Him)
-	him.humanoid:MoveTo(him.root.Position)
-	him.goal = nil
-end
-
-local function arrived(him: Him, goal: Vector3, within: number): boolean
-	return flat(goal - him.root.Position).Magnitude <= within
 end
 
 -- How far he'd walk from `from` to `to` (along a path round things), or nil if he can't get there.
@@ -554,6 +287,16 @@ local function lotsOf(streetId: string): { Lot }
 	return list
 end
 
+-- What he knows of `street`'s houses (the hiding places beside them: OwnerChaseService looks there too).
+function KniferService.lots(street: string): { Lot }
+	return lotsOf(street)
+end
+
+-- The hiding places round where he lost you (AI/Hunter), from what he knows of the street.
+local function hidingPlaces(him: Him, around: Vector3): { Beat }
+	return Hunter.hidingPlaces(him, around, lotsOf(him.street))
+end
+
 -- His patrol's next few steps: on along his side of the street to the next house the way he's
 -- heading, and there maybe into its front yard to stare at it, or down the side of it to look into the
 -- back gardens, or straight across the road, or just a stop to look round. At the end of the street
@@ -617,71 +360,6 @@ local function planPatrol(him: Him): { Beat }
 		plan[#plan] = { at = stop, pause = between(patrol.look), look = stop + forward * 30 }
 	end
 	return plan
-end
-
--- The hiding places round where he lost you, nearest first: the gaps beside the houses, the front
--- yards, anything tagged HideSpot (bushes), and the spot itself.
-local function hidingPlaces(him: Him, around: Vector3): { Beat }
-	local found: { { beat: Beat, distance: number } } = {}
-	local function consider(at: Vector3, look: Vector3)
-		local distance = flat(at - around).Magnitude
-		if distance <= Knifer.SEARCH.radius then
-			table.insert(
-				found,
-				{ beat = { at = at, pause = between(Knifer.SEARCH.pause), look = look }, distance = distance }
-			)
-		end
-	end
-	for _, lot in lotsOf(him.street) do
-		for _, gap in lot.gaps do
-			consider(gap.at, gap.look)
-		end
-		if lot.front then
-			consider(lot.front :: Vector3, lot.door)
-		end
-	end
-	for _, spot in CollectionService:GetTagged("HideSpot") do
-		if spot:IsA("BasePart") then
-			local ground = groundAt(spot.Position)
-			if ground then
-				consider(ground + flat(him.root.Position - ground).Unit * (spot.Size.X / 2 + 2), spot.Position)
-			end
-		end
-	end
-	table.sort(found, function(a, b)
-		return a.distance < b.distance
-	end)
-	local beats: { Beat } = {}
-	local ground = groundAt(around)
-	if ground then
-		table.insert(
-			beats,
-			{ at = ground, pause = between(Knifer.SEARCH.pause), look = ground + flat(ground - him.root.Position) }
-		)
-	end
-	for i = 1, math.min(Knifer.SEARCH.points, #found) do
-		table.insert(beats, found[i].beat)
-	end
-	return beats
-end
-
--- Standing still, looking: turned toward `him.look`, his gaze slowly sweeping either side of it.
-local function lookAround(him: Him)
-	stand(him)
-	local look = him.look
-	local toward = if look then flat(look - him.root.Position) else flat(him.root.CFrame.LookVector)
-	if toward.Magnitude < 0.1 then
-		return
-	end
-	local base = math.atan2(-toward.X, -toward.Z)
-	local sweep = math.sin((os.clock() - him.lookFrom) * 1.3) * Knifer.PATROL.sweep
-	him.root.CFrame = CFrame.new(him.root.Position) * CFrame.Angles(0, base + sweep, 0)
-end
-
-local function pause(him: Him, beat: Beat)
-	him.pauseUntil = os.clock() + (beat.pause or 0)
-	him.look = beat.look
-	him.lookFrom = os.clock()
 end
 
 -- Places on `street` he can come out of (and go back into): open houses' doorways, and the gaps
@@ -954,6 +632,7 @@ function KniferService.summon(street: string, near: Player?): boolean
 		humanoid = humanoid,
 		lift = lift,
 		path = PathfindingService:CreatePath(AGENT),
+		rules = Knifer,
 		state = "appear",
 		since = now,
 		born = now,
@@ -1051,9 +730,7 @@ local function schedule()
 end
 
 function KniferService.Start()
-	folder = Instance.new("Folder")
-	folder.Name = "Knifers"
-	folder.Parent = Workspace
+	folder = Hunter.folder()
 	-- Learn the streets in the background (which yards and gaps he can walk to), before he's needed.
 	task.spawn(function()
 		for streetId in WorldService.info().streets do

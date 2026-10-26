@@ -11,8 +11,10 @@
 -- they carry is put away while they sit (worn on the back, it went through the seat back).
 -- Knocked down (Ragdoll, RagdollService) the joints are left to physics.
 -- Crouched (Crouching, from their client through CharacterService; your own straight away), they
--- go down at the hips, legs out front and back to keep their feet on the ground, leaning over, head
--- up to look ahead, stepping short. Running they lean into it, arms and legs pumping harder.
+-- go down on their haunches: hips low, both legs out in front (the angle that keeps the feet on the
+-- ground), hunched over with the head up to look ahead, hands by the knees; creeping, they shuffle,
+-- bobbing a little with each step. Running they lean into it, arms and legs pumping harder. In the
+-- air one leg's drawn up and the other trails, the arms out a little for balance.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -32,12 +34,29 @@ local STRIDE = 0.62 -- swing radians per stud travelled
 local FULL_SPEED = 12 -- studs/s at which the swing reaches full size
 local LOOK = { every = 0.12, change = 0.05, head = 0.75 } -- send your look this often if it moved this far; the head takes this share
 local SIT = { legs = 1.5, splay = 0.08, arms = 0.55, lean = 0.08 } -- radians: legs forward, apart, arms forward, back
--- Crouched: the hips go down `hips` of their height, leaning `lean` radians forward, arms `arms`
--- forward, the head tipped back up `head` of the lean, the back leg `back` as far out as the front
--- (its foot tucked under), steps `swing` the size.
-local CROUCH = { hips = 0.4, lean = 0.35, arms = 0.4, head = 0.8, back = 0.85, swing = 0.5 }
+-- Crouched: on their haunches, the hips `hips` of their height lower and both legs out in front at
+-- the angle that keeps the feet on the ground, `splay` apart; hunched `lean` radians forward, the
+-- head tipped back up `head` of that to look ahead; the arms `arms` further forward, to the knees,
+-- `tuck`ed in. Creeping they shuffle: the legs `step` radians either way, the body rising `bob` of
+-- their hip height with each step, the arms swinging `armSwing` of the legs.
+local CROUCH = {
+	hips = 0.5,
+	splay = 0.14,
+	lean = 0.5,
+	head = 0.85,
+	arms = 0.6,
+	tuck = 0.18,
+	step = 0.3,
+	bob = 0.08,
+	armSwing = 0.6,
+}
 -- Running (from `from` to `full` studs/s): leaning `lean` radians into it, swinging `swing` times as far.
-local RUN = { from = 18, full = 26, lean = 0.2, swing = 1.35 }
+local RUN = { from = 15, full = 25, lean = 0.2, swing = 1.35 }
+-- In the air: the near leg drawn up, the other trailing (`legs`), the arms `arms` forward and `out`.
+local AIR = { legs = { 0.55, -0.2 }, arms = 0.45, out = 0.35 }
+-- Reaching out to grab someone (Reaching: a homeowner after a bowl thief, OwnerChaseService): both
+-- arms `arms` radians up in front, `splay` apart, swinging only `swing` of the usual.
+local REACH = { arms = 1.45, splay = 0.12, swing = 0.3 }
 
 type Rig = {
 	model: Model,
@@ -53,6 +72,7 @@ type Rig = {
 	sit: number, -- 0..1 how sat down they are
 	crouch: number, -- 0..1 how crouched
 	run: number, -- 0..1 how hard they're running
+	reach: number, -- 0..1 how far their arms are out to grab
 	lift: number?, -- studs this build is raised sitting down (worked out once)
 	bucketHidden: boolean, -- put away while they sit
 }
@@ -88,6 +108,7 @@ local function add(model: Instance)
 		sit = 0,
 		crouch = 0,
 		run = 0,
+		reach = 0,
 		bucketHidden = false,
 	}
 end
@@ -178,6 +199,8 @@ local function step(dt: number)
 		rig.crouch += ((if crouching and not dead then 1 else 0) - rig.crouch) * math.min(1, dt * 12)
 		local running = math.clamp((speed - RUN.from) / (RUN.full - RUN.from), 0, 1) * (1 - rig.crouch)
 		rig.run += ((if airborne then rig.run else running) - rig.run) * math.min(1, dt * 6)
+		local reaching = if model:GetAttribute("Reaching") == true then 1 else 0
+		rig.reach += (reaching - rig.reach) * math.min(1, dt * 8)
 		if (sitting == 1) ~= rig.bucketHidden then
 			local bucket = model:FindFirstChild("Bucket")
 			if bucket then
@@ -197,29 +220,35 @@ local function step(dt: number)
 
 		local w = rig.weight
 		local c = rig.crouch
-		local swing = math.sin(rig.phase) * (1 + (RUN.swing - 1) * rig.run) * (1 - (1 - CROUCH.swing) * c)
+		local stride = math.sin(rig.phase)
+		-- Stood up, the stride (harder running); crouched, a shuffle instead.
+		local swing = stride * (1 + (RUN.swing - 1) * rig.run) * (1 - c)
+		local shuffle = stride * CROUCH.step * c * w
 		local t = now + rig.seed
 		local breathe = math.sin(t * 1.6) * 0.035 * (1 - w)
 		local air = if airborne and not dead then 1 else 0
 		-- Leaning over (crouched, running): the legs are turned back to the ground (they hang off the
-		-- body); crouched, the hips go down and the legs reach out front and back to the ground.
+		-- body); crouched, the hips go down and both legs reach out in front to the ground.
 		local lean = -(CROUCH.lean * c + RUN.lean * rig.run)
 		local hips = rig.humanoid.HipHeight
 		local drop = hips * CROUCH.hips * c
-		local stance = if hips > 0 then math.acos(math.clamp(1 - drop / hips, -1, 1)) else 0
-		set(rig, "Left Hip", CFrame.Angles(swing * LEG_SWING * w + air * 0.35 + stance - lean, 0, 0))
-		set(rig, "Right Hip", CFrame.Angles(-swing * LEG_SWING * w - air * 0.1 - stance * CROUCH.back - lean, 0, 0))
-		local arms = CROUCH.arms * c
+		local squat = if hips > 0 then math.acos(math.clamp(1 - drop / hips, -1, 1)) else 0
 		set(
 			rig,
-			"Left Shoulder",
-			CFrame.Angles(-swing * ARM_SWING * w + breathe + air * 1.1 + arms, 0, -0.06 - air * 0.3)
+			"Left Hip",
+			CFrame.Angles(swing * LEG_SWING * w + shuffle + squat - lean + air * AIR.legs[1], 0, -CROUCH.splay * c)
 		)
 		set(
 			rig,
-			"Right Shoulder",
-			CFrame.Angles(swing * ARM_SWING * w + breathe + air * 1.1 + arms, 0, 0.06 + air * 0.3)
+			"Right Hip",
+			CFrame.Angles(-swing * LEG_SWING * w - shuffle + squat - lean + air * AIR.legs[2], 0, CROUCH.splay * c)
 		)
+		local r = rig.reach
+		local arms = CROUCH.arms * c + REACH.arms * r + AIR.arms * air
+		local armSwing = (swing * ARM_SWING * w + shuffle * CROUCH.armSwing) * (1 - (1 - REACH.swing) * r)
+		local out = 0.06 + AIR.out * air - CROUCH.tuck * c + REACH.splay * r
+		set(rig, "Left Shoulder", CFrame.Angles(-armSwing + breathe + arms, 0, -out))
+		set(rig, "Right Shoulder", CFrame.Angles(armSwing + breathe + arms, 0, out))
 		-- A slow, slightly wrong head sway, plus a bounce with each step.
 		local tilt = math.sin(t * 0.37) * 0.07 + math.sin(t * 1.9) * 0.015
 		set(
@@ -231,11 +260,9 @@ local function step(dt: number)
 				tilt
 			)
 		)
-		set(
-			rig,
-			"RootJoint",
-			CFrame.new(0, math.abs(swing) * 0.12 * w - drop, 0) * CFrame.Angles(breathe * 0.5 + lean, 0, 0)
-		)
+		-- A bounce with each step: stood up, and (rising off their haunches) crouched.
+		local bounce = math.abs(swing) * 0.12 * w + math.abs(stride) * CROUCH.bob * hips * c * w
+		set(rig, "RootJoint", CFrame.new(0, bounce - drop, 0) * CFrame.Angles(breathe * 0.5 + lean, 0, 0))
 		if rig.sit > 0.01 then
 			local s = rig.sit
 			set(rig, "Left Hip", CFrame.Angles(SIT.legs * s, 0, -SIT.splay * s))

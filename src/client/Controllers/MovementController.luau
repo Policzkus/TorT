@@ -1,8 +1,10 @@
 --!strict
 -- How you move, in first person (Config/Movement has the numbers, Modules/Motion the maths).
--- Walking picks up over a moment and settles a moment after you let go (a run carries a little
--- further); turning takes a beat; in the air you can steer, and let go and your momentum carries
--- you; a hard landing slows you for a moment.
+-- A slow walk (a horror pace) that picks up over a moment and settles a moment after you let go (a
+-- run carries a little further); turning takes a beat; in the air you can steer, and let go and your
+-- momentum carries you; landing slows you a touch (a big drop, a lot).
+-- Jumping: a lower, quicker jump than Roblox's (it still clears a yard fence), costing stamina
+-- (weaker when you're out of breath), and not again straight after landing.
 -- Sprint: hold Shift (or click the left stick / the 🏃 button on a touch screen, on until you stop)
 -- while your stamina lasts. It only counts going forward: less the further you turn from where you
 -- look, none sideways or backwards. Run dry and you breathe hard and have to catch your breath before
@@ -121,7 +123,8 @@ local function humanoidAndRoot(): (Humanoid?, BasePart?)
 	return humanoid, root
 end
 
-local function walkSpeed(humanoid: Humanoid): number
+-- The Humanoid's BaseSpeed (the server's: Sneakers): Config/Movement's speeds are shares of it.
+local function baseSpeed(humanoid: Humanoid): number
 	return (humanoid:GetAttribute("BaseSpeed") :: number?) or 16
 end
 
@@ -145,9 +148,10 @@ local function sprintShare(x: number, z: number): number
 	return Motion.sprintShare((x * fx + z * fz) / length)
 end
 
--- Your speed now, in walking speeds: a creep or a walk, a run (`share` of one), slowed after a hard landing.
+-- Your speed now, as a share of your BaseSpeed: a creep or a walk, a run (`runShare` of one), slowed
+-- after landing.
 local function pace(runShare: number): number
-	local speed = if crouched then Movement.CROUCH else 1 + (Movement.SPRINT - 1) * runShare
+	local speed = if crouched then Movement.CROUCH else Movement.WALK + (Movement.SPRINT - Movement.WALK) * runShare
 	local now = os.clock()
 	if now < slowUntil then
 		speed *= slowFrom + (1 - slowFrom) * (1 - (slowUntil - now) / Movement.LANDING.time)
@@ -188,8 +192,9 @@ local function onMove(original: (Player, Vector3, boolean) -> (), who: Player, d
 	end
 	wantX, wantZ = world.X, world.Z
 	share = sprintShare(wantX, wantZ)
-	local walk = walkSpeed(humanoid)
-	local top = walk * pace(share)
+	local base = baseSpeed(humanoid)
+	local walk = base * Movement.WALK
+	local top = base * pace(share)
 	-- Off the ground a moment (not a kerb or a step), or a jump from the moment you leave it.
 	local sinceJump = now - jumpedAt
 	local inAir = airTime > Movement.AIR_GRACE or sinceJump < 0.15 or (airTime > 0 and sinceJump < 1)
@@ -324,8 +329,9 @@ local function breathe(dt: number, running: number)
 end
 
 -- The gait: footfalls by the ground you cover (longer strides the faster you go), and how much you're
--- walking, running and strafing.
+-- walking, running and strafing. `walk`: your walking speed.
 local function walkOn(dt: number, root: BasePart, walk: number)
+	local run = walk / Movement.WALK * Movement.SPRINT
 	local velocity = root.AssemblyLinearVelocity
 	local flat = Vector3.new(velocity.X, 0, velocity.Z)
 	local speed = flat.Magnitude
@@ -334,9 +340,7 @@ local function walkOn(dt: number, root: BasePart, walk: number)
 	gait.walk = walk
 	local moving = if onGround then math.clamp((speed - 0.5) / (walk * 0.3), 0, 1) else 0
 	gait.moving = Motion.ease(gait.moving, moving, if moving > gait.moving then 10 else 7, dt)
-	local running = if onGround
-		then math.clamp((speed - walk * 1.05) / (walk * (Movement.SPRINT - 1) * 0.8), 0, 1)
-		else gait.sprint
+	local running = if onGround then math.clamp((speed - walk * 1.05) / ((run - walk) * 0.8), 0, 1) else gait.sprint
 	gait.sprint = Motion.ease(gait.sprint, running, 6, dt)
 	local loudness = if crouched
 		then STEP_LOUDNESS.creep
@@ -405,6 +409,9 @@ local function airborne(dt: number, humanoid: Humanoid, root: BasePart, limp: bo
 				slowFrom, slowUntil = slow, os.clock() + Movement.LANDING.time
 			end
 		end
+		if gait.airborne then
+			jumpFrom = math.max(jumpFrom, os.clock() + Movement.JUMP.rest) -- find your feet first
+		end
 		airTime, fall = 0, 0
 	else
 		airTime += dt
@@ -427,13 +434,19 @@ local function step(dt: number)
 	setCrouched(humanoid, (crouchHeld or crouchToggled) and not down and not humanoid.Sit)
 	tellServer(character)
 
-	local walk = walkSpeed(humanoid)
+	local base = baseSpeed(humanoid)
+	local walk = base * Movement.WALK
 	if not hooked then
 		-- No eased walk: steer the speed instead.
 		local direction = humanoid.MoveDirection
 		wantX, wantZ = direction.X, direction.Z
 		share = sprintShare(wantX, wantZ)
-		humanoid.WalkSpeed = Motion.ease(humanoid.WalkSpeed, walk * pace(share), 8, dt)
+		humanoid.WalkSpeed = Motion.ease(humanoid.WalkSpeed, base * pace(share), 8, dt)
+	end
+	-- Out of breath, your jump's a weak one.
+	local height = Movement.JUMP.height * (if exhausted or stamina < Movement.JUMP.cost then Movement.JUMP.tired else 1)
+	if math.abs(humanoid.JumpHeight - height) > 0.01 then
+		humanoid.JumpHeight = height
 	end
 	if wantX * wantX + wantZ * wantZ < 0.01 then
 		sprintToggled = false
@@ -498,9 +511,14 @@ local function onCharacter(character: Model)
 	sentAt = 0
 	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
 	if humanoid then
+		humanoid.UseJumpPower = false -- JumpHeight, set every frame (step)
+		humanoid.JumpHeight = Movement.JUMP.height
 		humanoid.StateChanged:Connect(function(_, new)
 			if new == Enum.HumanoidStateType.Jumping and player.Character == character then
 				jumpedAt = os.clock()
+				-- A jump's an effort: it costs stamina, and stamina waits to come back as after a run.
+				stamina = math.max(0, stamina - Movement.JUMP.cost)
+				restAt = os.clock() + Movement.STAMINA.delay
 				MovementController.jumped:Fire()
 			end
 		end)
