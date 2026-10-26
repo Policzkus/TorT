@@ -20,6 +20,7 @@ local Workspace = game:GetService("Workspace")
 local Knifer = require(ReplicatedStorage.Shared.Config.Knifer)
 local World = require(ReplicatedStorage.Shared.Config.World)
 local CharacterRig = require(ReplicatedStorage.Shared.Modules.CharacterRig)
+local Motion = require(ReplicatedStorage.Shared.Modules.Motion)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local HouseService = require(script.Parent.HouseService)
 local LivesService = require(script.Parent.LivesService)
@@ -157,6 +158,28 @@ local function hidden(at: Vector3): boolean
 	return false
 end
 
+-- Crouched and creeping: the client says it's crouching (Crouching, CharacterService), and it's
+-- moving no faster than a crouch walk, so it's true.
+local function creeping(player: Player, root: BasePart): boolean
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if character == nil or humanoid == nil then
+		return false
+	end
+	local base = (humanoid:GetAttribute("BaseSpeed") :: number?) or 16
+	local speed = flat(root.AssemblyLinearVelocity).Magnitude
+	return Motion.creeping(character:GetAttribute("Crouching") == true, speed, base)
+end
+
+-- How much lower a crouched player's eyes (and the rest of them) are than standing: 0 standing up.
+local function crouchDrop(player: Player, root: BasePart): number
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid == nil or not creeping(player, root) then
+		return 0
+	end
+	return Motion.crouchDrop(humanoid.HipHeight, root.Size.Y)
+end
+
 local function eyeOf(him: Him): Vector3
 	local head = him.model:FindFirstChild("Head")
 	return if head and head:IsA("BasePart") then head.Position else him.root.Position + Vector3.new(0, 1.4, 0)
@@ -185,7 +208,9 @@ local function sees(him: Him, player: Player, params: RaycastParams): boolean
 		end
 	end
 	local head = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
-	return clear(eye, root.Position, params) or (head ~= nil and clear(eye, head.Position, params))
+	-- Crouched, your body and head are lower: he can't see you behind what you'd stand up over.
+	local down = Vector3.new(0, crouchDrop(player, root), 0)
+	return clear(eye, root.Position - down / 2, params) or (head ~= nil and clear(eye, head.Position - down, params))
 end
 
 -- The nearest player he can hear (walking close by, running further off), and where.
@@ -198,8 +223,9 @@ local function hears(him: Him, players: { Player }): Vector3?
 			local distance = (root.Position - him.root.Position).Magnitude
 			local range = if speed >= Knifer.HEAR.running
 				then Knifer.HEAR.run
-				elseif speed >= Knifer.HEAR.walking then Knifer.HEAR.walk
-				else 0
+				elseif speed < Knifer.HEAR.walking then 0
+				elseif creeping(player, root) then Knifer.HEAR.creep
+				else Knifer.HEAR.walk
 			if distance <= range and distance < bestDistance then
 				best, bestDistance = root.Position, distance
 			end

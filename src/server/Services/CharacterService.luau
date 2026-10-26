@@ -141,8 +141,19 @@ local function onLookPitch(player: Player, pitch: any)
 	end
 end
 
+-- Whether each player is crouching (their client says when it changes): everyone sees them crouch
+-- (CharacterAnimController), and the Knifer hears them less while they creep (KniferService checks
+-- they really are moving no faster than a crouch walk).
+local function onCrouch(player: Player, on: any)
+	local character = player.Character
+	if character and type(on) == "boolean" then
+		character:SetAttribute("Crouching", on)
+	end
+end
+
 function CharacterService.Start()
 	Net.connect("LookPitch", onLookPitch, { rate = 12, burst = 20 })
+	Net.connect("Crouch", onCrouch, { rate = 6, burst = 12 })
 	Players.PlayerAdded:Connect(setup)
 	for _, player in Players:GetPlayers() do
 		setup(player)

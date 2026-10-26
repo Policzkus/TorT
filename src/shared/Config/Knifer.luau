@@ -8,7 +8,8 @@
 -- He isn't hard to outrun (slower than a sprint), and the way to live is to hide: get out of his
 -- sight (behind a house, round the back gardens, in a bush: parts tagged HideSpot) and keep quiet.
 -- Lose him and he goes to where he last saw you, looks around it, and goes back where he came
--- from. He hears you: walking near him, running a long way off.
+-- from. He hears you: walking near him, running a long way off; crouched and creeping, only right
+-- by him (and crouched he can't see you over what you'd stand up above).
 -- He's the sack-mask homeowner (the user: pick a model we already have), taken out of the
 -- homeowners' cast so the killer is never the one at the door. (The user's design; the numbers are
 -- mine, overridable.)
@@ -23,7 +24,8 @@ return {
 	SPEED = { roam = 9, search = 11, investigate = 14, chase = 20 }, -- studs/s (you walk 16, sprint ~26)
 	SIGHT = { range = 90, fov = 150, near = 10 }, -- studs, degrees; within `near` he knows you're there anyway
 	HIDDEN_NEAR = 7, -- in a HideSpot he only sees you closer than this
-	HEAR = { walk = 20, run = 55, walking = 4, running = 20 }, -- studs he hears you within; your speed that counts
+	-- Studs he hears you within (creeping: crouched, no faster than a crouch walk), and the speeds that count.
+	HEAR = { creep = 6, walk = 20, run = 55, walking = 4, running = 20 },
 	LOSE = 2.5, -- seconds out of sight before he gives up chasing and goes to where he last saw you
 	SEARCH = { points = 3, radius = 30, pause = { 1.2, 2.2 } }, -- the hiding places he checks round where he lost you (within `radius`)
 	-- His patrol (roaming): at each house on his way, the chance he steps into its front yard (to the
