@@ -1,16 +1,18 @@
 --!strict
--- The car that drives down the streets now and then (Services/TrafficService decides, every client
--- draws it: Controllers/TrafficController). Nobody at the wheel: an old rusted sedan comes out of
+-- The cars that drive down the streets now and then (Services/TrafficService decides, every client
+-- draws them: Controllers/TrafficController). Nobody at the wheel: an old rusted sedan comes out of
 -- the mist at one end of a street, headlights first, drives the length of it in the right-hand lane
--- and goes back into the mist at the other end. Get hit and you're thrown, ragdolled, and everything
--- in your bucket is gone.
+-- and goes back into the mist at the other end, and a moment later (PAIR) another comes the other
+-- way in the other lane, so they pass each other. Get hit and you're thrown, ragdolled, and
+-- everything in your bucket is gone.
 -- `pose` is shared so the server's hit check and every client's car are in the same place.
 
 local Traffic = {
 	EVERY = { 240, 360 }, -- seconds between cars down a street (the user: "every 5min or sum")
 	FIRST = { 60, 150 }, -- seconds before a street's first car
 	RETRY = { 20, 45 }, -- a car is due but nobody's on that street: look again in this long
-	SPEED = { 40, 48 }, -- studs a second
+	SPEED = { 60, 72 }, -- studs a second (half as fast again as it was, the user asked: 40-48)
+	PAIR = { 1.5, 4 }, -- seconds after the first car that the one the other way comes out of the mist
 	LANE = 5.5, -- studs out from the road's centre: the middle of the right-hand lane
 	ENDS = 26, -- studs in from each end of the street where it comes out of the mist / goes back in
 	FADE = 1.2, -- seconds it takes to come out of the mist and to go back in
@@ -18,9 +20,9 @@ local Traffic = {
 	BODY = { halfWidth = 3.7, halfLength = 8.9, height = 5.6 }, -- the car's box round its pivot (on the road under its middle)
 	PAD = 0.8, -- studs round the box that still count (the root part's own size)
 	LAG = 0.1, -- seconds: the server sees players this far in the past, so it checks the car that far back too
-	KNOCK = { forward = 0.85, up = 34, side = 14 }, -- the throw: share of the car's speed, then studs/s up and away
+	KNOCK = { forward = 0.6, up = 34, side = 14 }, -- the throw: share of the car's speed (as hard as before it got faster), then studs/s up and away
 	DOWN = 3.2, -- seconds ragdolled
-	HORN = { ahead = 60, wide = 6.5, gap = 1.6, most = 2 }, -- it honks at anyone in front of it, this far ahead and this close to its line (the server decides: CarHonk)
+	HORN = { ahead = 90, wide = 6.5, gap = 1.6, most = 2 }, -- it honks at anyone in front of it, this far ahead (about 1.3 s) and this close to its line (the server decides: CarHonk)
 }
 
 export type Trip = {

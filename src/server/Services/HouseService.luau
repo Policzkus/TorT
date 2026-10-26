@@ -1,9 +1,11 @@
 --!strict
 -- Rolls every house's type, homeowner and preference at each Dawn (PROMPT §3.5) and publishes them
 -- as attributes on the house model (HouseType, Owner, Preference) for the client to draw the tells.
--- Bowl houses (Config/Bowl) get a full candy bowl on the porch with one prompt, held to take the
--- lot (BowlTriggered tells DoorService); once it's taken it stands empty until the next Dawn, when
--- every bowl is put out full again and every burst porch lamp (LampBroken) is mended.
+-- Bowl houses (Config/Bowl) get a candy bowl on the porch (its Candy attribute: how much is left, of
+-- Full) with one prompt, held to take what your bucket can hold (BowlTriggered tells DoorService);
+-- come back with room for the rest. Its pieces of candy go as it empties; empty, it stands that way
+-- until the next Dawn, when every bowl is put out full again and every burst porch lamp
+-- (LampBroken) is mended.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,6 +36,7 @@ type HouseState = {
 }
 
 local houses: { [string]: HouseState } = {}
+local BOWL_COLORS = { "FF3B5C", "FFD23F", "7CFF4F", "B06CFF", "3FC8FF" } -- the pieces in a full bowl
 local rng = Rng.new(Random.new():NextInteger(1, 2147483646))
 
 function HouseService.houseType(houseId: string): string
@@ -72,11 +75,15 @@ local function buildBowl(houseId: string): Model?
 		"FF8A00",
 		Enum.Material.SmoothPlastic
 	)
-	for i, color in { "FF3B5C", "FFD23F", "7CFF4F", "B06CFF", "3FC8FF" } do
-		local angle = i / 5 * math.pi * 2
+	for i, color in BOWL_COLORS do
+		local angle = i / #BOWL_COLORS * math.pi * 2
 		local at = base * CFrame.new(math.cos(angle) * 0.6, 3.4, math.sin(angle) * 0.6)
-		Parts.candy(m, "Candy", 0.55, at * CandyPiece.tumble(i), color)
+		local piece = Parts.candy(m, "Candy", 0.55, at * CandyPiece.tumble(i), color)
+		piece:SetAttribute("Order", i) -- (the last ones go first as it empties)
 	end
+	local candy = rng:int(Bowl.CANDY[1], Bowl.CANDY[2])
+	m:SetAttribute("Candy", candy)
+	m:SetAttribute("Full", candy)
 	local sign = Parts.decor(
 		Parts.block(
 			m,
@@ -94,7 +101,8 @@ local function buildBowl(houseId: string): Model?
 		{ color = Color3.fromHex("8A1E1E"), stroke = Color3.fromHex("F2EEE6") }
 	)
 
-	-- One thing to do with it: take the lot (held, so you have time to think better of it).
+	-- One thing to do with it: take the lot (held, so you have time to think better of it). Its words
+	-- are the client's (DoorController: how much is left, or that your bucket's full).
 	local takeAll = Parts.prompt(bowl, "Take it all", "Candy bowl", 9, Bowl.HOLD)
 	takeAll.Name = "TakeAll"
 	takeAll.Triggered:Connect(function(player)
@@ -104,25 +112,32 @@ local function buildBowl(houseId: string): Model?
 	return m
 end
 
--- Whether `houseId`'s bowl is out and still has its candy in it.
-function HouseService.bowlFull(houseId: string): boolean
+-- How much candy `houseId`'s bowl has left (0 if it's empty, or there's no bowl).
+function HouseService.bowlCandy(houseId: string): number
 	local house = houses[houseId]
 	local bowl = house and house.bowl
-	return bowl ~= nil and bowl.Parent ~= nil and bowl:GetAttribute("Taken") ~= true
+	if bowl == nil or bowl.Parent == nil then
+		return 0
+	end
+	return (bowl:GetAttribute("Candy") :: number?) or 0
 end
 
--- Someone took the lot: the bowl stands empty (no candy, no prompt) until the next Dawn.
-function HouseService.emptyBowl(houseId: string)
+-- `amount` taken out of `houseId`'s bowl: fewer pieces in it as it goes down, and once it's empty no
+-- prompt until the next Dawn.
+function HouseService.takeFromBowl(houseId: string, amount: number)
 	local house = houses[houseId]
 	local bowl = house and house.bowl
 	if bowl == nil then
 		return
 	end
-	bowl:SetAttribute("Taken", true)
+	local left = math.max(0, HouseService.bowlCandy(houseId) - amount)
+	bowl:SetAttribute("Candy", left)
+	local full = math.max(1, (bowl:GetAttribute("Full") :: number?) or 1)
+	local shown = math.ceil(#BOWL_COLORS * left / full)
 	for _, item in bowl:GetDescendants() do
-		if item:IsA("BasePart") and item.Name == "Candy" then
+		if item:IsA("BasePart") and item.Name == "Candy" and ((item:GetAttribute("Order") :: number?) or 0) > shown then
 			item:Destroy()
-		elseif item:IsA("ProximityPrompt") then
+		elseif item:IsA("ProximityPrompt") and left <= 0 then
 			item.Enabled = false
 		end
 	end
@@ -149,8 +164,9 @@ local function apply(houseId: string, state: HouseState, refill: boolean?)
 	house.model:SetAttribute("Preference", state.preference)
 	-- Never who lives there: you find out when the door opens.
 	house.prompt.ObjectText = if state.houseType == "LightsOff" then "Nobody's home..." else "Trick or treat!"
-	-- Lights off, bowl and open houses don't answer the door.
-	house.prompt.Enabled = state.houseType ~= "LightsOff" and state.houseType ~= "Bowl" and state.houseType ~= "Open"
+	-- Bowl and open houses don't answer the door, and there's no knocking at them; a lights-off one
+	-- takes your knock, but nobody comes (DoorService).
+	house.prompt.Enabled = state.houseType ~= "Bowl" and state.houseType ~= "Open"
 	-- An open house's hall is lit, the chandelier's candles too (World/BlenderLot.dressHall); the
 	-- client swings its door open.
 	local open = state.houseType == "Open"

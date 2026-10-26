@@ -1,8 +1,8 @@
 --!strict
--- The car (Config/Traffic): every few minutes it drives down a street someone's on. The server
--- picks the trip and tells every client (CarTrip), and checks it against everyone itself: whoever
--- it hits is thrown and ragdolled (RagdollService) and loses everything in their bucket, and
--- everyone sees it (CarHit, PlayerPop). Only runs once the car is in the place
+-- The cars (Config/Traffic): every few minutes two drive down a street someone's on, one each way, the
+-- second a moment after the first. The server picks each trip and tells every client (CarTrip), and
+-- checks it against everyone itself: whoever a car hits is thrown and ragdolled (RagdollService) and
+-- loses everything in their bucket, and everyone sees it (CarHit, PlayerPop). Only runs once the car is in the place
 -- (ReplicatedStorage.Assets.Vehicles.Car, tools/setup_car.luau): nobody gets hit by a car nobody
 -- can see.
 
@@ -27,8 +27,9 @@ type Active = { trip: Traffic.Trip, hit: { [Player]: boolean }, honks: number, h
 
 local random = Random.new()
 local active: { [number]: Active } = {}
-local nextAt: { [string]: number } = {} -- per street: when its next car is due (os.clock)
-local busy: { [string]: number } = {} -- per street: the trip on it now
+local nextAt: { [string]: number } = {} -- per street: when its next cars are due (os.clock)
+local onStreet: { [string]: number } = {} -- per street: how many cars are on it now
+local MOST = 2 -- cars on a street at once (one each way)
 local trips = 0
 
 local function between(range: { number }): number
@@ -76,7 +77,7 @@ end
 -- Sends a car down `streetId` now (dir 1: down the street, -1: back up it; nil: either). Its id, or nil.
 function TrafficService.send(streetId: string, dir: number?): number?
 	local street = WorldService.info().streets[streetId]
-	if street == nil or busy[streetId] or not carReady() then
+	if street == nil or (onStreet[streetId] or 0) >= MOST or not carReady() then
 		return nil
 	end
 	trips += 1
@@ -91,15 +92,26 @@ function TrafficService.send(streetId: string, dir: number?): number?
 		seed = random:NextInteger(1, 2 ^ 30),
 	}
 	active[trip.id] = { trip = trip, hit = {}, honks = 0, honkedAt = 0 }
-	busy[streetId] = trip.id
+	onStreet[streetId] = (onStreet[streetId] or 0) + 1
 	task.delay(Traffic.duration(trip) + 0.6, function()
 		active[trip.id] = nil
-		if busy[streetId] == trip.id then
-			busy[streetId] = nil
-		end
+		onStreet[streetId] = math.max(0, (onStreet[streetId] or 1) - 1)
 	end)
 	Net.event("CarTrip"):FireAllClients(trip)
 	return trip.id
+end
+
+-- Two cars down `streetId`: one now (either way), and a moment later (Traffic.PAIR) one the other
+-- way, in the other lane. False if not even the first could go.
+function TrafficService.pair(streetId: string): boolean
+	local first = if random:NextNumber() < 0.5 then 1 else -1
+	if TrafficService.send(streetId, first) == nil then
+		return false
+	end
+	task.delay(between(Traffic.PAIR), function()
+		TrafficService.send(streetId, -first)
+	end)
+	return true
 end
 
 -- Hit: thrown the way the car was going (and up, and off to whichever side they were on),
@@ -194,8 +206,8 @@ local function schedule()
 		local due = nextAt[streetId]
 		if due == nil then
 			nextAt[streetId] = now + between(Traffic.FIRST)
-		elseif now >= due and not busy[streetId] then
-			if on[streetId] and TrafficService.send(streetId) then
+		elseif now >= due and (onStreet[streetId] or 0) == 0 then
+			if on[streetId] and TrafficService.pair(streetId) then
 				nextAt[streetId] = now + between(Traffic.EVERY)
 			else
 				nextAt[streetId] = now + between(Traffic.RETRY)

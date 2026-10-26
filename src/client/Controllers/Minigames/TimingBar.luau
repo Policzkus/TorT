@@ -92,7 +92,7 @@ function TimingBar.run(parent: Frame, challenge: any, callbacks: Callbacks): Ses
 		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Body,
-		Text = "Stop it in the green   ·   Space / Click / Tap / Ⓐ",
+		Text = "Stop it in the green   ·   Space / Tap / Ⓐ",
 		TextColor3 = Theme.Colors.TextDim,
 		TextSize = 14,
 		create("UIStroke", { Color = Theme.Colors.Stroke, Thickness = 1, Transparency = 0.45 }),

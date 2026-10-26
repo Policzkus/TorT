@@ -1,12 +1,13 @@
 --!strict
 -- Runs door mini-games when the server sends a challenge: routes input to the active game (one big
--- tap target on mobile, Space/click on PC, Ⓐ on gamepad; Costume Line uses its own buttons), shows
--- the grade instantly from the shared rules, and submits the raw input.
+-- tap target on a touch screen, Space on PC (only: a click puts dialogue away, the user wanted the
+-- two apart), Ⓐ on gamepad; Costume Line uses its own buttons), shows the grade instantly from the
+-- shared rules, and submits the raw input.
 -- From the moment the door is answered you can move about, but only so far: Economy.DOOR_LEASH
 -- studs from the door holds you (the user wanted to move, not to wander off). Keep pushing out past
 -- it and you break away: the visit is off (`abandoned` fires with the house id; the server is told).
 -- Ending up past Economy.DOOR_LEAVE (pushed, teleported) calls it off too. Skip their hello (a click
--- or a key on the line, DialogController) and the game starts at once.
+-- on the line, DialogController) and the game starts at once.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -15,6 +16,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
@@ -149,7 +151,8 @@ local function begin(challenge: any)
 		end,
 	})
 	session = current
-	catcher.Visible = not current.usesOwnButtons
+	-- The tap target is for touch screens: on PC it'd take the clicks that put dialogue away.
+	catcher.Visible = not current.usesOwnButtons and UserInputService.TouchEnabled
 	if not current.usesOwnButtons then
 		bindInput()
 	end
@@ -338,7 +341,7 @@ function MinigameController.Init()
 	Scale.attach(gui)
 
 	local function pointer(input: InputObject): boolean
-		return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+		return input.UserInputType == Enum.UserInputType.Touch
 	end
 	catcher.InputBegan:Connect(function(input: InputObject)
 		if session and session.press and pointer(input) then

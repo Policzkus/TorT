@@ -7,7 +7,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
-local Bowl = require(ReplicatedStorage.Shared.Config.Bowl)
 local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
@@ -42,7 +41,8 @@ export type DoorResult = {
 	event: number, -- event multiplier applied (Witching Hour, Blood Moon)
 	liked: boolean?, -- the homeowner's preference matched your costume's tag
 	costumed: boolean?, -- false: no costume, so the homeowner barely gave anything
-	bowl: boolean?, -- took a candy bowl's lot
+	bowl: boolean?, -- took candy from a bowl
+	bowlLeft: number?, -- what's still in it
 }
 
 -- Goodbyes a homeowner picks from going back in, by how the visit went (HomeownerController.GOODBYES).
@@ -51,6 +51,8 @@ local GOODBYES = { pleased = { "wave", "bow", "nod" }, displeased = { "point", "
 local DoorService = {}
 
 local houseReadyAt: { [string]: number } = {} -- each house's: when it answers again (server time)
+local darkKnocks: { [string]: number } = {} -- when someone last knocked at a dark house (os.clock)
+local DARK_KNOCK_GAP = 1.2 -- seconds: knocks at a dark house closer together than this aren't heard
 local streaks: { [Player]: number } = {}
 local random = Random.new()
 local rng = Rng.new(random:NextInteger(1, 2147483646))
@@ -114,9 +116,9 @@ local function canVisit(player: Player, houseId: string): (any, Neighborhoods.Ne
 	if MinigameService.isBusy(player) or not nearHouse(player, houseId) then
 		return nil, nil
 	end
-	-- A full bucket takes no more: empty it at your Candy Box first.
+	-- A full bucket takes no more: empty it at your Candy Box first. (You were told when it filled
+	-- up, CandyService, and the doors say so: DoorController.)
 	if data.bucket >= CandyService.bucketCapacity(player) then
-		NotifyService.send(player, "🪣 Your bucket is full! Empty it at your Candy Box", "error")
 		return nil, nil
 	end
 	local wait = cooldownLeft(houseId)
@@ -241,7 +243,16 @@ end
 
 local function knock(player: Player, houseId: string)
 	local houseType = HouseService.houseType(houseId)
-	if houseType == "LightsOff" or houseType == "Bowl" or houseType == "Open" or OwnerChaseService.away(houseId) then
+	if houseType == "LightsOff" then
+		-- A dark house: you can knock (everyone near hears it), but nobody comes.
+		local last = darkKnocks[houseId]
+		if nearHouse(player, houseId) and (last == nil or os.clock() - last >= DARK_KNOCK_GAP) then
+			darkKnocks[houseId] = os.clock()
+			Net.event("DoorKnocked"):FireAllClients(houseId, player.UserId)
+		end
+		return
+	end
+	if houseType == "Bowl" or houseType == "Open" or OwnerChaseService.away(houseId) then
 		return -- nobody answers (or they're out after someone)
 	end
 	local house, neighborhood = canVisit(player, houseId)
@@ -304,31 +315,37 @@ local function knock(player: Player, houseId: string)
 	end)
 end
 
--- Someone held the bowl's prompt through: they get the lot (Config/Bowl.CANDY, as much as their bucket
--- holds), the bowl stands empty, the porch lamp bursts for everyone to see (LampBroken, the server
--- time it went; LampBrokenBy, who did it: HouseVisualController), and maybe the homeowner comes out
--- after them (OwnerChaseService).
+-- Someone held the bowl's prompt through: they get as much of what's in it as their bucket holds
+-- (the rest stays for whoever comes next, or for them once they've emptied their bucket). The first
+-- time, the porch lamp bursts for everyone to see (LampBroken, the server time it went; LampBrokenBy,
+-- who did it: HouseVisualController). Every time, maybe the homeowner comes out after them
+-- (OwnerChaseService).
 local function takeFromBowl(player: Player, houseId: string)
 	if HouseService.houseType(houseId) ~= "Bowl" then
 		return
 	end
-	if not HouseService.bowlFull(houseId) then
+	local left = HouseService.bowlCandy(houseId)
+	if left <= 0 then
 		NotifyService.send(player, "The bowl's empty. Somebody beat you to it", "info")
 		return
 	end
 	local house, neighborhood = canVisit(player, houseId)
-	if house == nil or neighborhood == nil then
+	local data = DataService.get(player)
+	if house == nil or neighborhood == nil or data == nil then
 		return
 	end
-	HouseService.emptyBowl(houseId)
-	local amount = random:NextInteger(Bowl.CANDY[1], Bowl.CANDY[2])
-	local added, overflow = CandyService.addToBucket(player, amount)
+	local room = math.max(0, CandyService.bucketCapacity(player) - data.bucket)
+	local added = CandyService.addToBucket(player, math.min(left, room))
+	if added <= 0 then
+		return
+	end
+	HouseService.takeFromBowl(houseId, added)
 	local result: DoorResult = {
 		houseId = houseId,
 		grade = "PERFECT",
-		amount = amount,
+		amount = added,
 		added = added,
-		overflow = overflow,
+		overflow = 0,
 		cooldownUntil = 0,
 		houseType = "Bowl",
 		streak = streaks[player] or 0,
@@ -336,11 +353,14 @@ local function takeFromBowl(player: Player, houseId: string)
 		fullSize = false,
 		event = 1,
 		bowl = true,
+		bowlLeft = left - added,
 	}
 	Net.event("DoorResult"):FireClient(player, result)
 	pop(player, `+{Format.number(added)}`, result.grade)
-	house.model:SetAttribute("LampBrokenBy", player.UserId)
-	house.model:SetAttribute("LampBroken", now())
+	if house.model:GetAttribute("LampBroken") == nil then
+		house.model:SetAttribute("LampBrokenBy", player.UserId)
+		house.model:SetAttribute("LampBroken", now())
+	end
 	OwnerChaseService.raid(player, houseId)
 end
 

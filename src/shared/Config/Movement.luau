@@ -16,16 +16,16 @@ return {
 	-- Picking up speed, slowing down, and changing direction. `sprint` is above a walk (a run builds up
 	-- over a moment). In the air you steer at `air` of all that, and with nothing pressed you carry on
 	-- (slowing at only `drift` of it): let go mid-jump and your momentum takes you.
-	ACCEL = { start = 7, sprint = 3.4, stop = 9, turn = 8, air = 0.35, drift = 0.04 },
+	ACCEL = { start = 7, sprint = 3.4, stop = 9, turn = 8, air = 0.55, drift = 0.04 },
 	AIR_GRACE = 0.12, -- seconds off the ground before you count as in the air (steps and kerbs aren't)
-	-- Jumping: `height` studs up (Roblox's default 7.2 was a superhero's; this still clears a yard
-	-- fence), costing `cost` stamina; out of breath, only `tired` of the height. After landing you
-	-- can't jump again for `rest` seconds (no bouncing along).
-	JUMP = { height = 4, cost = 8, tired = 0.6, rest = 0.35 },
+	-- Jumping: `height` studs up (Roblox's default 7.2 was a superhero's; 4 was too little to be any
+	-- use, the user said), costing `cost` stamina, the same jump however tired you are. After landing
+	-- you can't jump again for `rest` seconds (no bouncing along).
+	JUMP = { height = 6, cost = 4, rest = 0.2 },
 	-- Landing from a fall faster than `felt` studs/s jolts the view (fully at `hardest`; a jump comes
-	-- down at about 40). Faster than `from` it slows you for `time` seconds, to `slow` at `full`: a
-	-- jump's landing a touch, a drop off a roof a lot.
-	LANDING = { felt = 10, hardest = 120, from = 30, full = 110, slow = 0.6, time = 0.4 },
+	-- down at about 48). Faster than `from` it slows you for `time` seconds, to `slow` at `full`: not
+	-- a jump's landing, a drop off a roof a lot.
+	LANDING = { felt = 10, hardest = 120, from = 55, full = 110, slow = 0.6, time = 0.4 },
 	STAMINA = {
 		drain = 17, -- per second sprinting flat out
 		regen = 26, -- per second, `delay` seconds after you stop sprinting

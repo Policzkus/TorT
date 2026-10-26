@@ -159,7 +159,7 @@ function KnockRhythm.run(parent: Frame, challenge: any, callbacks: Callbacks)
 		if not yourTurn and t >= spec.turnAt - 0.25 then
 			yourTurn = true
 			title.Text = "YOUR TURN"
-			hint.Text = "Knock the same rhythm   ·   Space / Click / Tap / Ⓐ"
+			hint.Text = "Knock the same rhythm   ·   Space / Tap / Ⓐ"
 			for _, dot in dots do
 				dot.BackgroundColor3 = DOT_IDLE
 			end

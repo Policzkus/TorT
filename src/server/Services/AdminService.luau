@@ -256,7 +256,7 @@ commands.faint = {
 }
 
 commands.car = {
-	usage = "/car [down|up] - send the car down the street you're on, now",
+	usage = "/car [down|up] - send the cars down the street you're on now, one each way (down|up: just the one)",
 	run = function(admin, args)
 		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local street = root and WorldService.zoneAt(root.Position)
@@ -264,10 +264,11 @@ commands.car = {
 			error("Stand on a street first", 0)
 		end
 		local dir = if args[1] == "down" then 1 elseif args[1] == "up" then -1 else nil
-		if TrafficService.send(street, dir) == nil then
-			error("No car: it isn't set up yet (tools/setup_car.luau), or one is already on this street", 0)
+		local sent = if dir then TrafficService.send(street, dir) ~= nil else TrafficService.pair(street)
+		if not sent then
+			error("No car: it isn't set up yet (tools/setup_car.luau), or the street's full of them", 0)
 		end
-		return `A car is coming down {street}`
+		return if dir then `A car is coming down {street}` else `Two cars are coming down {street}, one each way`
 	end,
 }
 

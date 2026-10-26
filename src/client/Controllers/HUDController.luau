@@ -517,7 +517,13 @@ local function onDoorResult(result: any)
 	refreshStreak(result.streak or 0)
 	local delay = 0.15
 	if result.bowl == true then
-		callout("TOOK IT ALL", Theme.Colors.Slime, from, delay)
+		local left = if type(result.bowlLeft) == "number" then result.bowlLeft else 0
+		callout(
+			if left > 0 then `{Format.number(left)} LEFT IN THE BOWL` else "EMPTIED THE BOWL",
+			Theme.Colors.Slime,
+			from,
+			delay
+		)
 		delay += 0.35
 	end
 	if result.brave then

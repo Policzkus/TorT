@@ -43,7 +43,7 @@ local GRADE = {
 	TintColor = Color3.fromRGB(226, 234, 228), -- a cold, slightly sick green
 }
 local DEPTH = { FarIntensity = 0.12, FocusDistance = 40, InFocusRadius = 70, NearIntensity = 0 }
-local GRAIN_TRANSPARENCY = 0.8
+local GRAIN_TRANSPARENCY = 0.85 -- (0.8 was a quarter too strong, the user said)
 local GRAIN_TILE = 384
 local GRAIN_TINT = Color3.fromRGB(200, 200, 200) -- a touch dark, so the specks don't lift the blacks
 local SCANLINE_TRANSPARENCY = 0.88
@@ -63,8 +63,9 @@ local BREATH_RISE = 0.035 -- studs the view rises and falls with each breath, fu
 local LAND = { frequency = 11, damping = 0.6, drop = { 0.6, 3.6 }, nod = { 0.15, 0.85 }, roll = 0.25, jump = 0.4 }
 local REDUCED = 0.2 -- the bob's size with Settings → Head bob off
 -- The view trailing where you look: moved back by each turn, sprung back onto it (`frequency`
--- radians/s, `damping`), never more than `most` radians behind.
-local TRAIL = { frequency = 24, damping = 0.85, most = math.rad(4) }
+-- radians/s, `damping`), never more than `most` radians behind. (A quarter less than it first was,
+-- the user asked: 24 rad/s and 4°.)
+local TRAIL = { frequency = 32, damping = 0.85, most = math.rad(3) }
 -- Stepping up (or down) a kerb or a stair moves you at once; the view follows at `rate` a second.
 -- More than `most` studs at once is a teleport (or a fall), followed straight away; not in the air.
 local STEP = { rate = 16, most = 2.5 }
