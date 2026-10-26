@@ -7,6 +7,11 @@
 --   blackout when anyone comes close; Services/HallFigureService decides, so everyone sees the same),
 --   and the gold beam over the Full-Size Bar house (from ReplicatedStorage.WorldState).
 --   Jack-o'-lantern candles on the Blender houses flicker.
+--   A candy bowl's porch lamp bursts when someone takes the lot (LampBroken, the server time it went;
+--   LampBrokenBy, who did it: DoorService): it buzzes and flickers, pops in a shower of sparks and
+--   glass, and the porch stays dark till Dawn. Whoever took it hears something stir in the house.
+--   When the homeowner comes out after them (OwnerAway, OwnerChaseService) the front door flies open
+--   with a bang, and slams shut again when they're back in.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -40,16 +45,24 @@ type Open = {
 	connections: { RBXScriptConnection }, -- following HallSpot / HallGone
 }
 
+-- The front door flung open while the homeowner's out after someone.
+type Away = { hinge: Model, closed: CFrame, angle: number, token: number }
+
 type Tracked = {
 	door: BasePart,
 	model: Model,
 	decor: Folder?,
 	badge: BillboardGui?,
 	open: Open?, -- standing open (an Open house)
+	away: Away?, -- its door flung open: the homeowner's out
 	saved: { [Instance]: { [string]: any } }, -- original properties of things we changed
 }
 
 local OPEN_SHARE = 0.92 -- of its OpenAngle an open house's door stands at
+-- A bursting porch lamp: played if it went less than `recent` seconds ago and you're within `near`
+-- studs (otherwise it's just dark); `flickers` buzzing flickers first; `sparks` and `shards` of glass.
+local LAMP = { recent = 3, near = 160, flickers = 6, sparks = 34, shards = 7 }
+local SPARK_TEXTURE = "rbxasset://textures/particles/sparkles_main.dds"
 local FIGURE_TURN = 2.2 -- how quickly it turns to face whoever's nearest
 local FIGURE_LOOK = 60 -- studs: it turns to the nearest kid within this
 local BLINK = 0.32 -- seconds the hall goes dark when it moves
@@ -115,6 +128,130 @@ local function lightsOff(entry: Tracked)
 			descendant.Enabled = false
 		end
 	end
+end
+
+-- The porch lamp: its glass (parts named PorchLight, the Blender lantern's LanternGlow) and the
+-- lights in it.
+local function lampOf(model: Model): ({ BasePart }, { Light })
+	local parts, lights = {}, {}
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") and (descendant.Name == "PorchLight" or descendant.Name == "LanternGlow") then
+			table.insert(parts, descendant)
+			for _, child in descendant:GetChildren() do
+				if child:IsA("Light") then
+					table.insert(lights, child)
+				end
+			end
+		end
+	end
+	return parts, lights
+end
+
+-- A burst lamp: dark, the glass gone dull.
+local function darkenLamp(entry: Tracked)
+	local parts, lights = lampOf(entry.model)
+	for _, part in parts do
+		save(entry, part, "Color")
+		save(entry, part, "Material")
+		part.Color = Color3.fromHex("14120F")
+		part.Material = Enum.Material.Glass
+	end
+	for _, light in lights do
+		save(entry, light, "Enabled")
+		light.Enabled = false
+	end
+end
+
+-- The lamp goes: a buzz and a few flickers, then a pop, sparks showering down and bits of glass, and
+-- dark. `thief`: you're the one who did it, and something in the house heard.
+local function burstLamp(entry: Tracked, thief: boolean, done: () -> ())
+	local parts, lights = lampOf(entry.model)
+	local anchor = parts[1] or entry.door
+	local at = if parts[1]
+		then parts[1].Position
+		else entry.door.Position + Vector3.new(0, entry.door.Size.Y / 2 + 1.5, 0)
+	for _, light in lights do
+		save(entry, light, "Enabled") -- (the flicker leaves them however; Dawn puts them back as they were)
+		save(entry, light, "Brightness")
+	end
+	task.spawn(function()
+		Sound.play("Overflow", { at = anchor, volume = 1.4, speed = 0.8 }) -- the buzz
+		for i = 1, LAMP.flickers do
+			local on = i % 2 == 0
+			for _, light in lights do
+				light.Enabled = on
+				light.Brightness = (entry.saved[light] and entry.saved[light].Brightness or light.Brightness)
+					* (if on then 1.6 else 1)
+			end
+			task.wait(0.04 + math.random() * 0.06)
+		end
+		-- The pop: a white flash, then nothing.
+		for _, light in lights do
+			light.Enabled = true
+			light.Brightness = (entry.saved[light] and entry.saved[light].Brightness or 1) * 4
+		end
+		Sound.play("KnockSingle", { at = anchor, volume = 1, speed = 2.1 })
+		Sound.play("Thud", { at = anchor, volume = 0.5, speed = 1.9 })
+		for k = 1, 3 do
+			task.delay(0.08 * k + math.random() * 0.06, function()
+				Sound.play("Pop", { at = anchor, volume = 0.5, speed = 1.7 + math.random() * 0.6 }) -- glass on the boards
+			end)
+		end
+		local burst = Instance.new("Part")
+		burst.Name = "LampBurst"
+		burst.Size = Vector3.one * 0.2
+		burst.Transparency = 1
+		burst.Anchored = true
+		burst.CanCollide = false
+		burst.CanQuery = false
+		burst.CanTouch = false
+		burst.CFrame = CFrame.new(at)
+		local sparks = Instance.new("ParticleEmitter")
+		sparks.Texture = SPARK_TEXTURE
+		sparks.Color = ColorSequence.new(Color3.fromHex("FFE2A0"), Color3.fromHex("FF7A1A"))
+		sparks.LightEmission = 1
+		sparks.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+		sparks.Lifetime = NumberRange.new(0.35, 0.9)
+		sparks.Speed = NumberRange.new(8, 18)
+		sparks.SpreadAngle = Vector2.new(180, 180)
+		sparks.Acceleration = Vector3.new(0, -60, 0)
+		sparks.Drag = 2
+		sparks.Rate = 0
+		sparks.Parent = burst
+		burst.Parent = Workspace
+		sparks:Emit(LAMP.sparks)
+		for _ = 1, LAMP.shards do
+			local shard = Instance.new("Part")
+			shard.Name = "LampGlass"
+			shard.Size = Vector3.new(0.12 + math.random() * 0.15, 0.04, 0.1 + math.random() * 0.15)
+			shard.Color = Color3.fromHex("C9C2A8")
+			shard.Material = Enum.Material.Glass
+			shard.Transparency = 0.3
+			shard.CanQuery = false
+			shard.CanTouch = false
+			shard.CFrame = CFrame.new(at) * CFrame.Angles(math.random() * 6.3, math.random() * 6.3, 0)
+			shard.AssemblyLinearVelocity =
+				Vector3.new(math.random() * 12 - 6, math.random() * 6, math.random() * 12 - 6)
+			shard.Parent = Workspace
+			task.delay(4, function()
+				shard:Destroy()
+			end)
+		end
+		task.delay(1.5, function()
+			burst:Destroy()
+		end)
+		task.wait(0.07)
+		done()
+		if thief then
+			-- Something in the house heard it.
+			task.delay(0.8, function()
+				Sound.play("Whispers", { at = entry.door, volume = 1.1 })
+			end)
+			task.delay(1.3, function()
+				Sound.play("GhostWail", { at = entry.door, volume = 0.45, speed = 0.6 })
+			end)
+		end
+	end)
 end
 
 -- The Blender decorations (Assets.Decor, art/scripts/decor.py) hung at the anchors a house model
@@ -231,6 +368,53 @@ local function frontHinge(model: Model): Model?
 		return door
 	end
 	return nil
+end
+
+-- The homeowner's out after someone: the front door flung open with a bang (`open`), or slammed shut
+-- behind them when they're back in. `animate` false: just put it there (it streamed in that way).
+local function swingFront(entry: Tracked, open: boolean, animate: boolean)
+	local hinge = frontHinge(entry.model)
+	if hinge == nil or entry.open then
+		return -- no door that swings, or an open house's (standOpen has it)
+	end
+	local away = entry.away
+	if away == nil then
+		if not open then
+			return
+		end
+		away = { hinge = hinge, closed = hinge:GetPivot(), angle = 0, token = 0 }
+		entry.away = away
+	end
+	local swing = away :: Away
+	swing.token += 1
+	local token = swing.token
+	local target = if open then math.rad(((hinge:GetAttribute("OpenAngle") :: number?) or 90) * 0.95) else 0
+	if not animate then
+		swing.angle = target
+		hinge:PivotTo(swing.closed * CFrame.Angles(0, target, 0))
+		if not open then
+			entry.away = nil
+		end
+		return
+	end
+	local slab = hinge.PrimaryPart
+	if slab then
+		Sound.play("DoorSlam", { at = slab, volume = 1, speed = if open then 1.15 else 0.95 })
+	end
+	task.spawn(function()
+		local from = swing.angle
+		local duration = if open then 0.22 else 0.32
+		local t = 0
+		while t < 1 and swing.token == token and hinge.Parent do
+			t = math.min(1, t + RunService.Heartbeat:Wait() / duration)
+			local eased = if open then 1 - (1 - t) ^ 3 else t * t -- flung open; swung shut, faster and faster
+			swing.angle = from + (target - from) * eased
+			hinge:PivotTo(swing.closed * CFrame.Angles(0, swing.angle, 0))
+		end
+		if not open and swing.token == token and entry.away == swing then
+			entry.away = nil
+		end
+	end)
 end
 
 -- The figure templates that have been imported (the old silhouette when none of the new are).
@@ -480,6 +664,9 @@ local function apply(entry: Tracked, fresh: boolean?)
 	elseif houseType == "Open" then
 		standOpen(entry, not fresh)
 	end
+	if entry.model:GetAttribute("LampBroken") ~= nil then
+		darkenLamp(entry)
+	end
 	updateBadge(entry)
 end
 
@@ -505,7 +692,34 @@ local function track(door: Instance)
 			updateBadge(entry)
 		end
 	end)
+	-- A bowl's lamp burst just now (and you're near enough to see it go), or it's mended at Dawn.
+	model:GetAttributeChangedSignal("LampBroken"):Connect(function()
+		if tracked[model] ~= entry then
+			return
+		end
+		local at = model:GetAttribute("LampBroken")
+		local camera = Workspace.CurrentCamera
+		local recent = type(at) == "number" and Workspace:GetServerTimeNow() - at < LAMP.recent
+		local near = camera ~= nil and (camera.CFrame.Position - entry.door.Position).Magnitude < LAMP.near
+		if recent and near then
+			burstLamp(entry, model:GetAttribute("LampBrokenBy") == Players.LocalPlayer.UserId, function()
+				if tracked[model] == entry then
+					apply(entry)
+				end
+			end)
+		else
+			apply(entry)
+		end
+	end)
+	model:GetAttributeChangedSignal("OwnerAway"):Connect(function()
+		if tracked[model] == entry then
+			swingFront(entry, model:GetAttribute("OwnerAway") == true, true)
+		end
+	end)
 	apply(entry, true)
+	if model:GetAttribute("OwnerAway") == true then
+		swingFront(entry, true, false)
+	end
 end
 
 local function untrack(door: Instance)

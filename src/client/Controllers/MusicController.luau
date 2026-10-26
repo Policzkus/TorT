@@ -1,6 +1,7 @@
 --!strict
 -- Background music: the track of the zone you're in, swapped for the Witching Hour or Blood Moon
--- theme while those are on, and for the chase music while the Knifer's after you (KniferController).
+-- theme while those are on, and for the chase music while something's after you (the Knifer:
+-- KniferController; a homeowner whose bowl you emptied: OwnerChaseController).
 -- Crossfades; volume follows Settings → Music (SoundGroup "Music").
 
 local Players = game:GetService("Players")
@@ -19,7 +20,8 @@ local SETTINGS_WAIT = 10
 local playing: Sound? = nil
 local playingId = 0
 local state: Instance? = nil
-local chased = false
+local chased = false -- anything's after you
+local chasers: { [string]: boolean } = {} -- who says so ("knifer", "owner")
 
 local function wanted(): Music.Track?
 	if chased then
@@ -64,10 +66,13 @@ local function refresh()
 	playing = sound
 end
 
--- The Knifer's after you (on) or you've lost him (off): the chase music comes in fast, and goes.
-function MusicController.setChase(on: boolean)
-	if on ~= chased then
-		chased = on
+-- `source` (the Knifer, a homeowner) is after you (on) or you've lost them (off): the chase music
+-- comes in fast while any of them is, and goes when none is.
+function MusicController.setChase(source: string, on: boolean)
+	chasers[source] = if on then true else nil
+	local any = next(chasers) ~= nil
+	if any ~= chased then
+		chased = any
 		refresh()
 	end
 end

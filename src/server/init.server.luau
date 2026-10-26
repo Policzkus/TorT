@@ -28,6 +28,7 @@ local RUN_ONLY = {
 	"StashService",
 	"TrafficService",
 	"KniferService",
+	"OwnerChaseService",
 	"RunExitService",
 }
 -- What only the lobby has: the party buses.
@@ -57,6 +58,7 @@ local order = {
 	"RagdollService",
 	"TrafficService",
 	"KniferService",
+	"OwnerChaseService",
 	"RunExitService",
 	"PartyService",
 	"AdminService",

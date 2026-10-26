@@ -1,11 +1,13 @@
 --!strict
 -- Knock on a door → mini-game → candy into the bucket → per-player cooldown on that house.
--- Also the Take-One Bowls (take one safely, or hold TAKE ALL and maybe get caught).
+-- Also the candy bowls (Config/Bowl): take the lot, the porch lamp bursts, and maybe the homeowner
+-- comes out after you (OwnerChaseService).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local Bowl = require(ReplicatedStorage.Shared.Config.Bowl)
 local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
@@ -22,6 +24,7 @@ local HomeownerService = require(script.Parent.HomeownerService)
 local HouseService = require(script.Parent.HouseService)
 local MinigameService = require(script.Parent.MinigameService)
 local NotifyService = require(script.Parent.NotifyService)
+local OwnerChaseService = require(script.Parent.OwnerChaseService)
 local WorldEventsService = require(script.Parent.WorldEventsService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -39,19 +42,11 @@ export type DoorResult = {
 	event: number, -- event multiplier applied (Witching Hour, Blood Moon)
 	liked: boolean?, -- the homeowner's preference matched your costume's tag
 	costumed: boolean?, -- false: no costume, so the homeowner barely gave anything
-	bowl: string?, -- "one" | "all" | "caught"
-	lost: number?, -- candy lost when caught
+	bowl: boolean?, -- took a candy bowl's lot
 }
 
 -- Goodbyes a homeowner picks from going back in, by how the visit went (HomeownerController.GOODBYES).
 local GOODBYES = { pleased = { "wave", "bow", "nod" }, displeased = { "point", "shoo", "stare" } }
-
-local CAUGHT_LINES = {
-	"THOSE ARE FOR THE TRICK-OR-TREATERS!",
-	"HEY! ONE PER KID!",
-	"I SAW THAT, YOU LITTLE GOBLIN!",
-	"GIMME BACK MY CANDY!",
-}
 
 local DoorService = {}
 
@@ -246,8 +241,8 @@ end
 
 local function knock(player: Player, houseId: string)
 	local houseType = HouseService.houseType(houseId)
-	if houseType == "LightsOff" or houseType == "Bowl" or houseType == "Open" then
-		return -- nobody answers
+	if houseType == "LightsOff" or houseType == "Bowl" or houseType == "Open" or OwnerChaseService.away(houseId) then
+		return -- nobody answers (or they're out after someone)
 	end
 	local house, neighborhood = canVisit(player, houseId)
 	if house == nil or neighborhood == nil then
@@ -309,54 +304,44 @@ local function knock(player: Player, houseId: string)
 	end)
 end
 
-local function takeFromBowl(player: Player, houseId: string, mode: string)
+-- Someone held the bowl's prompt through: they get the lot (Config/Bowl.CANDY, as much as their bucket
+-- holds), the bowl stands empty, the porch lamp bursts for everyone to see (LampBroken, the server
+-- time it went; LampBrokenBy, who did it: HouseVisualController), and maybe the homeowner comes out
+-- after them (OwnerChaseService).
+local function takeFromBowl(player: Player, houseId: string)
 	if HouseService.houseType(houseId) ~= "Bowl" then
+		return
+	end
+	if not HouseService.bowlFull(houseId) then
+		NotifyService.send(player, "The bowl's empty. Somebody beat you to it", "info")
 		return
 	end
 	local house, neighborhood = canVisit(player, houseId)
 	if house == nil or neighborhood == nil then
 		return
 	end
-	local readyAt = startCooldown(houseId)
+	HouseService.emptyBowl(houseId)
+	local amount = random:NextInteger(Bowl.CANDY[1], Bowl.CANDY[2])
+	local added, overflow = CandyService.addToBucket(player, amount)
 	local result: DoorResult = {
 		houseId = houseId,
-		grade = "GOOD",
-		amount = 0,
-		added = 0,
-		overflow = 0,
-		cooldownUntil = readyAt,
+		grade = "PERFECT",
+		amount = amount,
+		added = added,
+		overflow = overflow,
+		cooldownUntil = 0,
 		houseType = "Bowl",
 		streak = streaks[player] or 0,
 		brave = false,
 		fullSize = false,
-		event = CandyService.eventMultiplier(player),
-		bowl = mode,
+		event = 1,
+		bowl = true,
 	}
-
-	if mode == "all" and random:NextNumber() < HouseTypes.BOWL_CAUGHT_CHANCE then
-		local lost = CandyService.loseFromBucket(player, HouseTypes.CAUGHT_LOSS)
-		DataService.mutate(player, "stats", function(stats)
-			stats.caught += 1
-		end)
-		result.bowl = "caught"
-		result.lost = lost
-		Net.event("Jumpscare"):FireClient(player, houseId, "caught", CAUGHT_LINES[random:NextInteger(1, #CAUGHT_LINES)])
-		Net.event("ScareSeen"):FireAllClients(houseId, player.UserId, "caught")
-		Net.event("DoorResult"):FireClient(player, result)
-		pop(player, `CAUGHT  -{Format.number(lost)}`, "caught")
-		return
-	end
-
-	local multiplier = if mode == "all" then HouseTypes.BOWL_TAKE_ALL else HouseTypes.BOWL_TAKE_ONE
-	local base = random:NextNumber(neighborhood.candy.min, neighborhood.candy.max) * multiplier
-	local amount = Formulas.doorCandy(base, "GOOD", 0, CandyService.bonuses(player), result.event)
-	local added, overflow = CandyService.addToBucket(player, amount)
-	result.amount, result.added, result.overflow = amount, added, overflow
-	if mode == "all" then
-		result.grade = "PERFECT"
-	end
 	Net.event("DoorResult"):FireClient(player, result)
 	pop(player, `+{Format.number(added)}`, result.grade)
+	house.model:SetAttribute("LampBrokenBy", player.UserId)
+	house.model:SetAttribute("LampBroken", now())
+	OwnerChaseService.raid(player, houseId)
 end
 
 function DoorService.resetCooldowns()

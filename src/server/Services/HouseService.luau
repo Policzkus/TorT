@@ -1,11 +1,14 @@
 --!strict
 -- Rolls every house's type, homeowner and preference at each Dawn (PROMPT §3.5) and publishes them
 -- as attributes on the house model (HouseType, Owner, Preference) for the client to draw the tells.
--- Take-One Bowls get a bowl with two prompts; BowlTriggered tells DoorService what was picked.
+-- Bowl houses (Config/Bowl) get a full candy bowl on the porch with one prompt, held to take the
+-- lot (BowlTriggered tells DoorService); once it's taken it stands empty until the next Dawn, when
+-- every bowl is put out full again and every burst porch lamp (LampBroken) is mended.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Bowl = require(ReplicatedStorage.Shared.Config.Bowl)
 local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Events = require(ReplicatedStorage.Shared.Config.Events)
 local HouseTypes = require(ReplicatedStorage.Shared.Config.HouseTypes)
@@ -20,7 +23,7 @@ local WorldService = require(script.Parent.WorldService)
 
 local HouseService = {}
 
-HouseService.BowlTriggered = Signal.new() -- (player, houseId, mode: "one" | "all")
+HouseService.BowlTriggered = Signal.new() -- (player, houseId) someone held the bowl's prompt through
 HouseService.Rerolled = Signal.new() -- () after every Dawn
 
 type HouseState = {
@@ -58,7 +61,7 @@ local function buildBowl(houseId: string): Model?
 	local front = door.CFrame * CFrame.new(0, 0, -3.2)
 	local base = CFrame.new(front.X, door.Position.Y - door.Size.Y / 2, front.Z) * door.CFrame.Rotation
 	local m = Instance.new("Model")
-	m.Name = "TakeOneBowl"
+	m.Name = "CandyBowl"
 	Parts.pole(m, "Stand", 2.6, 1.2, base, "3A2A1E", Enum.Material.Wood)
 	local bowl = Parts.cylinder(
 		m,
@@ -91,30 +94,48 @@ local function buildBowl(houseId: string): Model?
 		{ color = Color3.fromHex("8A1E1E"), stroke = Color3.fromHex("F2EEE6") }
 	)
 
-	local takeOne = Parts.prompt(bowl, "Take one", "Candy bowl", 9)
-	takeOne.Name = "TakeOne"
-	local takeAll = Parts.prompt(bowl, "TAKE ALL (risky!)", "Candy bowl", 9, HouseTypes.BOWL_TAKE_ALL_HOLD)
+	-- One thing to do with it: take the lot (held, so you have time to think better of it).
+	local takeAll = Parts.prompt(bowl, "Take it all", "Candy bowl", 9, Bowl.HOLD)
 	takeAll.Name = "TakeAll"
-	takeAll.KeyboardKeyCode = Enum.KeyCode.F
-	takeAll.GamepadKeyCode = Enum.KeyCode.ButtonY
-	takeAll.UIOffset = Vector2.new(0, 80)
-	takeOne.Triggered:Connect(function(player)
-		HouseService.BowlTriggered:Fire(player, houseId, "one")
-	end)
 	takeAll.Triggered:Connect(function(player)
-		HouseService.BowlTriggered:Fire(player, houseId, "all")
+		HouseService.BowlTriggered:Fire(player, houseId)
 	end)
 	m.Parent = house.model
 	return m
 end
 
-local function apply(houseId: string, state: HouseState)
+-- Whether `houseId`'s bowl is out and still has its candy in it.
+function HouseService.bowlFull(houseId: string): boolean
+	local house = houses[houseId]
+	local bowl = house and house.bowl
+	return bowl ~= nil and bowl.Parent ~= nil and bowl:GetAttribute("Taken") ~= true
+end
+
+-- Someone took the lot: the bowl stands empty (no candy, no prompt) until the next Dawn.
+function HouseService.emptyBowl(houseId: string)
+	local house = houses[houseId]
+	local bowl = house and house.bowl
+	if bowl == nil then
+		return
+	end
+	bowl:SetAttribute("Taken", true)
+	for _, item in bowl:GetDescendants() do
+		if item:IsA("BasePart") and item.Name == "Candy" then
+			item:Destroy()
+		elseif item:IsA("ProximityPrompt") then
+			item.Enabled = false
+		end
+	end
+end
+
+-- `refill`: a new night, so a bowl that stays a bowl is put out full again.
+local function apply(houseId: string, state: HouseState, refill: boolean?)
 	local house = WorldService.getHouse(houseId)
 	if house == nil then
 		return
 	end
 	local previous = houses[houseId]
-	if previous and previous.bowl and state.houseType ~= "Bowl" then
+	if previous and previous.bowl and (state.houseType ~= "Bowl" or refill) then
 		previous.bowl:Destroy()
 	elseif previous and previous.bowl then
 		state.bowl = previous.bowl
@@ -145,14 +166,22 @@ local function apply(houseId: string, state: HouseState)
 	end
 end
 
+-- Changes one house's type (the Witching Hour, admin). Made a bowl, it gets a full one and its lamp
+-- mended.
 function HouseService.setType(houseId: string, houseType: string)
 	local current = houses[houseId]
 	if current then
+		local bowl = houseType == "Bowl"
 		apply(houseId, {
 			houseType = houseType,
 			owner = current.owner,
 			preference = current.preference,
-		})
+		}, bowl)
+		local house = WorldService.getHouse(houseId)
+		if bowl and house then
+			house.model:SetAttribute("LampBroken", nil)
+			house.model:SetAttribute("LampBrokenBy", nil)
+		end
 	end
 end
 
@@ -189,7 +218,9 @@ function HouseService.reroll()
 			houseType = houseType,
 			owner = rng:pick(Dialogue.ORDER),
 			preference = rng:pick(HouseTypes.PREFERENCES),
-		})
+		}, true)
+		house.model:SetAttribute("LampBroken", nil) -- mended for the new night
+		house.model:SetAttribute("LampBrokenBy", nil)
 		HomeownerService.roll(house.model, house.neighborhood)
 	end
 	for neighborhood, ids in openable do

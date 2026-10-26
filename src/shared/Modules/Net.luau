@@ -35,6 +35,8 @@ local EVENTS: { [string]: string } = {
 	Downed = "S→C you're killed and down as a ragdoll, no black screen: (lives, lostBucket, lostBanked, wakeIn)",
 	KniferCame = "S→C the Knifer has come onto a street, everyone on it hears the sting: (streetId)",
 	KniferStruck = "S→C the Knifer got someone, everyone near hears it: (userId)",
+	-- A homeowner after a bowl thief (OwnerChaseService)
+	OwnerGrab = "S→C a homeowner caught the kid who took their bowl and took their candy back, everyone sees it fly: (houseId, userId, lost, seed)",
 	-- The car (TrafficService)
 	CarTrip = "S→C a car drives down a street, everyone draws it on the same path: (trip: Traffic.Trip)",
 	CarHit = "S→C the car hit someone, everyone sees the same candy fly: (userId, lost: number, seed: number)",

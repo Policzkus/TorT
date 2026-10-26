@@ -29,6 +29,7 @@ Loader.run(script.Controllers, {
 	"HingeController",
 	"TrafficController",
 	"KniferController",
+	"OwnerChaseController",
 	"JumpscareController",
 	"MinigameController",
 	"RadialMenuController",
