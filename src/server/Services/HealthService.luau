@@ -1,7 +1,7 @@
 --!strict
 -- Health (Config/Health; it took the place of the three lives). Each player's "Health" attribute is
 -- theirs (the HUD shows it): MAX to start with and with every new body, down when the Knifer stabs
--- you (HealthService.hurt), back a little a second a while after you were last hurt. Down to nothing
+-- you (HealthService.hurt), back only with a bandage (HealthService.heal, ItemService). Down to nothing
 -- and you're dead (HealthService.down: no black screen, you drop as a ragdoll where you are, then
 -- wake at the spawn). Caught by a homeowner (HealthService.faint, the admin's /faint): everything
 -- goes black and you come to somewhere safe. Either way what's in your bucket is gone.
@@ -19,10 +19,8 @@ local RagdollService = require(script.Parent.RagdollService)
 local HealthService = {}
 
 local ATTRIBUTE = "Health"
-local TICK = 0.25
 
 local fainting: { [Player]: boolean } = {}
-local hurtAt: { [Player]: number } = {}
 
 local function set(player: Player, value: number)
 	player:SetAttribute(ATTRIBUTE, math.clamp(value, 0, Health.MAX))
@@ -51,7 +49,6 @@ end
 -- A new body, with all its health, its feet at `feet` (nil: the spawn).
 local function wake(player: Player, feet: CFrame?)
 	fainting[player] = nil
-	hurtAt[player] = nil
 	if player.Parent == Players then
 		set(player, Health.MAX)
 		CharacterService.respawn(player, feet)
@@ -109,13 +106,16 @@ function HealthService.hurt(player: Player, amount: number, push: Vector3): ("hu
 		return if HealthService.down(player, push) then "dead" else nil
 	end
 	set(player, left)
-	hurtAt[player] = os.clock()
 	return "hurt"
 end
 
--- All of it back (the admin's /heal).
-function HealthService.heal(player: Player)
-	set(player, Health.MAX)
+-- `amount` back (a bandage), or all of it (nil: the admin's /heal). False if they're down or out.
+function HealthService.heal(player: Player, amount: number?): boolean
+	if fainting[player] then
+		return false
+	end
+	set(player, if amount then HealthService.get(player) + amount else Health.MAX)
+	return true
 end
 
 function HealthService.Start()
@@ -127,23 +127,7 @@ function HealthService.Start()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		fainting[player] = nil
-		hurtAt[player] = nil
 	end)
-	-- Coming back, a while after the last hurt.
-	while true do
-		local now = os.clock()
-		for _, player in Players:GetPlayers() do
-			local health = HealthService.get(player)
-			if
-				health < Health.MAX
-				and not fainting[player]
-				and now - (hurtAt[player] or -math.huge) >= Health.REGEN.delay
-			then
-				set(player, health + Health.REGEN.rate * TICK)
-			end
-		end
-		task.wait(TICK)
-	end
 end
 
 return HealthService

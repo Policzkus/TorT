@@ -1,13 +1,14 @@
 --!strict
 -- Collision groups. Whatever hunts you on the streets (AI/Hunter: the Knifer, a homeowner out after
--- you) walks through candy bowls: a bowl on the porch, right in front of the door, used to wedge a
--- homeowner coming out after whoever emptied it. Everyone else still bumps into them.
+-- you) walks through what stands on the porches (a candy bowl, the seller's crate): a bowl right in
+-- front of the door used to wedge a homeowner coming out after whoever emptied it. Everyone else
+-- still bumps into them.
 
 local PhysicsService = game:GetService("PhysicsService")
 
 local CollisionGroups = {
 	HUNTERS = "Hunters",
-	BOWLS = "Bowls",
+	PORCH = "Porch",
 }
 
 local registered = false
@@ -17,12 +18,12 @@ local function register()
 		return
 	end
 	registered = true
-	for _, name in { CollisionGroups.HUNTERS, CollisionGroups.BOWLS } do
+	for _, name in { CollisionGroups.HUNTERS, CollisionGroups.PORCH } do
 		if not PhysicsService:IsCollisionGroupRegistered(name) then
 			PhysicsService:RegisterCollisionGroup(name)
 		end
 	end
-	PhysicsService:CollisionGroupSetCollidable(CollisionGroups.HUNTERS, CollisionGroups.BOWLS, false)
+	PhysicsService:CollisionGroupSetCollidable(CollisionGroups.HUNTERS, CollisionGroups.PORCH, false)
 end
 
 -- Puts every part of `model` in `group`.

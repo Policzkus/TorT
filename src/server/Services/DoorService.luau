@@ -252,8 +252,8 @@ local function knock(player: Player, houseId: string)
 		end
 		return
 	end
-	if houseType == "Bowl" or houseType == "Open" or OwnerChaseService.away(houseId) then
-		return -- nobody answers (or they're out after someone)
+	if houseType == "Bowl" or houseType == "Open" or houseType == "Seller" or OwnerChaseService.away(houseId) then
+		return -- nobody answers (or they're out after someone; the seller doesn't take knocks)
 	end
 	local house, neighborhood = canVisit(player, houseId)
 	if house == nil or neighborhood == nil then

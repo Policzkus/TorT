@@ -209,11 +209,12 @@ local function bucketFull(): boolean
 	return upgrades ~= nil and (StateController.get("bucket") or 0) >= Formulas.bucketCapacity(upgrades.bucketTier)
 end
 
--- Bowl and open houses have no door to knock on (a lights-off one has: nobody comes, DoorService).
+-- Bowl, open and seller houses have no door to knock on (a lights-off one has: nobody comes,
+-- DoorService).
 local function knockable(door: BasePart): boolean
 	local model = Houses.of(door)
 	local houseType = model and model:GetAttribute("HouseType")
-	return houseType ~= "Bowl" and houseType ~= "Open"
+	return houseType ~= "Bowl" and houseType ~= "Open" and houseType ~= "Seller"
 end
 
 -- A candy bowl's prompt: how much is left in it, or that your bucket's full.

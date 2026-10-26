@@ -447,6 +447,16 @@ local function think(him: Him)
 		vanish(him)
 		return
 	end
+	if Hunter.held(him) then
+		return -- in a bear trap
+	end
+	-- A firecracker's bangs: off to them, seeing no one on the way (Hunter.lure).
+	local lure = Hunter.lure(him)
+	if lure and him.lastKnown ~= lure and him.state ~= "kill" and him.state ~= "appear" then
+		him.lastKnown = lure
+		him.target = nil
+		setState(him, "investigate")
+	end
 	local params = sightParams()
 	local players = huntable(him.street)
 

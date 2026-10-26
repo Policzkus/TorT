@@ -7,6 +7,9 @@
 -- and look round, and where they look for you when they've lost you. Each brings its own numbers
 -- (`rules`: Config/Knifer, Config/Bowl.CHASE). Their bodies all go in one folder, which their
 -- sight looks through.
+-- The seller's things work on them (Services/ItemService, through attributes on their models): a
+-- bear trap holds them where they stand (HeldUntil), a firecracker's bangs draw them to it, seeing
+-- and hearing no one till they're done (LuredTo, LuredUntil). Server time, so clients can read them.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -63,14 +66,15 @@ export type Hunter = {
 
 -- The paths they walk keep this far off walls: slim enough for a yard gate (wider, and gates and the
 -- gaps between houses close up, and every path goes round the block).
--- Round a candy bowl if there's room (they can walk through one: CollisionGroups, HouseService).
+-- Round a candy bowl or the seller's crate if there's room (they can walk through them:
+-- CollisionGroups, HouseService).
 Hunter.AGENT = {
 	AgentRadius = 1,
 	AgentHeight = 7.5,
 	AgentCanJump = false,
 	AgentCanClimb = false,
 	WaypointSpacing = 5,
-	Costs = { Bowl = 6 },
+	Costs = { Porch = 6 },
 }
 
 local random = Random.new()
@@ -182,9 +186,30 @@ local function eyeOf(hunter: Hunter): Vector3
 	return if head and head:IsA("BasePart") then head.Position else hunter.root.Position + Vector3.new(0, 1.4, 0)
 end
 
+-- Where a firecracker is drawing `hunter` to (ItemService), while it is; nil once it's done.
+function Hunter.lure(hunter: Hunter): Vector3?
+	local untilAt = hunter.model:GetAttribute("LuredUntil")
+	local spot = hunter.model:GetAttribute("LuredTo")
+	if type(untilAt) == "number" and typeof(spot) == "Vector3" and Workspace:GetServerTimeNow() < untilAt then
+		return spot
+	end
+	return nil
+end
+
+-- Caught in a bear trap (ItemService): stood still till it lets go. True while it holds them (the
+-- caller does nothing else).
+function Hunter.held(hunter: Hunter): boolean
+	local untilAt = hunter.model:GetAttribute("HeldUntil")
+	if type(untilAt) == "number" and Workspace:GetServerTimeNow() < untilAt then
+		Hunter.stand(hunter)
+		return true
+	end
+	return false
+end
+
 function Hunter.sees(hunter: Hunter, player: Player, params: RaycastParams): boolean
 	local root = rootOf(player)
-	if root == nil then
+	if root == nil or Hunter.lure(hunter) then
 		return false
 	end
 	local rules = hunter.rules
@@ -213,6 +238,9 @@ end
 
 -- The nearest player it can hear (walking close by, running further off), and where.
 function Hunter.hears(hunter: Hunter, players: { Player }): Vector3?
+	if Hunter.lure(hunter) then
+		return nil -- (all it hears is the bangs)
+	end
 	local hear = hunter.rules.HEAR
 	local best, bestDistance = nil, math.huge
 	for _, player in players do
@@ -391,7 +419,7 @@ end
 
 -- Sets up a Humanoid to walk a hunter: it can't be hurt, jump, climb or fall over, and shows no name
 -- or health.
--- Their whole body walks through candy bowls (CollisionGroups).
+-- Their whole body walks through what stands on the porches (CollisionGroups).
 function Hunter.ghost(model: Model)
 	CollisionGroups.put(model, CollisionGroups.HUNTERS)
 end

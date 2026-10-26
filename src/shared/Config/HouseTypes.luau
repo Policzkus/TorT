@@ -3,7 +3,8 @@
 
 -- Open: the front door stands open on a lit hall and nobody answers (one day you'll be able to walk
 -- in: the heists). Only houses with a real door and a hall can be open (HouseService).
-export type HouseType = "Normal" | "Decorated" | "Trick" | "Bowl" | "LightsOff" | "Open"
+-- Seller: never rolled; one house a street is made one at every Dawn (HouseService, Config/Items).
+export type HouseType = "Normal" | "Decorated" | "Trick" | "Bowl" | "LightsOff" | "Open" | "Seller"
 
 return {
 	-- Candy multiplier and added mini-game difficulty per type.

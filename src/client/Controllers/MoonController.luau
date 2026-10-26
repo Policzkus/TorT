@@ -1,13 +1,16 @@
 --!strict
--- The moon in the Witching Hour (and under the Blood Moon): it turns red, slowly, as the hour starts
--- (the user's ask), swelling a little, a red glow round it, then holds still until it's over and
--- fades back. No other animation: a heartbeat throb read as blinking. The sky's own moon stays the
--- moon (its texture); over it sits a red disc that's see-through at first and less so as it reddens,
--- with fainter, wider discs for the glow. They're a billboard out along the moon's direction, sized
+-- The moon in the Witching Hour (and under the Blood Moon): as the hour starts it turns, slowly, into
+-- a blood moon, swelling, a warm glow round it, then holds still until it's over and fades back. No
+-- other animation: a heartbeat throb read as blinking. The sky's own moon stays the moon (its
+-- texture); over it sits a disc that's see-through at first and solid once it's turned, with a dark
+-- rim and fainter, wider discs for the glow. They're a billboard along the moon's direction, sized
 -- to the sky's moon (Sky.MoonAngularSize), so they stay on it wherever you look from. The red sky
--- itself is ZoneLightingController's. Its thick red haze all but hid the moon (the user wanted it to
--- stand out): red, it's bigger, near solid and lit past white (the billboard's Brightness), so it
--- glows through the haze and the bloom catches it.
+-- itself is ZoneLightingController's.
+-- A red moon on that red sky didn't show at all (the user, twice): it's no longer red on red but lit,
+-- bone pale on one side going to blood orange on the other (a sphere lit from the side), outlined
+-- dark, its glow orange rather than the sky's crimson, and lit past white (the billboard's
+-- Brightness) so the bloom catches it. And it's drawn near you, not far off in the fog (the haze
+-- would wash anything out there to the sky's colour): only as far out as puts it above the roofs.
 
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,24 +22,31 @@ local create = require(script.Parent.Parent.UI.create)
 
 local MoonController = {}
 
-local DISTANCE = 2000 -- studs out along the moon's direction (past everything in the town)
+-- Studs out along the moon's direction: far enough to be up over every roof (ABOVE studs over
+-- your eyes), no further (the fog).
+local DISTANCE = { least = 80, above = 60 }
 local DISC = 1.06 -- of the sky moon's angular size: a touch over, so no white rim peeks out round it
-local RED_IN = 25 -- seconds for the moon to go all the way red once the Witching Hour starts
-local FADE_OUT = 8 -- seconds back to white once it's over
-local SWELL = 1.7 -- how much bigger the moon gets, all red
-local PALE = Color3.fromHex("E8C9B0")
-local RED = Color3.fromHex("E8281E") -- blood red, bright enough to read through the red fog
-local GLOW = Color3.fromHex("FF4A3C") -- the glow round it, brighter than the red sky
-local OPAQUE = 0.95 -- how much of the moon the red covers, all red (its craters only just show through)
-local LIT = 2.6 -- the billboard's Brightness, all red: past white, so it glows through the haze
--- Glow round it: size (times the disc) and how see-through, all red.
+local RED_IN = 25 -- seconds for the moon to turn all the way once the Witching Hour starts
+local FADE_OUT = 8 -- seconds back once it's over
+local SWELL = 1.5 -- how much bigger the moon gets, turned
+local PALE = Color3.fromHex("E8C9B0") -- the sky's moon, before it turns
+local LIGHT = Color3.fromHex("FFEBDA") -- turned: its lit side, bone pale
+local DEEP = Color3.fromHex("E2401F") -- its shadowed side, blood orange
+local SHADE = 35 -- the shading turned this many degrees: lit from the upper right
+local RIM = { size = 1.07, color = Color3.fromHex("1E0305"), transparency = 0.35 } -- the dark outline
+local GLOW = Color3.fromHex("FF9450") -- the glow round it: orange, not the sky's crimson
+local OPAQUE = 0.97 -- how much of the moon it covers, turned (its craters only just show through)
+local LIT = 3 -- the billboard's Brightness, turned: past white, so the bloom catches it
+-- Glow round it: size (times the disc) and how see-through, turned.
 local HALOS =
-	{ { size = 1.35, transparency = 0.55 }, { size = 2.1, transparency = 0.76 }, { size = 3.4, transparency = 0.88 } }
+	{ { size = 1.35, transparency = 0.62 }, { size = 2.1, transparency = 0.8 }, { size = 3.4, transparency = 0.9 } }
 
 local worldState: Instance? = nil
 local anchor: Attachment
 local billboard: BillboardGui
 local disc: Frame
+local shading: UIGradient
+local rim: Frame
 local halos: { Frame } = {}
 local sky: Sky? = nil
 local redness = 0 -- 0..1 now
@@ -49,7 +59,7 @@ local function circle(name: string, size: number, z: number): Frame
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromScale(size, size),
-		BackgroundColor3 = RED,
+		BackgroundColor3 = GLOW,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = z,
@@ -100,14 +110,17 @@ local function update()
 		(sky :: Sky).MoonAngularSize = angular
 	end
 	local direction = Lighting:GetMoonDirection()
-	local diameter = 2 * DISTANCE * math.tan(math.rad(angular) / 2) * DISC
+	local distance = math.max(DISTANCE.least, DISTANCE.above / math.max(direction.Y, 0.2))
+	local diameter = 2 * distance * math.tan(math.rad(angular) / 2) * DISC
 	-- The sky's moon sits a hair above its direction: lift the disc to match.
-	anchor.WorldPosition = camera.CFrame.Position + direction * DISTANCE + Vector3.new(0, diameter * 0.025, 0)
+	anchor.WorldPosition = camera.CFrame.Position + direction * distance + Vector3.new(0, diameter * 0.025, 0)
 	local widest = HALOS[#HALOS].size
 	billboard.Size = UDim2.fromScale(diameter * widest, diameter * widest)
 	disc.Size = UDim2.fromScale(1 / widest, 1 / widest)
-	disc.BackgroundColor3 = PALE:Lerp(RED, red)
 	disc.BackgroundTransparency = 1 - red * OPAQUE
+	shading.Color = ColorSequence.new(PALE:Lerp(LIGHT, red), PALE:Lerp(DEEP, red))
+	rim.Size = UDim2.fromScale(RIM.size / widest, RIM.size / widest)
+	rim.BackgroundTransparency = 1 - (1 - RIM.transparency) * red
 	billboard.Brightness = 1 + (LIT - 1) * red
 	for index, halo in halos do
 		local spec = HALOS[index]
@@ -131,10 +144,11 @@ function MoonController.Init()
 	for index = #HALOS, 1, -1 do
 		halos[index] = circle("Halo" .. index, HALOS[index].size, #HALOS - index + 1)
 	end
-	for _, halo in halos do
-		halo.BackgroundColor3 = GLOW
-	end
+	rim = circle("Rim", RIM.size, #HALOS + 1)
+	rim.BackgroundColor3 = RIM.color
 	disc = circle("Disc", 1, #HALOS + 2)
+	disc.BackgroundColor3 = Color3.new(1, 1, 1) -- (the gradient colours it)
+	shading = create("UIGradient", { Rotation = SHADE + 90, Parent = disc })
 end
 
 function MoonController.Start()
