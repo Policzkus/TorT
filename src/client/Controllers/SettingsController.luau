@@ -1,5 +1,6 @@
 --!strict
--- Settings menu (PROMPT §3.18): music and SFX volume, jumpscare intensity, reduce flashing.
+-- Settings menu (PROMPT §3.18): music and SFX volume, jumpscare intensity, reduce flashing, the PSX
+-- effects, and the head-bob (off keeps the view's movement small, for anyone it makes queasy).
 -- Changes apply instantly and are saved to the profile (SettingsService validates them).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,7 +26,7 @@ local JUMPSCARE_INFO = {
 local SettingsController = {}
 
 local panel: Panel.Panel
-local current = { music = 0.5, sfx = 1, jumpscare = "Full", reduceFlash = false, psx = true }
+local current = { music = 0.5, sfx = 1, jumpscare = "Full", reduceFlash = false, psx = true, headBob = true }
 local refreshers: { () -> () } = {}
 local saveQueued = false
 
@@ -163,7 +164,7 @@ local function jumpscareRow(parent: Instance, order: number)
 	end)
 end
 
-local function toggleRow(parent: Instance, order: number, label: string, key: "reduceFlash" | "psx")
+local function toggleRow(parent: Instance, order: number, label: string, key: "reduceFlash" | "psx" | "headBob")
 	local frame = row(parent, order, label)
 	local toggle = Button.new({
 		name = "Toggle",
@@ -196,7 +197,7 @@ function SettingsController.toggle()
 end
 
 function SettingsController.Start()
-	panel = Panel.new({ name = "SettingsPanel", title = "⚙ Settings", size = Vector2.new(600, 494) })
+	panel = Panel.new({ name = "SettingsPanel", title = "⚙ Settings", size = Vector2.new(600, 568) })
 	local list = create("Frame", {
 		Name = "List",
 		Size = UDim2.fromScale(1, 1),
@@ -209,6 +210,7 @@ function SettingsController.Start()
 	jumpscareRow(list, 3)
 	toggleRow(list, 4, "Reduce flashing", "reduceFlash")
 	toggleRow(list, 5, "PSX effects", "psx")
+	toggleRow(list, 6, "Head bob", "headBob")
 
 	RadialMenuController.register({
 		id = "Settings",

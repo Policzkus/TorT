@@ -1,19 +1,25 @@
 --!strict
 -- Footsteps you can hear: a step every stride on whatever is underfoot (porch boards, the dead
 -- lawns, pavement), for you and everyone near you, the strides longer and the steps harder when
--- running; a thump when you land from a fall. Roblox's own plastic footstep loop is silenced.
--- Stride length follows the camera bob (CameraController), so the steps keep time with your view.
+-- running, soft when creeping (crouched); a thump when you land from a fall. Roblox's own plastic
+-- footstep loop is silenced.
+-- Your own steps come from your gait (MovementController.footfall), each one as the view dips
+-- (CameraController), so what you hear keeps time with what you see. Everyone else's go by the
+-- ground they cover, with the same stride (Modules/Motion).
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+local Motion = require(ReplicatedStorage:WaitForChild("Shared").Modules.Motion)
+local MovementController = require(script.Parent.MovementController)
 local Sound = require(script.Parent.SoundController)
 
 local FootstepController = {}
 
-local STRIDE = 5.6 -- studs per step at walking speed 16; longer as you go faster (with sqrt of speed)
 local HEAR = 70 -- other characters' steps farther than this aren't played
+local OTHERS = { walk = 1.26, run = 1.75, creep = 0.5, running = 1.3 } -- their steps' loudness (3D, so louder); `running` above 1.3 walking speeds
 local LAND_SPEED = 14 -- studs a second of falling before landing makes a sound
 
 local M = Enum.Material
@@ -110,13 +116,17 @@ local function step(dt: number)
 			if moved < 8 then -- more than that in a frame is a teleport, not a walk
 				walker.travelled += moved
 			end
-			local speed = (moved / math.max(dt, 1e-3)) / 16
-			local stride = STRIDE * math.sqrt(math.max(speed, 0.5))
-			if walker.travelled >= stride then
+			local speed = moved / math.max(dt, 1e-3)
+			local creeping = character:GetAttribute("Crouching") == true
+			local stride = Motion.stride(speed, if creeping then 1 else 0)
+			-- Your own steps come from your gait (onFootfall).
+			if not mine and walker.travelled >= stride then
 				walker.travelled = math.min(walker.travelled - stride, stride)
-				local running = speed > 2
 				Sound.play(name, {
-					volume = (if running then 1.25 else 0.9) * (if mine then 1 else 1.4),
+					volume = if creeping
+						then OTHERS.creep
+						elseif speed > 16 * OTHERS.running then OTHERS.run
+						else OTHERS.walk,
 					speed = 0.9 + math.random() * 0.2,
 					at = at,
 				})
@@ -134,7 +144,21 @@ local function step(dt: number)
 	end
 end
 
+-- One of your own feet landed (MovementController's gait): `loudness` from a creep to a run.
+local function onFootfall(loudness: number)
+	local character = Players.LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid == nil or humanoid.FloorMaterial == M.Air or humanoid.Health <= 0 then
+		return
+	end
+	Sound.play(STEP[humanoid.FloorMaterial] or "StepConcrete", {
+		volume = loudness,
+		speed = 0.9 + math.random() * 0.2,
+	})
+end
+
 function FootstepController.Start()
+	MovementController.footfall:Connect(onFootfall)
 	Players.PlayerAdded:Connect(watch)
 	for _, player in Players:GetPlayers() do
 		watch(player)

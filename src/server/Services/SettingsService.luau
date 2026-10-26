@@ -34,6 +34,9 @@ function SettingsService.Start()
 			if type(incoming.psx) == "boolean" then
 				settings.psx = incoming.psx
 			end
+			if type(incoming.headBob) == "boolean" then
+				settings.headBob = incoming.headBob
+			end
 		end)
 	end, { rate = 1, burst = 4 })
 end

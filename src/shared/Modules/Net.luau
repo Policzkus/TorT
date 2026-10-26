@@ -27,6 +27,7 @@ local EVENTS: { [string]: string } = {
 	HomeownerStrike = "S→C a homeowner slaps whoever got it wrong, everyone near sees it: (houseId, userId)",
 	HomeownerGive = "S→C a homeowner hands someone their candy, everyone near sees it (a PERFECT: a clap first): (houseId, userId, grade)",
 	LookPitch = "C→S how far up or down you're looking, so others see your head turn: (pitch: radians)",
+	Crouch = "C→S you crouched or stood up, so others see it and the Knifer hears less: (on: boolean)",
 	DoorKnocked = "S→C someone knocked on a door, everyone near hears it: (houseId, userId)",
 	ScareSeen = "S→C someone got a scare at a door, everyone near sees it go for them: (houseId, userId, kind)",
 	PlayerPop = "S→C a pop-up over a player's head for everyone else (a grade, a stash): (userId, text, kind)",
@@ -41,7 +42,7 @@ local EVENTS: { [string]: string } = {
 	MinigameCancelled = "S→C your challenge was dropped, you left the door: (id: number)",
 	DoorResult = "S→C candy from a door: (result: DoorService.DoorResult)",
 	Jumpscare = "S→C play a scare: (houseId: string, kind: 'monster' | 'caught', line: string?)",
-	SaveSettings = "C→S store the player's settings: (settings: {music, sfx, jumpscare, reduceFlash})",
+	SaveSettings = "C→S store the player's settings: (settings: {music, sfx, jumpscare, reduceFlash, psx, headBob})",
 	-- Bucket and bank
 	Stashed = "S→C bucket poured into the Candy Box: (moved: number, boxFull: boolean, dropoffId: string)",
 	-- Travel

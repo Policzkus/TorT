@@ -1,10 +1,21 @@
 --!strict
 -- First-person PSX horror look (PROMPT §V2.3): a cold, washed-out colour grade with crushed blacks,
 -- the distance going soft (depth of field) like a low-res console, a heavy vignette, PS1 grain
--- (chunky noise flickering over everything, the user asked for it) and scanlines, head-bob while walking (quicker running, never higher), a dip when you land,
--- a gentle handheld sway. No mouse cursor in play (the HUD's dot is the aim); a
--- cursor whenever a window or menu is open, so you can see what you're pointing at.
--- Settings → "PSX effects" switches the heavy parts off (grade/blur/grain); the bob stays.
+-- (chunky noise flickering over everything, the user asked for it) and scanlines. No mouse cursor in
+-- play (the HUD's dot is the aim); a cursor whenever a window or menu is open, so you can see what
+-- you're pointing at. Settings → "PSX effects" switches the heavy parts off (grade/blur/grain).
+-- How the view moves with you (MovementController's gait):
+--   - The head-bob keeps time with your feet: the view dips as each foot lands (the step's sound
+--     comes then, FootstepController), sways over onto the foot you're on and leans with it, and
+--     nods a touch. Running: quicker and harder, but never higher (Shift used to read as a height
+--     change: no widening of the view either). Creeping: slow, low, more side to side.
+--   - Crouching lowers your eyes on a spring that settles with a little give.
+--   - Strafing leans you into it. Landing: the view drops and nods with the impact and springs back
+--     (harder falls, deeper); jumping, a little push-off.
+--   - Standing still it's handheld, always a little alive; out of breath, it rises and falls with each breath.
+-- Settings → "Head bob" off keeps all of it small (crouching still lowers your eyes).
+-- Only the pitch it adds stays on the camera (Roblox's camera keeps where you look, not the roll or
+-- the offsets), so only each frame's change in pitch is added.
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -14,6 +25,8 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Images = require(ReplicatedStorage:WaitForChild("Shared").Config.Images)
+local Motion = require(ReplicatedStorage:WaitForChild("Shared").Modules.Motion)
+local MovementController = require(script.Parent.MovementController)
 local StateController = require(script.Parent.StateController)
 local create = require(script.Parent.Parent.UI.create)
 
@@ -30,8 +43,20 @@ local GRAIN_TILE = 384
 local GRAIN_TINT = Color3.fromRGB(200, 200, 200) -- a touch dark, so the specks don't lift the blacks
 local SCANLINE_TRANSPARENCY = 0.88
 local SCANLINE_TILE = 128
-local BOB_SPEED = 9 -- radians per second at walking speed 16
-local BOB_AMOUNT = Vector2.new(0.07, 0.09)
+-- The bob at each step: `dip` studs down as a foot lands, `sway` studs side to side over two steps
+-- (onto the foot you're on), `roll` radians of lean with the sway, `nod` radians of pitch down as the
+-- foot lands. Walking, running and creeping each have their own; in between they blend.
+local BOB = {
+	walk = { dip = 0.085, sway = 0.055, roll = math.rad(0.35), nod = math.rad(0.15) },
+	run = { dip = 0.12, sway = 0.085, roll = math.rad(0.75), nod = math.rad(0.45) },
+	creep = { dip = 0.045, sway = 0.075, roll = math.rad(0.55), nod = math.rad(0.1) },
+}
+local STRAFE_LEAN = math.rad(1.3) -- roll into a sideways walk, per walking speed of it
+local IDLE = { sway = 0.012, rise = 0.01, roll = 0.0025 } -- studs, studs, radians: handheld, standing still
+local BREATH_RISE = 0.035 -- studs the view rises and falls with each breath, fully out of breath
+-- Landing and jumping kick springs that settle back (frequency radians/s, damping under 1 bounces a little).
+local LAND = { frequency = 11, damping = 0.6, drop = { 0.6, 3.6 }, nod = { 0.15, 0.85 }, roll = 0.25, jump = 0.4 }
+local REDUCED = 0.2 -- the bob's size with Settings → Head bob off
 
 local CameraController = {}
 
@@ -42,14 +67,14 @@ local scanlines: ImageLabel
 local overlay: ScreenGui
 local modals: { [GuiButton]: boolean } = {} -- buttons that free the mouse while they're on screen
 local enabled = true
-local bobTime = 0
-local bobWeight = 0
+local bobOn = true -- Settings → Head bob
 local fovOffset = 0 -- now (eases toward fovTarget)
 local fovTarget = 0
-local wasAirborne = false
-local fallSpeed = 0 -- fastest downward speed in the current fall
-local dip = 0 -- landing dip: a spring pulled down when you land
-local dipSpeed = 0
+-- Landing/jumping springs: how far down (studs), nodded (radians) and rolled the view is, and how fast.
+local drop, dropSpeed = 0, 0
+local nod, nodSpeed = 0, 0
+local tilt, tiltSpeed = 0, 0
+local pitched = 0 -- the pitch added last frame (still on the camera)
 
 local function applySetting()
 	grade.Enabled = enabled
@@ -88,40 +113,57 @@ local function menuOpen(): boolean
 	return false
 end
 
+-- The bob's size for `key`, between walking and running, and creeping.
+local function bobOf(gait: MovementController.Gait, key: string): number
+	local walk, run, creep = (BOB.walk :: any)[key], (BOB.run :: any)[key], (BOB.creep :: any)[key]
+	local standing = walk + (run - walk) * gait.sprint
+	return standing + (creep - standing) * math.clamp(gait.crouch, 0, 1)
+end
+
+-- You landed (impact 0..1): the view drops and nods with it, tipped a touch one way or the other.
+local function onLanded(impact: number)
+	local scale = if bobOn then 1 else 0.5
+	dropSpeed -= (LAND.drop[1] + LAND.drop[2] * impact) * scale
+	nodSpeed -= (LAND.nod[1] + LAND.nod[2] * impact) * scale
+	tiltSpeed += (if math.random() < 0.5 then -1 else 1) * LAND.roll * impact * scale
+end
+
 local function onRender(dt: number)
 	UserInputService.MouseIconEnabled = menuOpen() or UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
 	local camera = Workspace.CurrentCamera
 	if camera == nil or camera.CameraType ~= Enum.CameraType.Custom then
+		-- Whoever has the camera now set it outright: nothing of ours is on it, and nothing saved up.
+		pitched = 0
+		drop, dropSpeed, nod, nodSpeed, tilt, tiltSpeed = 0, 0, 0, 0, 0, 0
 		return
 	end
 	fovOffset += (fovTarget - fovOffset) * math.min(1, dt * 5)
 	camera.FieldOfView = FOV + fovOffset
-	local character = Players.LocalPlayer.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	local airborne = humanoid ~= nil and humanoid.FloorMaterial == Enum.Material.Air
-	local moving = humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.1 and not airborne
-	local speed = if humanoid then humanoid.WalkSpeed / 16 else 1
-	bobWeight += ((if moving then 1 else 0) - bobWeight) * math.min(1, dt * 8)
-	-- Quicker steps when faster, but not twice as quick at twice the speed (FootstepController's stride).
-	bobTime += dt * BOB_SPEED * math.sqrt(math.max(speed, 0.25)) * bobWeight
-	-- Landing: the view drops with the impact and springs back (harder falls, deeper dips).
-	if airborne and root then
-		fallSpeed = math.max(fallSpeed, -root.AssemblyLinearVelocity.Y)
-	elseif wasAirborne then
-		dipSpeed -= math.clamp(fallSpeed / 45, 0.08, 0.7) * 6
-		fallSpeed = 0
-	end
-	wasAirborne = airborne
-	dipSpeed += (-dip * 120 - dipSpeed * 14) * math.min(dt, 0.05)
-	dip += dipSpeed * math.min(dt, 0.05)
+	drop, dropSpeed = Motion.spring(drop, dropSpeed, 0, LAND.frequency, LAND.damping, dt)
+	nod, nodSpeed = Motion.spring(nod, nodSpeed, 0, LAND.frequency, LAND.damping, dt)
+	tilt, tiltSpeed = Motion.spring(tilt, tiltSpeed, 0, LAND.frequency, LAND.damping, dt)
+	local gait = MovementController.gait()
+	local bob = gait.moving * (if bobOn then 1 else REDUCED)
+	local calm = if bobOn then 1 else 0.5
+	local footfall = Motion.footfall(gait.phase)
+	local side = math.sin(gait.phase) -- over onto the foot you're on, mid-stride
 	local now = os.clock()
-	-- Walking bob (stronger when running) + a slow handheld breathing sway, always a little alive.
-	local stride = BOB_AMOUNT
-	local x = math.sin(bobTime) * stride.X * bobWeight + math.sin(now * 0.7) * 0.012
-	local y = math.abs(math.cos(bobTime)) * stride.Y * bobWeight + math.sin(now * 1.1) * 0.01 + dip
-	local roll = math.sin(bobTime) * 0.006 * speed * bobWeight + math.sin(now * 0.5) * 0.0025
-	camera.CFrame *= CFrame.new(x, y, 0) * CFrame.Angles(0, 0, roll)
+	local x = side * bobOf(gait, "sway") * bob + math.sin(now * 0.7) * IDLE.sway * calm
+	local y = -footfall * bobOf(gait, "dip") * bob
+		+ math.sin(now * 1.1) * IDLE.rise * calm
+		+ math.sin(gait.breath) * BREATH_RISE * gait.winded * calm
+		+ drop
+	local roll = -side * bobOf(gait, "roll") * bob
+		- gait.lateral * STRAFE_LEAN * (if bobOn then 1 else 0)
+		+ math.sin(now * 0.5) * IDLE.roll * calm
+		+ tilt
+	local pitch = -footfall * bobOf(gait, "nod") * bob + nod
+	local crouch = Vector3.new(0, -gait.drop * gait.crouch, 0)
+	camera.CFrame = (camera.CFrame + crouch)
+		* CFrame.new(x, y, 0)
+		* CFrame.Angles(pitch - pitched, 0, 0)
+		* CFrame.Angles(0, 0, roll)
+	pitched = pitch
 end
 
 function CameraController.Init()
@@ -194,7 +236,12 @@ end
 function CameraController.Start()
 	StateController.observe("settings", function(settings: any)
 		enabled = not (type(settings) == "table" and settings.psx == false)
+		bobOn = not (type(settings) == "table" and settings.headBob == false)
 		applySetting()
+	end)
+	MovementController.landed:Connect(onLanded)
+	MovementController.jumped:Connect(function()
+		dropSpeed -= LAND.jump * (if bobOn then 1 else 0.5) -- pushing off
 	end)
 	applySetting()
 	RunService:BindToRenderStep("PSXCamera", Enum.RenderPriority.Camera.Value + 1, onRender)

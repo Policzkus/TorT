@@ -10,13 +10,18 @@
 -- each build is lifted until its thighs rest on it and nothing of the body is under it). The bucket
 -- they carry is put away while they sit (worn on the back, it went through the seat back).
 -- Knocked down (Ragdoll, RagdollService) the joints are left to physics.
+-- Crouched (Crouching, from their client through CharacterService; your own straight away), they
+-- go down at the hips, legs out front and back to keep their feet on the ground, leaning over, head
+-- up to look ahead, stepping short. Running they lean into it, arms and legs pumping harder.
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local CharacterRig = require(game:GetService("ReplicatedStorage").Shared.Modules.CharacterRig)
 local Net = require(game:GetService("ReplicatedStorage").Shared.Modules.Net)
+local MovementController = require(script.Parent.MovementController)
 
 local CharacterAnimController = {}
 
@@ -27,6 +32,12 @@ local STRIDE = 0.62 -- swing radians per stud travelled
 local FULL_SPEED = 12 -- studs/s at which the swing reaches full size
 local LOOK = { every = 0.12, change = 0.05, head = 0.75 } -- send your look this often if it moved this far; the head takes this share
 local SIT = { legs = 1.5, splay = 0.08, arms = 0.55, lean = 0.08 } -- radians: legs forward, apart, arms forward, back
+-- Crouched: the hips go down `hips` of their height, leaning `lean` radians forward, arms `arms`
+-- forward, the head tipped back up `head` of the lean, the back leg `back` as far out as the front
+-- (its foot tucked under), steps `swing` the size.
+local CROUCH = { hips = 0.4, lean = 0.35, arms = 0.4, head = 0.8, back = 0.85, swing = 0.5 }
+-- Running (from `from` to `full` studs/s): leaning `lean` radians into it, swinging `swing` times as far.
+local RUN = { from = 18, full = 26, lean = 0.2, swing = 1.35 }
 
 type Rig = {
 	model: Model,
@@ -40,6 +51,8 @@ type Rig = {
 	pitch: number, -- how far up (or down) its head is tilted, easing toward LookPitch
 	faint: number, -- 0..1 how far they've dropped
 	sit: number, -- 0..1 how sat down they are
+	crouch: number, -- 0..1 how crouched
+	run: number, -- 0..1 how hard they're running
 	lift: number?, -- studs this build is raised sitting down (worked out once)
 	bucketHidden: boolean, -- put away while they sit
 }
@@ -73,6 +86,8 @@ local function add(model: Instance)
 		pitch = 0,
 		faint = 0,
 		sit = 0,
+		crouch = 0,
+		run = 0,
 		bucketHidden = false,
 	}
 end
@@ -158,6 +173,11 @@ local function step(dt: number)
 		rig.faint += (fainted - rig.faint) * math.min(1, dt * 7)
 		local sitting = if rig.humanoid.Sit and rig.humanoid.SeatPart ~= nil then 1 else 0
 		rig.sit += (sitting - rig.sit) * math.min(1, dt * 10)
+		local crouching = model:GetAttribute("Crouching") == true
+			or (model == Players.LocalPlayer.Character and MovementController.isCrouching())
+		rig.crouch += ((if crouching and not dead then 1 else 0) - rig.crouch) * math.min(1, dt * 12)
+		local running = math.clamp((speed - RUN.from) / (RUN.full - RUN.from), 0, 1) * (1 - rig.crouch)
+		rig.run += ((if airborne then rig.run else running) - rig.run) * math.min(1, dt * 6)
 		if (sitting == 1) ~= rig.bucketHidden then
 			local bucket = model:FindFirstChild("Bucket")
 			if bucket then
@@ -175,23 +195,47 @@ local function step(dt: number)
 		end
 		rig.clock = 0
 
-		local swing = math.sin(rig.phase)
 		local w = rig.weight
+		local c = rig.crouch
+		local swing = math.sin(rig.phase) * (1 + (RUN.swing - 1) * rig.run) * (1 - (1 - CROUCH.swing) * c)
 		local t = now + rig.seed
 		local breathe = math.sin(t * 1.6) * 0.035 * (1 - w)
 		local air = if airborne and not dead then 1 else 0
-		set(rig, "Left Hip", CFrame.Angles(swing * LEG_SWING * w + air * 0.35, 0, 0))
-		set(rig, "Right Hip", CFrame.Angles(-swing * LEG_SWING * w - air * 0.1, 0, 0))
-		set(rig, "Left Shoulder", CFrame.Angles(-swing * ARM_SWING * w + breathe + air * 1.1, 0, -0.06 - air * 0.3))
-		set(rig, "Right Shoulder", CFrame.Angles(swing * ARM_SWING * w + breathe + air * 1.1, 0, 0.06 + air * 0.3))
+		-- Leaning over (crouched, running): the legs are turned back to the ground (they hang off the
+		-- body); crouched, the hips go down and the legs reach out front and back to the ground.
+		local lean = -(CROUCH.lean * c + RUN.lean * rig.run)
+		local hips = rig.humanoid.HipHeight
+		local drop = hips * CROUCH.hips * c
+		local stance = if hips > 0 then math.acos(math.clamp(1 - drop / hips, -1, 1)) else 0
+		set(rig, "Left Hip", CFrame.Angles(swing * LEG_SWING * w + air * 0.35 + stance - lean, 0, 0))
+		set(rig, "Right Hip", CFrame.Angles(-swing * LEG_SWING * w - air * 0.1 - stance * CROUCH.back - lean, 0, 0))
+		local arms = CROUCH.arms * c
+		set(
+			rig,
+			"Left Shoulder",
+			CFrame.Angles(-swing * ARM_SWING * w + breathe + air * 1.1 + arms, 0, -0.06 - air * 0.3)
+		)
+		set(
+			rig,
+			"Right Shoulder",
+			CFrame.Angles(swing * ARM_SWING * w + breathe + air * 1.1 + arms, 0, 0.06 + air * 0.3)
+		)
 		-- A slow, slightly wrong head sway, plus a bounce with each step.
 		local tilt = math.sin(t * 0.37) * 0.07 + math.sin(t * 1.9) * 0.015
 		set(
 			rig,
 			"Neck",
-			CFrame.Angles(math.sin(t * 0.53) * 0.04 + rig.pitch * LOOK.head, math.sin(t * 0.29) * 0.12, tilt)
+			CFrame.Angles(
+				math.sin(t * 0.53) * 0.04 + rig.pitch * LOOK.head - lean * CROUCH.head,
+				math.sin(t * 0.29) * 0.12,
+				tilt
+			)
 		)
-		set(rig, "RootJoint", CFrame.new(0, math.abs(swing) * 0.12 * w, 0) * CFrame.Angles(breathe * 0.5, 0, 0))
+		set(
+			rig,
+			"RootJoint",
+			CFrame.new(0, math.abs(swing) * 0.12 * w - drop, 0) * CFrame.Angles(breathe * 0.5 + lean, 0, 0)
+		)
 		if rig.sit > 0.01 then
 			local s = rig.sit
 			set(rig, "Left Hip", CFrame.Angles(SIT.legs * s, 0, -SIT.splay * s))

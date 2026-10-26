@@ -57,6 +57,7 @@ local Template: Types.PlayerData = {
 		jumpscare = "Full",
 		reduceFlash = false,
 		psx = true,
+		headBob = true,
 	},
 
 	firstJoin = 0,
