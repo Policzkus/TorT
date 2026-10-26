@@ -24,7 +24,6 @@ export type PlayerData = {
 		charm: number,
 		stealth: number,
 		luck: number,
-		flashlight: number,
 	},
 	soulPerks: { [string]: number },
 	neighborhoods: { [string]: boolean },

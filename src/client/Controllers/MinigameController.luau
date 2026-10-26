@@ -1,14 +1,14 @@
 --!strict
--- Runs door mini-games when the server sends a challenge: locks movement, routes input to the
--- active game (one big tap target on mobile, Space/click on PC, Ⓐ on gamepad; Costume Line uses
--- its own buttons), shows the grade instantly from the shared rules, and submits the raw input.
--- From the moment the door is answered you're held where you stand (DoorController walks you back
--- to watch) so you see them come out. Hold a direction to break away: the visit is off
--- (`abandoned` fires with the house id; the server is told). Ending up past Economy.DOOR_LEAVE from
--- the door (pushed, teleported) calls it off too.
+-- Runs door mini-games when the server sends a challenge: routes input to the active game (one big
+-- tap target on mobile, Space/click on PC, Ⓐ on gamepad; Costume Line uses its own buttons), shows
+-- the grade instantly from the shared rules, and submits the raw input.
+-- From the moment the door is answered you can move about, but only so far: Economy.DOOR_LEASH
+-- studs from the door holds you (the user wanted to move, not to wander off). Keep pushing out past
+-- it and you break away: the visit is off (`abandoned` fires with the house id; the server is told).
+-- Ending up past Economy.DOOR_LEAVE (pushed, teleported) calls it off too. Skip their hello (a click
+-- or a key on the line, DialogController) and the game starts at once.
 
 local ContextActionService = game:GetService("ContextActionService")
-local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -20,24 +20,14 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Economy = require(Shared.Config.Economy)
 local Net = require(Shared.Modules.Net)
 local Signal = require(Shared.Modules.Signal)
+local Dialog = require(script.Parent.DialogController)
 local Sound = require(script.Parent.SoundController)
 local Scale = require(script.Parent.Parent.UI.Scale)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
 
 local ACTION = "MinigameInput"
-local BREAK_AWAY = 0.35 -- seconds of holding a direction that breaks you away from a visit
-local HINT_AFTER = 1.5 -- seconds into a visit before the "walk away" hint shows
-local MOVE_KEYS = {
-	Enum.KeyCode.W,
-	Enum.KeyCode.A,
-	Enum.KeyCode.S,
-	Enum.KeyCode.D,
-	Enum.KeyCode.Up,
-	Enum.KeyCode.Down,
-	Enum.KeyCode.Left,
-	Enum.KeyCode.Right,
-}
+local BREAK_AWAY = 0.6 -- seconds of pushing out past the leash that break you away from a visit
 
 type Session = {
 	press: (() -> ())?,
@@ -79,20 +69,13 @@ local catcher: TextButton
 local gradeLabel: TextLabel
 local session: Session? = nil
 local visit: Visit? = nil
-local visitStarted = 0
-local pushing = 0 -- seconds you've been holding a direction during the visit
+local pushing = 0 -- seconds you've been pushing out past the leash
 local hint: TextLabel
-local controls: any = nil
+local skipIntro: (() -> ())? = nil -- starts the game now, while they're saying hello
 
-local function lockMovement(locked: boolean)
-	if controls then
-		if locked then
-			controls:Disable()
-		else
-			controls:Enable()
-		end
-	end
-	ProximityPromptService.Enabled = not locked
+-- No knocking on another door mid-visit.
+local function holdPrompts(held: boolean)
+	ProximityPromptService.Enabled = not held
 end
 
 local function showGrade(grade: string, big: boolean)
@@ -113,7 +96,7 @@ local function close()
 	ContextActionService:UnbindAction(ACTION)
 	catcher.Visible = false
 	GuiService.SelectedObject = nil
-	lockMovement(false)
+	holdPrompts(false)
 	task.delay(0.7, function()
 		if session == nil then
 			gradeLabel.Visible = false
@@ -144,7 +127,7 @@ local function bindInput()
 end
 
 local function begin(challenge: any)
-	lockMovement(true)
+	skipIntro = nil
 	local entry = GAMES[challenge.kind]
 	local current: Session
 	current = entry.ui.run(stage, challenge, {
@@ -191,41 +174,50 @@ local function abandon(id: number, tellServer: boolean)
 	MinigameController.abandoned:Fire(current.houseId)
 end
 
--- Whether you're asking to move (a key or the stick); held movement doesn't move you.
-local function wantsToMove(): boolean
-	for _, key in MOVE_KEYS do
-		if UserInputService:IsKeyDown(key) then
-			return true
-		end
-	end
-	for _, input in UserInputService:GetGamepadState(Enum.UserInputType.Gamepad1) do
-		if input.KeyCode == Enum.KeyCode.Thumbstick1 and input.Position.Magnitude > 0.6 then
-			return true
-		end
-	end
-	return false
-end
-
--- Every frame of a visit: holding a direction breaks you away; so does ending up far from the door.
+-- Every frame of a visit (after physics, so you're drawn where you're held): at the leash you're
+-- held on its edge (you slide along it); pushing on out breaks you away, and so does ending up far
+-- from the door.
 local function watchVisit(dt: number)
 	local current = visit
-	if current == nil then
-		pushing = 0
-		return
-	end
-	hint.Visible = os.clock() - visitStarted > HINT_AFTER
-	pushing = if wantsToMove() then pushing + dt else 0
 	local character = Players.LocalPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	local far = current.door and root and (root.Position - current.door).Magnitude > Economy.DOOR_LEAVE
-	if pushing >= BREAK_AWAY or far then
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if current == nil or current.door == nil or root == nil or humanoid == nil then
+		pushing = 0
+		hint.Visible = false
+		return
+	end
+	local offset = root.Position - (current.door :: Vector3)
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	local distance = flat.Magnitude
+	if offset.Magnitude > Economy.DOOR_LEAVE then
 		pushing = 0
 		abandon(current.id, true)
+		return
 	end
+	if distance <= Economy.DOOR_LEASH then
+		pushing = 0
+		hint.Visible = false
+		return
+	end
+	local out = flat.Unit
+	pushing = if humanoid.MoveDirection:Dot(out) > 0.3 then pushing + dt else 0
+	if pushing >= BREAK_AWAY then
+		pushing = 0
+		abandon(current.id, true)
+		return
+	end
+	hint.Visible = true
+	local velocity = root.AssemblyLinearVelocity
+	local outward = velocity:Dot(out)
+	if outward > 0 then
+		root.AssemblyLinearVelocity = velocity - out * outward
+	end
+	root.CFrame -= out * (distance - Economy.DOOR_LEASH)
 end
 
--- A challenge: whoever answers comes out and says hello first (its intro, DoorController), you
--- held where you can see them; then the game itself.
+-- A challenge: whoever answers comes out and says hello first (its intro, DoorController); then the
+-- game itself, or sooner if you skip the hello.
 local function start(challenge: any)
 	if session then
 		session.cancel()
@@ -245,9 +237,8 @@ local function start(challenge: any)
 		return
 	end
 	gradeLabel.Visible = false
-	visitStarted = os.clock()
 	pushing = 0
-	lockMovement(true)
+	holdPrompts(true)
 	local intro = if type(challenge.intro) == "number" then challenge.intro else 0
 	if intro <= 0 then
 		begin(challenge)
@@ -262,12 +253,19 @@ local function start(challenge: any)
 		end,
 	}
 	session = waiting
-	task.delay(intro, function()
+	local function go()
 		if session == waiting then
 			session = nil
 			begin(challenge)
 		end
-	end)
+	end
+	skipIntro = function()
+		if session == waiting then
+			Net.event("MinigameSkip"):FireServer(challenge.id)
+			go()
+		end
+	end
+	task.delay(intro, go)
 end
 
 function MinigameController.isActive(): boolean
@@ -319,7 +317,7 @@ function MinigameController.Init()
 		Size = UDim2.fromOffset(420, 22),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Hud,
-		Text = "hold a direction to walk away",
+		Text = "keep walking to leave",
 		TextColor3 = Theme.Colors.TextDim,
 		TextTransparency = 0.25,
 		TextSize = 15,
@@ -362,13 +360,14 @@ function MinigameController.Init()
 end
 
 function MinigameController.Start()
-	local playerModule = Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule", 10)
-	if playerModule then
-		local ok, module = pcall(require, playerModule)
-		if ok then
-			controls = (module :: any):GetControls()
+	-- You put their hello away: no need to wait out the rest of it.
+	Dialog.skipped:Connect(function(speaker: Model?)
+		local current = visit
+		local go = skipIntro
+		if go and current and speaker and speaker:GetAttribute("HouseId") == current.houseId then
+			go()
 		end
-	end
+	end)
 end
 
 return MinigameController

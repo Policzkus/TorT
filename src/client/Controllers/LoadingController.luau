@@ -25,6 +25,7 @@ local PRELOAD = {
 	{ "Assets", "Characters" },
 	{ "MeshTemplates" },
 	{ "Assets", "Furniture" },
+	{ "Assets", "Lobby" },
 }
 
 -- Everything to download under the PRELOAD folders, in order, and how many downloads that is: each

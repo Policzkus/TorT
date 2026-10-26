@@ -76,11 +76,20 @@ def bake(obj, out, size=SIZE, reuse=False):
             nodes.active = target
             added.append((nodes, target, uv))
         select_only(obj)
+        metals = []
         if bake_type == "DIFFUSE":
             scene.render.bake.use_pass_direct = False
             scene.render.bake.use_pass_indirect = False
             scene.render.bake.use_pass_color = True
+            # A metal has no diffuse colour (chrome baked pure black): bake it as if painted.
+            for mat in mats:
+                bsdf = mat.node_tree.nodes.get("Principled BSDF")
+                if bsdf and not bsdf.inputs["Metallic"].is_linked and bsdf.inputs["Metallic"].default_value > 0:
+                    metals.append((bsdf, bsdf.inputs["Metallic"].default_value))
+                    bsdf.inputs["Metallic"].default_value = 0.0
         bpy.ops.object.bake(type=bake_type, margin=6, uv_layer="Atlas", use_clear=True)
+        for bsdf, metal in metals:
+            bsdf.inputs["Metallic"].default_value = metal
         path = out / f"{obj.name}_{kind}.png"
         img.filepath_raw = str(path)
         img.file_format = "PNG"

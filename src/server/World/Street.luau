@@ -417,11 +417,11 @@ function Street.build(parent: Instance, neighborhood: any, start: CFrame): Stree
 		end
 	end
 
-	-- Candy Box drop-offs at the entrance, the middle (on an island in the road) and the end.
+	-- Candy Box drop-offs at the entrance and the end (the one on an island in the middle of the
+	-- road is gone: the user didn't want it, and the car drives there).
 	local dropoffs: { DropoffInfo } = {}
 	local spots = {
 		{ id = neighborhood.id .. "_Entrance", frame = at(-(walkOffset + 13), 0, 24) },
-		{ id = neighborhood.id .. "_Middle", frame = at(0, 0.2, length / 2) },
 		{ id = neighborhood.id .. "_End", frame = at(walkOffset + 13, 0, length - 22) },
 	}
 	for _, spot in spots do

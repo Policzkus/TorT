@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
+local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local CandyService = require(script.Parent.CandyService)
 local DataService = require(script.Parent.DataService)
@@ -44,6 +45,7 @@ local function check(player: Player)
 	local moved, boxFull = CandyService.stash(player)
 	if moved > 0 then
 		Net.event("Stashed"):FireClient(player, moved, boxFull, dropoffId)
+		Net.event("PlayerPop"):FireAllClients(player.UserId, `+{Format.number(moved)} STASHED`, "stash")
 		if not boxFull then
 			fullWarned[player] = nil
 		end

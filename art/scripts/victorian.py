@@ -708,14 +708,7 @@ def porch():
     for sx in (-0.3, 0.3):
         for sy in (-0.3, 0.3):
             box("Iron", (0.08, 0.08, 1.2), (sx, sy, 0), matrix=lf)
-    # Rocking chair and a swing hanging by one chain.
-    ch = frame_matrix((-0.8, -3, FOUND), (0, 0, math.radians(-35)))
-    box("Boards", (1.8, 1.8, 0.25), (0, 0, 1.6), bevel=0.04, matrix=ch)
-    box("Boards", (1.8, 0.25, 2.4), (0, 0.85, 2.9), rot=(math.radians(-10), 0, 0), bevel=0.04, matrix=ch)
-    for sx in (-0.8, 0.8):
-        box("Boards", (0.18, 2.6, 0.3), (sx, 0.1, 0.2), rot=(math.radians(6), 0, 0), matrix=ch)
-        box("Boards", (0.18, 0.18, 1.5), (sx, -0.7, 0.9), matrix=ch)
-        box("Boards", (0.18, 0.18, 1.5), (sx, 0.8, 0.9), matrix=ch)
+    # A swing hanging by one chain (the rocking chair was taken off the porch: the user asked).
     st = Vector((11.6, -3.2, roof_low - 0.2))
     box("Iron", (0.08, 0.08, 5.5), (st.x - 2, st.y, st.z - 2.75))
     sw = frame_matrix((st.x + 0.2, st.y, st.z - 6.4), (0, math.radians(-24), 0))
@@ -1020,9 +1013,10 @@ def image(nodes, path, colorspace="sRGB"):
     return node
 
 
-def textured(name, tex, tint=(1, 1, 1, 1), paint=None, rough=1.0, dirt=0.6, emission=None, metal=0.0, moss=0.0):
+def textured(name, tex, tint=(1, 1, 1, 1), paint=None, rough=1.0, dirt=0.6, emission=None, metal=0.0, moss=0.0, bump=1.0):
     """A material from a Poly Haven set (diffuse/normal/rough), sampled with the 'Tile' UV map.
-    `paint` recolours the texture (multiply by its luminance) for painted wood."""
+    `paint` recolours the texture (multiply by its luminance) for painted wood; `bump` scales its
+    normal map (smooth painted steel wants little of a concrete's relief)."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -1055,6 +1049,7 @@ def textured(name, tex, tint=(1, 1, 1, 1), paint=None, rough=1.0, dirt=0.6, emis
         mul.inputs[7].default_value = tint
         color_out = mul.outputs[2]
         nmap = nodes.new("ShaderNodeNormalMap")
+        nmap.inputs["Strength"].default_value = bump
         links.new(nor.outputs["Color"], nmap.inputs["Color"])
         links.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
         rmath = nodes.new("ShaderNodeMath")
@@ -1404,8 +1399,7 @@ def colliders():
     add((0.4, 5.7, 3.4), (16.2, -6.65, FOUND + 1.7))
     for x in (-2.6, 4.6):
         add((0.9, 0.9, 10.2), (x, -9.5, FOUND + 5.1))
-    # Things on the porch: the rocking chair, the urn of dead stalks.
-    add((1.8, 2.4, 3.6), (-0.8, -3, FOUND + 1.8), -35)
+    # Things on the porch: the urn of dead stalks.
     add((1.4, 1.4, 1.25), (PORCH["x0"] + 1.4, y0 + 1.0, FOUND + 0.62))
     # The storm cellar: its curb, then its doors sloping up to the wall in three steps.
     add((4.8, 6, 1.2), (17.1, 6, 0.6))

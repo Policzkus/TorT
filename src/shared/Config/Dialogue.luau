@@ -178,7 +178,35 @@ local personalities: { [string]: Personality } = {
 
 local order = { "Host", "Rhymer", "Child", "Whisperer", "Collector", "OldMan" }
 
+-- How spoken lines are timed (DialogController types them at TYPE_SPEED letters a second with a
+-- little pause after punctuation, holds them HOLD seconds plus HOLD_PER_WORD a word once they're
+-- out, then fades them over FADE). Here so the server can wait a line out: a homeowner doesn't go
+-- back in until what they said has gone.
+local TIMING = {
+	TYPE_SPEED = 40,
+	PAUSES = { ["."] = 0.34, [","] = 0.18, ["?"] = 0.38, ["!"] = 0.34, [";"] = 0.22, [":"] = 0.22 },
+	ELLIPSIS_DOT = 0.16, -- a dot followed by another dot ("...") trails off instead of stopping
+	HOLD = 0.9,
+	HOLD_PER_WORD = 0.1,
+	FADE = 0.25,
+}
+
+-- Seconds `text` is on screen, from its first letter to gone (a few line breaks allowed for).
+local function lineTime(text: string): number
+	local step = 1 / TIMING.TYPE_SPEED
+	local t = step * 3
+	for i = 1, #text do
+		local char = string.sub(text, i, i)
+		local nextChar = string.sub(text, i + 1, i + 1)
+		t += step + (if char == "." and nextChar == "." then TIMING.ELLIPSIS_DOT else TIMING.PAUSES[char] or 0)
+	end
+	local _, words = string.gsub(text, "%S+", "")
+	return t + TIMING.HOLD + words * TIMING.HOLD_PER_WORD + TIMING.FADE
+end
+
 return {
 	personalities = personalities,
 	ORDER = order, -- stable order for seeded picks
+	TIMING = TIMING,
+	lineTime = lineTime,
 }

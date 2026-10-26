@@ -1,8 +1,9 @@
 --!strict
 -- First-person PSX horror look (PROMPT §V2.3): a cold, washed-out colour grade with crushed blacks,
--- the distance going soft (depth of field) like a low-res console, a heavy vignette, faint film
--- grain and scanlines, head-bob while walking (stronger running), a dip when you land, a wider view
--- while sprinting, a gentle handheld sway, and no mouse cursor in the middle of the view.
+-- the distance going soft (depth of field) like a low-res console, a heavy vignette, PS1 grain
+-- (chunky noise flickering over everything, the user asked for it) and scanlines, head-bob while walking (quicker running, never higher), a dip when you land,
+-- a gentle handheld sway. No mouse cursor in play (the HUD's dot is the aim); a
+-- cursor whenever a window or menu is open, so you can see what you're pointing at.
 -- Settings → "PSX effects" switches the heavy parts off (grade/blur/grain); the bob stays.
 
 local Lighting = game:GetService("Lighting")
@@ -24,8 +25,9 @@ local GRADE = {
 	TintColor = Color3.fromRGB(226, 234, 228), -- a cold, slightly sick green
 }
 local DEPTH = { FarIntensity = 0.12, FocusDistance = 40, InFocusRadius = 70, NearIntensity = 0 }
-local GRAIN_TRANSPARENCY = 0.9
-local GRAIN_TILE = 256
+local GRAIN_TRANSPARENCY = 0.8
+local GRAIN_TILE = 384
+local GRAIN_TINT = Color3.fromRGB(200, 200, 200) -- a touch dark, so the specks don't lift the blacks
 local SCANLINE_TRANSPARENCY = 0.88
 local SCANLINE_TILE = 128
 local BOB_SPEED = 9 -- radians per second at walking speed 16
@@ -38,6 +40,7 @@ local depth: DepthOfFieldEffect
 local grain: ImageLabel
 local scanlines: ImageLabel
 local overlay: ScreenGui
+local modals: { [GuiButton]: boolean } = {} -- buttons that free the mouse while they're on screen
 local enabled = true
 local bobTime = 0
 local bobWeight = 0
@@ -56,7 +59,7 @@ local function applySetting()
 	scanlines.Visible = enabled
 end
 
--- Widens the view by `degrees` (eased): sprinting (MovementController).
+-- Widens the view by `degrees` (eased). (Sprinting used to; the user read it as a height change.)
 function CameraController.setFovOffset(degrees: number)
 	fovTarget = degrees
 end
@@ -66,9 +69,27 @@ function CameraController.isFirstPerson(): boolean
 	return Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson
 end
 
+-- Whether a window or menu is on screen: one of its Modal buttons is shown. (In first person the
+-- mouse still reads as locked while a Modal frees it, so MouseBehavior can't tell.)
+local function menuOpen(): boolean
+	for button in modals do
+		local shown = button.Visible
+		local node: Instance? = button.Parent
+		while shown and node and not node:IsA("LayerCollector") do
+			if node:IsA("GuiObject") and not node.Visible then
+				shown = false
+			end
+			node = node.Parent
+		end
+		if shown and node and node:IsA("LayerCollector") and node.Enabled then
+			return true
+		end
+	end
+	return false
+end
+
 local function onRender(dt: number)
-	-- No cursor in the middle of the view: it only shows while a menu has freed the mouse.
-	UserInputService.MouseIconEnabled = UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
+	UserInputService.MouseIconEnabled = menuOpen() or UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter
 	local camera = Workspace.CurrentCamera
 	if camera == nil or camera.CameraType ~= Enum.CameraType.Custom then
 		return
@@ -96,7 +117,7 @@ local function onRender(dt: number)
 	dip += dipSpeed * math.min(dt, 0.05)
 	local now = os.clock()
 	-- Walking bob (stronger when running) + a slow handheld breathing sway, always a little alive.
-	local stride = BOB_AMOUNT * (0.75 + 0.25 * math.clamp(speed, 0.5, 2))
+	local stride = BOB_AMOUNT
 	local x = math.sin(bobTime) * stride.X * bobWeight + math.sin(now * 0.7) * 0.012
 	local y = math.abs(math.cos(bobTime)) * stride.Y * bobWeight + math.sin(now * 1.1) * 0.01 + dip
 	local roll = math.sin(bobTime) * 0.006 * speed * bobWeight + math.sin(now * 0.5) * 0.0025
@@ -137,6 +158,8 @@ function CameraController.Init()
 		BackgroundTransparency = 1,
 		Image = if Images.Grain ~= 0 then "rbxassetid://" .. Images.Grain else "",
 		ImageTransparency = GRAIN_TRANSPARENCY,
+		ImageColor3 = GRAIN_TINT,
+		ResampleMode = Enum.ResamplerMode.Pixelated, -- hard-edged specks, not a soft blur
 		ScaleType = Enum.ScaleType.Tile,
 		TileSize = UDim2.fromOffset(GRAIN_TILE, GRAIN_TILE),
 	})
@@ -175,6 +198,21 @@ function CameraController.Start()
 	end)
 	applySetting()
 	RunService:BindToRenderStep("PSXCamera", Enum.RenderPriority.Camera.Value + 1, onRender)
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	local function track(item: Instance)
+		if item:IsA("GuiButton") and item.Modal then
+			modals[item] = true
+		end
+	end
+	for _, item in playerGui:GetDescendants() do
+		track(item)
+	end
+	playerGui.DescendantAdded:Connect(track)
+	playerGui.DescendantRemoving:Connect(function(item)
+		if item:IsA("GuiButton") then
+			modals[item] = nil
+		end
+	end)
 	-- Costume swaps replace the character in place (CharacterService); Roblox only re-targets the
 	-- camera for characters it spawned itself, so follow every new one here.
 	local function follow(character: Model)
@@ -189,7 +227,7 @@ function CameraController.Start()
 	if Players.LocalPlayer.Character then
 		task.spawn(follow, Players.LocalPlayer.Character)
 	end
-	-- Film grain: jump the tiled noise to a random offset ~20 times a second.
+	-- The grain: jump the tiled noise to a random offset ~20 times a second, so it crawls.
 	task.spawn(function()
 		while true do
 			task.wait(0.05)

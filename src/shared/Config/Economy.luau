@@ -19,13 +19,16 @@ return {
 	BOX_CAPACITY = { 25e3, 150e3, 600e3, 2.5e6, 10e6, 40e6 },
 	BOX_GROWTH = 4,
 
-	-- Seconds before the same house gives you candy again (it also resets at Dawn in Phase 2).
+	-- Seconds before a house gives anyone candy again: its cooldown is shared (the user wants it synced),
+	-- counted from when its door shuts again.
 	-- PROMPT says 4 min; the sim showed players idling on a 16-house street, so 90 s (PROGRESS.md).
 	DOOR_COOLDOWN = 90,
 	-- Max studs between the player and the door for a knock to count (server check).
 	DOOR_RANGE = 12,
-	-- Walk this far from the door while they're coming out or playing and the visit is off: no
-	-- mini-game, no candy, no cooldown (client and server both check).
+	-- While they're coming out or playing you can move about, up to DOOR_LEASH studs from the door
+	-- (keep pushing past it and you leave); this far and the visit is off: no mini-game, no candy, no
+	-- cooldown (client and server both check).
+	DOOR_LEASH = 11,
 	DOOR_LEAVE = 16,
 	-- Radius of a Candy Box drop-off circle.
 	STASH_RADIUS = 10,

@@ -1,14 +1,17 @@
 --!strict
 -- Builds the world at boot and answers questions about it: houses, drop-offs, bus stops, gates,
--- which zone a position is in, and where to teleport people.
+-- which zone a position is in, and where to teleport people. A lobby server builds the lobby
+-- instead (World/Lobby): no houses to visit, the party buses.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local MeshLibrary = require(ReplicatedStorage.Shared.Modules.MeshLibrary)
+local Mode = require(ReplicatedStorage.Shared.Modules.Mode)
 local Builder = require(script.Parent.Parent.World.Builder)
 local Lighting = require(script.Parent.Parent.World.Lighting)
+local Lobby = require(script.Parent.Parent.World.Lobby)
 local Street = require(script.Parent.Parent.World.Street)
 
 local WorldService = {}
@@ -40,7 +43,23 @@ function WorldService.Init()
 	-- The AI house meshes must exist before the streets are built (a few seconds at boot).
 	MeshLibrary.preload()
 	MeshLibrary.waitReady(15, "World")
-	info = Builder.build(Workspace)
+	if Mode.isLobby() then
+		local lobby = Lobby.build(Workspace)
+		info = {
+			folder = lobby.folder,
+			spawn = lobby.spawn,
+			houses = {},
+			dropoffs = {},
+			busStops = {},
+			zones = { { id = "Hub", cframe = lobby.zone.cframe, size = lobby.zone.size } },
+			streets = {},
+			gates = {},
+			arrivals = { Hub = lobby.spawn.CFrame },
+			buses = lobby.buses,
+		}
+	else
+		info = Builder.build(Workspace)
+	end
 end
 
 function WorldService.info(): Builder.WorldInfo

@@ -19,7 +19,6 @@ local Template: Types.PlayerData = {
 		charm = 0,
 		stealth = 0,
 		luck = 0,
-		flashlight = 0,
 	},
 	soulPerks = {},
 	neighborhoods = { CardboardCourt = true },

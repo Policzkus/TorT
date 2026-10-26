@@ -6,6 +6,7 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
+local CandyPiece = require(ReplicatedStorage.Shared.Modules.CandyPiece)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local Assets = require(script.Parent.Assets)
@@ -58,6 +59,15 @@ end
 
 -- Street lamp on the ground at `base`, the arm reaching towards local -X.
 function Props.lamp(parent: Instance, base: CFrame): Model
+	-- The Blender cast-iron lamp (art/scripts/lobby.py) once it's imported.
+	local blender = Assets.find("Lobby", "Lamp")
+	if blender and blender:IsA("Model") then
+		local lamp = blender:Clone()
+		lamp.Name = "StreetLamp"
+		lamp:PivotTo(base)
+		lamp.Parent = parent
+		return lamp
+	end
 	local m = model(parent, "StreetLamp")
 	local dark = Parts.hex("26242C")
 	Parts.pole(m, "Pole", 14, 0.7, base, dark, M.Metal)
@@ -92,16 +102,8 @@ function Props.dropoff(parent: Instance, base: CFrame, id: string): (Model, Vect
 	local candyColors = { "FF3B5C", "7CFF4F", "FFD23F", "B06CFF", "3FC8FF", "FF8A00" }
 	for i, color in candyColors do
 		local angle = i / #candyColors * math.pi * 2
-		Parts.decor(
-			Parts.ball(
-				m,
-				"Candy",
-				Vector3.one * (1 + (i % 3) * 0.25),
-				base * CFrame.new(math.cos(angle) * 1.6, 4.7 + (i % 2) * 0.4, math.sin(angle) * 1),
-				color,
-				M.SmoothPlastic
-			)
-		)
+		local at = base * CFrame.new(math.cos(angle) * 1.6, 4.7 + (i % 2) * 0.4, math.sin(angle) * 1)
+		Parts.candy(m, "Candy", 1 + (i % 3) * 0.25, at * CandyPiece.tumble(i), color)
 	end
 	Parts.light(chest, 18, 1.6, "FF9A3C")
 	Parts.billboardLines(chest, "Label", {

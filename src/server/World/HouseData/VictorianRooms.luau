@@ -201,7 +201,6 @@ local colliders = {
 	{ size = Vector3.new(0.40, 5.70, 3.40), centre = Vector3.new(16.20, -6.65, 4.30), yaw = 0.0 },
 	{ size = Vector3.new(0.90, 0.90, 10.20), centre = Vector3.new(-2.60, -9.50, 7.70), yaw = 0.0 },
 	{ size = Vector3.new(0.90, 0.90, 10.20), centre = Vector3.new(4.60, -9.50, 7.70), yaw = 0.0 },
-	{ size = Vector3.new(1.80, 2.40, 3.60), centre = Vector3.new(-0.80, -3.00, 4.40), yaw = -35.0 },
 	{ size = Vector3.new(1.40, 1.40, 1.25), centre = Vector3.new(-1.60, -9.00, 3.22), yaw = 0.0 },
 	{ size = Vector3.new(4.80, 6.00, 1.20), centre = Vector3.new(17.10, 6.00, 0.60), yaw = 0.0 },
 	{ size = Vector3.new(1.40, 5.00, 2.37), centre = Vector3.new(15.70, 6.00, 1.18), yaw = 0.0 },

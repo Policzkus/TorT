@@ -1,9 +1,11 @@
 --!strict
--- Night cycle, Witching Hour, Full-Size Bar houses and the Blood Moon (PROMPT §3.4).
--- State is replicated as attributes on ReplicatedStorage.WorldState so clients can draw the clock,
--- banners and the gold beam without any extra remotes:
---   Night, NightStartedAt (server time), Witching, BloodMoon, FullSizeHouse ("" = none),
---   FullSizeEndsAt, FullSizePosition (the door, so the beam shows even if the house isn't streamed in)
+-- The Witching Hour, Full-Size Bar houses and the Blood Moon (PROMPT §3.4). There are no Nights: the
+-- Witching Hour comes round every Events.WITCHING_EVERY seconds for WITCHING_LENGTH, and when it
+-- ends the town changes (WitchingEnded: house types reroll). State is replicated as attributes on
+-- ReplicatedStorage.WorldState so clients can draw the countdown, the red sky and the gold beam:
+--   Witching, WitchingAt (server time it next starts, or started), WitchingEndsAt, BloodMoon,
+--   FullSizeHouse ("" = none), FullSizeEndsAt, FullSizePosition (the door, so the beam shows even
+--   if the house isn't streamed in)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,14 +14,15 @@ local Workspace = game:GetService("Workspace")
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Events = require(ReplicatedStorage.Shared.Config.Events)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
+local Mode = require(ReplicatedStorage.Shared.Modules.Mode)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local NotifyService = require(script.Parent.NotifyService)
 local WorldService = require(script.Parent.WorldService)
 
 local WorldEventsService = {}
 
-WorldEventsService.NightStarted = Signal.new() -- (night: number)
 WorldEventsService.WitchingStarted = Signal.new()
+WorldEventsService.WitchingEnded = Signal.new()
 
 local state: Folder
 local random = Random.new()
@@ -39,10 +42,6 @@ end
 
 function WorldEventsService.state(): Folder
 	return state
-end
-
-function WorldEventsService.night(): number
-	return state:GetAttribute("Night") :: number
 end
 
 function WorldEventsService.isWitching(): boolean
@@ -136,42 +135,44 @@ function WorldEventsService.startFullSize(): boolean
 	return true
 end
 
-function WorldEventsService.startNight()
-	state:SetAttribute("Night", ((state:GetAttribute("Night") :: number?) or 0) + 1)
-	state:SetAttribute("NightStartedAt", now())
-	state:SetAttribute("Witching", false)
-	warned = false
-	WorldEventsService.NightStarted:Fire(WorldEventsService.night())
-end
-
+-- The Witching Hour, now (and the next one WITCHING_EVERY after it ends).
 function WorldEventsService.startWitching()
 	if WorldEventsService.isWitching() then
 		return
 	end
-	-- Jump the clock so the Night ends right after the Witching Hour.
-	local startedAt = state:GetAttribute("NightStartedAt") :: number
-	local shouldStartAt = startedAt + Events.NIGHT_LENGTH - Events.WITCHING_LENGTH
-	if now() < shouldStartAt then
-		state:SetAttribute("NightStartedAt", startedAt - (shouldStartAt - now()))
-	end
 	state:SetAttribute("Witching", true)
+	state:SetAttribute("WitchingAt", now())
+	state:SetAttribute("WitchingEndsAt", now() + Events.WITCHING_LENGTH)
 	NotifyService.all("🩸 THE WITCHING HOUR HAS BEGUN! ×2 candy, but the houses are scarier...", "error")
 	WorldEventsService.WitchingStarted:Fire()
 end
 
-local function tick()
-	local elapsed = now() - (state:GetAttribute("NightStartedAt") :: number)
-	local witchingAt = Events.NIGHT_LENGTH - Events.WITCHING_LENGTH
-	if elapsed >= Events.NIGHT_LENGTH then
-		WorldEventsService.startNight()
+function WorldEventsService.endWitching()
+	if not WorldEventsService.isWitching() then
 		return
 	end
-	if not warned and elapsed >= witchingAt - Events.WITCHING_WARNING then
-		warned = true
-		NotifyService.all("⚠ The Witching Hour starts in 1 minute...", "info")
-	end
-	if not WorldEventsService.isWitching() and elapsed >= witchingAt then
-		WorldEventsService.startWitching()
+	state:SetAttribute("Witching", false)
+	state:SetAttribute("WitchingAt", now() + Events.WITCHING_EVERY)
+	state:SetAttribute("WitchingEndsAt", 0)
+	warned = false
+	NotifyService.all("The Witching Hour is over. The town has changed...", "info")
+	WorldEventsService.WitchingEnded:Fire()
+end
+
+local function tick()
+	if WorldEventsService.isWitching() then
+		if now() >= (state:GetAttribute("WitchingEndsAt") :: number) then
+			WorldEventsService.endWitching()
+		end
+	else
+		local startsIn = (state:GetAttribute("WitchingAt") :: number) - now()
+		if not warned and startsIn <= Events.WITCHING_WARNING then
+			warned = true
+			NotifyService.all("⚠ The Witching Hour starts in 1 minute...", "info")
+		end
+		if startsIn <= 0 then
+			WorldEventsService.startWitching()
+		end
 	end
 
 	local unix = os.time()
@@ -204,9 +205,9 @@ end
 function WorldEventsService.Init()
 	state = Instance.new("Folder")
 	state.Name = "WorldState"
-	state:SetAttribute("Night", 0)
-	state:SetAttribute("NightStartedAt", now())
 	state:SetAttribute("Witching", false)
+	state:SetAttribute("WitchingAt", now() + Events.WITCHING_EVERY)
+	state:SetAttribute("WitchingEndsAt", 0)
 	state:SetAttribute("BloodMoon", false)
 	state:SetAttribute("FullSizeHouse", "")
 	state:SetAttribute("FullSizeEndsAt", 0)
@@ -215,7 +216,9 @@ function WorldEventsService.Init()
 end
 
 function WorldEventsService.Start()
-	WorldEventsService.startNight()
+	if Mode.isLobby() then
+		return -- no events in the lobby
+	end
 	Players.PlayerRemoving:Connect(function(player)
 		fullSizeVisitors[player] = nil
 	end)

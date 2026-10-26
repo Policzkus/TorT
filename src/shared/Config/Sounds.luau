@@ -27,11 +27,21 @@ local sounds: { [string]: Sound } = {
 	-- Homeowners
 	Voice = { id = 9126213744, slice = 0.085, volume = 0.6 }, -- ProSoundEffects "Whisper Bursts Eerie Unintelligible Phrases 2"
 	Thud = { id = 9116908474, volume = 0.6, speed = 0.7 }, -- ProSoundEffects "Metal Whomps Deep Pounding Impacts 13"
+	-- An open hand across your face: the user's own slap (art/export/audio/TorT_Slap.ogg, uploaded).
+	Slap = { id = 82925254970803, volume = 0.4 },
+	Clap = { clip = "LandSoft", volume = 0.5, speed = 2.1 }, -- a homeowner's slow clap: Kenney's soft impact, sped up sharp -- (the recording is mastered hot: at 1 it drowned everything)
 	FloorCreak = { id = 9114495966, volume = 0.6 }, -- ProSoundEffects "Floor Creaks Short Med Wood Creaks 18"
 	Breath = { id = 9113586144, volume = 0.5, speed = 0.8 }, -- ProSoundEffects "Breath Exhale 17"
 	OwnerStep = { clip = "Plank", id = 9114495966, volume = 0.42 }, -- Kenney heavy plank impact: their weight on the boards
 	BoardCreak = { clip = "Creak", id = 9114495966, volume = 0.3 }, -- Kenney creaks: a board giving under them
 	Cloth = { clip = "Cloth", volume = 0.35 }, -- Kenney cloth: clothes moving as they start, stop, turn
+	-- The Knifer (KniferController)
+	KniferStep = { id = 9114523345, volume = 1, speed = 0.8 }, -- ProSoundEffects "Foot Stomp 3" (hard floor), lowered: his heavy boots
+	KniferKill = { id = 9113471779, volume = 0.9 }, -- ProSoundEffects "Body Fall Master 4": someone he got, going down
+	-- The car (TrafficController)
+	CarEngine = { id = 9114833653, volume = 0.9, looped = true }, -- ProSoundEffects "Hot Rod Humming Idle 1" (played from the car itself)
+	CarHorn = { id = 9114402205, volume = 0.9 }, -- ProSoundEffects "Ferrari 308 Car Honking Dual Air Horns 2" (classic car)
+	CarHit = { id = 9116907950, volume = 1 }, -- ProSoundEffects "Metal Whomps Deep Pounding Impacts 8"
 	-- Mini-games and rewards
 	Tick = { clip = "Tick", id = 106984966606682, volume = 0.45 }, -- Kenney tick
 	Pop = { clip = "Drop", id = 106984966606682, volume = 0.5 }, -- Kenney drop (GOOD)

@@ -15,7 +15,7 @@ local CAST = {
 	"Owner_Curlers",
 	"Owner_Lanky",
 	"Owner_Nightgown",
-	"Owner_SackMask",
+	-- (Owner_SackMask is the Knifer now: Config/Knifer.CHARACTER. Never at a door.)
 	"Owner_TankTop",
 	"Owner_Cardigan",
 	"Owner_SweaterVest",
@@ -79,9 +79,16 @@ return {
 	-- Seconds from the knock being answered until they've stopped on the porch, per style (the
 	-- walk's start + length in HomeownerController's WALK; a long hall can make it a little later,
 	-- and their hello waits for them).
-	OUT_AFTER = { Creep = 3.6, Waiting = 3.8, Peek = 4.0, Rush = 1.8, Flicker = 3.6 } :: { [string]: number },
-	HELLO_TIME = 4.2, -- seconds they have for their hello before the mini-game starts (the longest types in ~4.5)
-	LEAVE_DELAY = 3.8, -- seconds they linger after the mini-game (long enough to say what they think)
+	OUT_AFTER = { Creep = 2.4, Waiting = 2.5, Peek = 2.7, Rush = 1.3, Flicker = 2.4 } :: { [string]: number },
+	HELLO_TIME = 2.4, -- seconds they have for their hello before the mini-game starts (skippable: MinigameSkip)
+	LEAVE_DELAY = 2.0, -- seconds they linger after the mini-game at least (longer if they're still talking)
+	AFTER_LINE = 0.3, -- seconds between their last line fading and them turning back in
+	-- Seconds from them starting back in to the door shut on them, about (HomeownerController's turn,
+	-- walk back and close; a little under, so a door's cooldown never reads more than its full time).
+	SHUT_AFTER = 2.2,
+	-- Seconds from a slap starting to it landing (HomeownerController's SLAP): what they say after it
+	-- waits for this.
+	SLAP_LANDS = 0.33,
 	TWITCH_EVERY = { min = 0.6, max = 2.2 } :: Range,
 	STAND_OFF = 0.2, -- studs between the wall round the door and the back of them, once they've turned to you
 }

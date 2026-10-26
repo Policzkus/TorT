@@ -981,25 +981,7 @@ local function porch(b: Builder, at: (number, number, number) -> CFrame): BasePa
 	bulb.Transparency = 0.15
 	Parts.light(bulb, 16, 0.9, "FFAA60")
 
-	-- Furniture: a rocking chair angled toward the door, a swing hanging from one chain.
-	local chair = at(-0.8, FOUND, -3) * CFrame.Angles(0, math.rad(-35), 0)
-	b:decor("ChairSeat", Vector3.new(1.8, 0.25, 1.8), chair * CFrame.new(0, 1.6, 0), "boards")
-	b:decor(
-		"ChairBack",
-		Vector3.new(1.8, 2.4, 0.25),
-		chair * CFrame.new(0, 2.9, 0.85) * CFrame.Angles(math.rad(-10), 0, 0),
-		"boards"
-	)
-	for _, sx in { -0.8, 0.8 } do
-		b:decor(
-			"Rocker",
-			Vector3.new(0.18, 0.3, 2.6),
-			chair * CFrame.new(sx, 0.2, 0.1) * CFrame.Angles(math.rad(6), 0, 0),
-			"boards"
-		)
-		b:decor("ChairLeg", Vector3.new(0.18, 1.5, 0.18), chair * CFrame.new(sx, 0.9, -0.7), "boards")
-		b:decor("ChairLeg", Vector3.new(0.18, 1.5, 0.18), chair * CFrame.new(sx, 0.9, 0.8), "boards")
-	end
+	-- Furniture: a swing hanging from one chain (no rocking chair: the user had it taken off).
 	local swingTop = at(11.6, roofLow - 0.2, -3.2)
 	b:decor("Chain", Vector3.new(0.08, 5.5, 0.08), swingTop * CFrame.new(-2, -2.75, 0), "iron")
 	local swing = swingTop * CFrame.new(0.2, -6.4, 0) * CFrame.Angles(0, 0, math.rad(-24))

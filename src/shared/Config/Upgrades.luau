@@ -73,7 +73,7 @@ local tracks: { [string]: Track } = {
 }
 
 return {
-	-- Shop display order. Stealth, Luck and Flashlight arrive with their systems (Phases 3–4).
+	-- Shop display order. Stealth and Luck arrive with their systems (Phases 3–4). There's no flashlight.
 	ORDER = { "bucketTier", "charm", "sneakers" },
 	tracks = tracks,
 }

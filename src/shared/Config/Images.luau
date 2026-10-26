@@ -4,7 +4,7 @@
 return {
 	-- PSX camera overlay
 	Vignette = 12754479702, -- "White Vignette" (althruist), tinted black in code
-	Grain = 0, -- off: "Salt and Pepper" (150468255) showed a visible tile grid in game
+	Grain = 117266253034518, -- "noise2", loopable noise (decal 127794771687826; "Salt and Pepper" showed a tile grid)
 	Scanlines = 101327796311819, -- "scanlines_transparent" (decal 90695458480914)
 
 	-- Minimal HUD icons (white on transparent)

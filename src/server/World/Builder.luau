@@ -31,6 +31,7 @@ export type WorldInfo = {
 	streets: { [string]: Street.StreetInfo },
 	gates: { [string]: GateInfo },
 	arrivals: { [string]: CFrame }, -- zone id ("Hub" or a neighborhood id) -> bus drop-off
+	buses: { Model }, -- the lobby's party buses (none on the streets)
 }
 
 local Builder = {}
@@ -90,6 +91,7 @@ function Builder.build(parent: Instance): WorldInfo
 		streets = {},
 		gates = {},
 		arrivals = { Hub = hub.arrival },
+		buses = {},
 	}
 
 	local gatesFolder = Instance.new("Folder")

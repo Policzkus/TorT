@@ -1,7 +1,7 @@
 --!strict
 -- Background music (PROMPT §3.19). Licensed tracks from DistrokidOfficial (Roblox's music
 -- partner), load-tested in Studio. Volume is scaled by the player's Music setting.
--- Priority: Blood Moon > Witching Hour > the zone you're in.
+-- Priority: the Knifer chasing you > Blood Moon > Witching Hour > the zone you're in.
 
 export type Track = { id: number, volume: number }
 
@@ -14,5 +14,7 @@ return {
 	} :: { [string]: Track },
 	witching = { id = 138856055860898, volume = 0.45 } :: Track, -- "Halloween haunted house, Pt. 2"
 	bloodMoon = { id = 127648968320882, volume = 0.45 } :: Track, -- "The Blood Moon Rising"
+	chase = { id = 1843040609, volume = 0.6 } :: Track, -- the Knifer's after you: APM "Pista Omicida 2nd vers."
 	FADE = 2, -- seconds to crossfade
+	CHASE_FADE = 0.4, -- into the chase music (and out of it)
 }

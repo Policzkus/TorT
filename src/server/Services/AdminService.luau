@@ -16,6 +16,9 @@ local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local DataService = require(script.Parent.DataService)
 local NotifyService = require(script.Parent.NotifyService)
 local HouseService = require(script.Parent.HouseService)
+local LivesService = require(script.Parent.LivesService)
+local KniferService = require(script.Parent.KniferService)
+local TrafficService = require(script.Parent.TrafficService)
 local WorldEventsService = require(script.Parent.WorldEventsService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -145,12 +148,12 @@ commands.upgrade = {
 }
 
 commands.event = {
-	usage = "/event <dawn|witching|fullsize|bloodmoon on|off|auto> - trigger world events",
+	usage = "/event <witching|calm|fullsize|bloodmoon on|off|auto> - trigger world events",
 	run = function(_admin, args)
 		local which = string.lower(args[1] or "")
-		if which == "dawn" then
-			WorldEventsService.startNight()
-			return `Night {WorldEventsService.night()} begins`
+		if which == "calm" then
+			WorldEventsService.endWitching()
+			return "Witching Hour ended"
 		elseif which == "witching" then
 			WorldEventsService.startWitching()
 			return "Witching Hour started"
@@ -216,6 +219,57 @@ commands.reset = {
 		local target = requireTarget(admin, args[1])
 		DataService.reset(target)
 		return `{target.Name}'s data was reset`
+	end,
+}
+
+commands.faint = {
+	usage = "/faint [player] - be caught: lose a life and the bucket, black out, come to at the spawn",
+	run = function(admin, args)
+		local target = requireTarget(admin, args[1])
+		if not LivesService.faint(target) then
+			error(`{target.Name} is already out`, 0)
+		end
+		return `{target.Name} fainted`
+	end,
+}
+
+commands.car = {
+	usage = "/car [down|up] - send the car down the street you're on, now",
+	run = function(admin, args)
+		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local street = root and WorldService.zoneAt(root.Position)
+		if street == nil or not WorldService.isBuilt(street) then
+			error("Stand on a street first", 0)
+		end
+		local dir = if args[1] == "down" then 1 elseif args[1] == "up" then -1 else nil
+		if TrafficService.send(street, dir) == nil then
+			error("No car: it isn't set up yet (tools/setup_car.luau), or one is already on this street", 0)
+		end
+		return `A car is coming down {street}`
+	end,
+}
+
+commands.knifer = {
+	usage = "/knifer [away|info] - the Knifer comes for you on your street now (away: send him off; info: what he knows of the street)",
+	run = function(admin, args)
+		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local street = root and WorldService.zoneAt(root.Position)
+		if street == nil or not WorldService.isBuilt(street) then
+			error("Stand on a street first", 0)
+		end
+		if args[1] == "info" then
+			return KniferService.describe(street, admin)
+		end
+		if args[1] == "away" then
+			if not KniferService.dismiss(street) then
+				error("He isn't on this street", 0)
+			end
+			return "The Knifer's gone"
+		end
+		if not KniferService.summon(street, admin) then
+			error("He's already here, or there's nowhere unseen near you for him to come out of", 0)
+		end
+		return "The Knifer is coming"
 	end,
 }
 

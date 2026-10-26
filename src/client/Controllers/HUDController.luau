@@ -13,6 +13,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Events = require(Shared.Config.Events)
 local Images = require(Shared.Config.Images)
+local Mode = require(Shared.Modules.Mode)
 local Lives = require(Shared.Config.Lives)
 local Neighborhoods = require(Shared.Config.Neighborhoods)
 local Upgrades = require(Shared.Config.Upgrades)
@@ -307,37 +308,24 @@ local function refreshMenuDot()
 	menuDot.Visible = ShopController.cheapestAffordable() ~= nil
 end
 
-local function formatHour(hour: number): string
-	local whole = math.floor(hour) % 24
-	local minutes = math.floor((hour % 1) * 60)
-	local suffix = if whole >= 12 then "PM" else "AM"
-	local twelve = whole % 12
-	return string.format("%d:%02d %s", if twelve == 0 then 12 else twelve, minutes, suffix)
-end
-
+-- The clock chip: how long until the Witching Hour (there are no Nights), or how long it has left.
 local function refreshClock(state: Instance)
-	local startedAt = (state:GetAttribute("NightStartedAt") :: number?) or Workspace:GetServerTimeNow()
-	local elapsed = math.clamp(Workspace:GetServerTimeNow() - startedAt, 0, Events.NIGHT_LENGTH)
-	local hour = Events.START_HOUR + elapsed / Events.NIGHT_LENGTH * (Events.END_HOUR - Events.START_HOUR)
-	local witchingAt = Events.NIGHT_LENGTH - Events.WITCHING_LENGTH
+	local now = Workspace:GetServerTimeNow()
 	local outline = clockChip:FindFirstChild("Outline") :: UIStroke
-	local time = formatHour(hour)
+	local blood = if state:GetAttribute("BloodMoon") == true then "  ·  BLOOD MOON ×2" else ""
 	if state:GetAttribute("Witching") == true then
-		clockLabel.Text = `{time}  ·  WITCHING HOUR ×2  {Format.clock(Events.NIGHT_LENGTH - elapsed)}`
-		clockLabel.TextColor3 = Theme.Colors.Danger
-		outline.Color = Theme.Colors.Danger
-	elseif elapsed >= witchingAt - Events.WITCHING_WARNING then
-		clockLabel.Text = `{time}  ·  WITCHING IN {Format.clock(witchingAt - elapsed)}`
-		clockLabel.TextColor3 = Theme.Colors.OrangeLight
-		outline.Color = Theme.Colors.Hairline
-	elseif state:GetAttribute("BloodMoon") == true then
-		clockLabel.Text = `{time}  ·  BLOOD MOON ×2`
+		local left = math.max(0, ((state:GetAttribute("WitchingEndsAt") :: number?) or now) - now)
+		clockLabel.Text = `WITCHING HOUR ×2  {Format.clock(left)}{blood}`
 		clockLabel.TextColor3 = Theme.Colors.Danger
 		outline.Color = Theme.Colors.Danger
 	else
-		clockLabel.Text = `{time}  ·  NIGHT {state:GetAttribute("Night") or 1}`
-		clockLabel.TextColor3 = Theme.Colors.Text
-		outline.Color = Theme.Colors.Hairline
+		local startsIn = math.max(0, ((state:GetAttribute("WitchingAt") :: number?) or now) - now)
+		clockLabel.Text = `WITCHING HOUR IN {Format.clock(startsIn)}{blood}`
+		clockLabel.TextColor3 = if startsIn <= Events.WITCHING_WARNING
+			then Theme.Colors.OrangeLight
+			elseif blood ~= "" then Theme.Colors.Danger
+			else Theme.Colors.Text
+		outline.Color = if blood ~= "" then Theme.Colors.Danger else Theme.Colors.Hairline
 	end
 end
 
@@ -409,9 +397,13 @@ local function build()
 	soulsChip.Parent = cluster
 
 	clockChip = chip("Clock", 5)
-	clockLabel = chipText(clockChip, "6:00 PM  ·  NIGHT 1")
+	clockLabel = chipText(clockChip, "WITCHING HOUR IN 10:00")
 	clockLabel.TextSize = 15
 	clockChip.Parent = cluster
+	-- The lobby has no Witching Hour and no bucket to fill.
+	local lobby = Mode.isLobby()
+	clockChip.Visible = not lobby
+	bagChip.Visible = not lobby
 
 	-- Next goal, one quiet line above the cluster; streak above that.
 	goalFill = create("Frame", {

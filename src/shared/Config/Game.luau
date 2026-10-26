@@ -13,4 +13,9 @@ return {
 	STATE_FLUSH_INTERVAL = 0.15,
 	-- Seconds between server-side playtime accumulations.
 	PLAYTIME_TICK = 10,
+
+	-- Which kind of server Studio plays as: "run" (the streets, one Night) or "lobby" (shop,
+	-- costumes, the party buses). Live servers know from how they were started (Modules/Mode).
+	-- Teleports don't work in Studio, so each side is tested on its own there.
+	STUDIO_MODE = "run",
 }

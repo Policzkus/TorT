@@ -13,6 +13,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local CandyPiece = require(script.Parent.Parent.Modules.CandyPiece)
 local MeshLibrary = require(script.Parent.Parent.Modules.MeshLibrary)
 
 type PartSpec = {
@@ -475,13 +476,9 @@ function Buckets.build(modelName: string): Model
 	end
 
 	for index, at in candySlots do
-		local candy = Instance.new("Part")
+		local candy = CandyPiece.make(candySize, Color3.fromHex(CANDY_COLORS[(index - 1) % #CANDY_COLORS + 1]))
 		candy.Name = "Candy" .. index
-		candy.Shape = Enum.PartType.Ball
-		candy.Size = Vector3.one * candySize
-		candy.CFrame = scaled(at)
-		candy.Color = Color3.fromHex(CANDY_COLORS[(index - 1) % #CANDY_COLORS + 1])
-		candy.Material = M.SmoothPlastic
+		candy.CFrame = scaled(at) * CandyPiece.tumble(index) -- a jumble of bars
 		candy.Transparency = 1
 		finish(candy)
 		weld(candy)

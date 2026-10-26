@@ -12,6 +12,7 @@ local Characters = require(ReplicatedStorage.Shared.Config.Characters)
 local Costumes = require(ReplicatedStorage.Shared.Config.Costumes)
 local CharacterRig = require(ReplicatedStorage.Shared.Modules.CharacterRig)
 local MeshLibrary = require(ReplicatedStorage.Shared.Modules.MeshLibrary)
+local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local DataService = require(script.Parent.DataService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -92,6 +93,13 @@ function CharacterService.refreshLook(player: Player)
 	end
 end
 
+-- A fresh character with its feet at `feet` (nil: the spawn), full health.
+function CharacterService.respawn(player: Player, feet: CFrame?)
+	if player.Parent == Players then
+		place(player, feet or spawnFeet())
+	end
+end
+
 local function spawnCharacter(player: Player)
 	if player.Parent ~= Players then
 		return
@@ -105,6 +113,7 @@ end
 
 local function setup(player: Player)
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
+	player.DevEnableMouseLock = false -- Shift is sprint, not Roblox's Shift Lock (it moved the view)
 	player.CameraMaxZoomDistance = 0.5
 	player.CameraMinZoomDistance = 0.5
 	player.CharacterAdded:Connect(function(character)
@@ -123,7 +132,17 @@ local function setup(player: Player)
 	task.spawn(spawnCharacter, player)
 end
 
+-- Where each player looks up or down (their client says, a few times a second): their head tilts
+-- that way for everyone else (CharacterAnimController).
+local function onLookPitch(player: Player, pitch: any)
+	local character = player.Character
+	if character and type(pitch) == "number" and pitch == pitch then
+		character:SetAttribute("LookPitch", math.clamp(math.round(pitch * 20) / 20, -1.3, 1.3))
+	end
+end
+
 function CharacterService.Start()
+	Net.connect("LookPitch", onLookPitch, { rate = 12, burst = 20 })
 	Players.PlayerAdded:Connect(setup)
 	for _, player in Players:GetPlayers() do
 		setup(player)

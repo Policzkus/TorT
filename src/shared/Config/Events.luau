@@ -1,12 +1,10 @@
 --!strict
--- Night cycle and live events (PROMPT §3.4). Times in seconds; timestamps in Unix UTC.
+-- Live events (PROMPT §3.4). Times in seconds; timestamps in Unix UTC. There are no Nights (the
+-- user had them taken out): it's always night, and the Witching Hour comes round on its own clock.
 return {
-	-- One Night: 6:00 PM to midnight in 18 real minutes (3 minutes per in-game hour).
-	NIGHT_LENGTH = 18 * 60,
-	START_HOUR = 18,
-	END_HOUR = 24,
-
-	-- Witching Hour: the last minutes of each Night.
+	-- Witching Hour: WITCHING_EVERY calm seconds, then WITCHING_LENGTH red ones; when it's over the
+	-- town changes (house types reroll).
+	WITCHING_EVERY = 10 * 60,
 	WITCHING_LENGTH = 3 * 60,
 	WITCHING_WARNING = 60, -- countdown banner this long before it starts
 	WITCHING_CANDY = 2, -- event multiplier

@@ -66,6 +66,12 @@ function MinigameService.isOpen(player: Player, id: number): boolean
 	return open ~= nil and open.challenge.id == id
 end
 
+-- The player's open challenge as generated (the server's copy), if any.
+function MinigameService.specOf(player: Player): any
+	local open = pending[player]
+	return if open then open.spec else nil
+end
+
 -- Drops the player's open challenge without a result (e.g. they left or teleported).
 function MinigameService.cancel(player: Player)
 	local open = pending[player]
@@ -152,6 +158,14 @@ function MinigameService.Start()
 		record(player, grade)
 		open.onResult(grade)
 	end, { rate = 4, burst = 6 })
+
+	-- The player skipped the hello: the game (and its clock) starts now.
+	Net.connect("MinigameSkip", function(player: Player, id: any)
+		local open = pending[player]
+		if open and open.challenge.id == id and os.clock() < open.issuedAt then
+			open.issuedAt = os.clock()
+		end
+	end, { rate = 2, burst = 4 })
 
 	-- The player walked away from the door before or during the game.
 	Net.connect("MinigameCancel", function(player: Player, id: any)

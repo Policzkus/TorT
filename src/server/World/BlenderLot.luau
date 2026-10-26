@@ -224,8 +224,8 @@ function BlenderLot.yard(
 end
 
 -- Lights two to four rooms (and the attic sometimes): a glowing bulb under the room's lamp shade
--- and a warm light spilling out through the glass. The rest stay dark until a flashlight finds the
--- furniture. Returns the room a figure should stand in, if any: usually a lit one.
+-- and a warm light spilling out through the glass. The rest stay dark (the porch and street light
+-- just picks out the furniture). Returns the room a figure should stand in, if any: usually a lit one.
 function BlenderLot.roomLights(house: Model, base: CFrame, rng: Rng.Rng, rooms: { HouseData.Room }): HouseData.Room?
 	local candidates = {}
 	for i, room in rooms do
@@ -275,7 +275,7 @@ function BlenderLot.roomLights(house: Model, base: CFrame, rng: Rng.Rng, rooms: 
 		end
 	end
 	if #figureRooms > 0 and rng:chance(0.25) then
-		return figureRooms[1] -- one left in the dark for the flashlight to find
+		return figureRooms[1] -- one left standing in the dark
 	end
 	return nil
 end

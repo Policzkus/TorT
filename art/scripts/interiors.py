@@ -1,6 +1,6 @@
 """The rooms behind the Victorian's windows: real geometry, so they have depth and parallax as you
-walk past, take real lamplight when the game switches a room on, and show their furniture in a
-flashlight. Built into the house mesh by victorian.build() (which passes itself in as V).
+walk past, take real lamplight when the game switches a room on, and show their furniture in the
+porch and street light. Built into the house mesh by victorian.build() (which passes itself in as V).
 
 Each room is a box just inside the house walls: wallpapered walls (window and door openings cut
 through), floorboards, a plaster ceiling with a hanging lamp, skirting and a picture rail, and its

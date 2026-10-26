@@ -10,6 +10,7 @@ local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Events = require(ReplicatedStorage.Shared.Config.Events)
 local HouseTypes = require(ReplicatedStorage.Shared.Config.HouseTypes)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
+local CandyPiece = require(ReplicatedStorage.Shared.Modules.CandyPiece)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local Parts = require(script.Parent.Parent.World.Parts)
@@ -70,16 +71,8 @@ local function buildBowl(houseId: string): Model?
 	)
 	for i, color in { "FF3B5C", "FFD23F", "7CFF4F", "B06CFF", "3FC8FF" } do
 		local angle = i / 5 * math.pi * 2
-		Parts.decor(
-			Parts.ball(
-				m,
-				"Candy",
-				Vector3.one * 0.55,
-				base * CFrame.new(math.cos(angle) * 0.6, 3.4, math.sin(angle) * 0.6),
-				color,
-				Enum.Material.SmoothPlastic
-			)
-		)
+		local at = base * CFrame.new(math.cos(angle) * 0.6, 3.4, math.sin(angle) * 0.6)
+		Parts.candy(m, "Candy", 0.55, at * CandyPiece.tumble(i), color)
 	end
 	local sign = Parts.decor(
 		Parts.block(
@@ -232,11 +225,7 @@ function HouseService.Start()
 		return houseType == "Normal" or houseType == "Decorated"
 	end)
 	HouseService.reroll()
-	WorldEventsService.NightStarted:Connect(function(night: number)
-		if night > 1 then
-			HouseService.reroll()
-		end
-	end)
+	WorldEventsService.WitchingEnded:Connect(HouseService.reroll) -- the town changes
 	WorldEventsService.WitchingStarted:Connect(witching)
 end
 

@@ -1,6 +1,7 @@
 --!strict
 -- Background music: the track of the zone you're in, swapped for the Witching Hour or Blood Moon
--- theme while those are on. Crossfades; volume follows Settings → Music (SoundGroup "Music").
+-- theme while those are on, and for the chase music while the Knifer's after you (KniferController).
+-- Crossfades; volume follows Settings → Music (SoundGroup "Music").
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,8 +19,12 @@ local SETTINGS_WAIT = 10
 local playing: Sound? = nil
 local playingId = 0
 local state: Instance? = nil
+local chased = false
 
 local function wanted(): Music.Track?
+	if chased then
+		return Music.chase
+	end
 	if state and state:GetAttribute("BloodMoon") == true then
 		return Music.bloodMoon
 	end
@@ -36,7 +41,8 @@ local function refresh()
 		return
 	end
 	playingId = track.id
-	local fade = TweenInfo.new(Music.FADE, Enum.EasingStyle.Sine)
+	local quick = chased or (playing ~= nil and playing:GetAttribute("Chase") == true)
+	local fade = TweenInfo.new(if quick then Music.CHASE_FADE else Music.FADE, Enum.EasingStyle.Sine)
 	local old = playing
 	if old then
 		local out = TweenService:Create(old, fade, { Volume = 0 })
@@ -51,10 +57,19 @@ local function refresh()
 	sound.Looped = true
 	sound.Volume = 0
 	sound.SoundGroup = Sound.group("Music")
+	sound:SetAttribute("Chase", chased)
 	sound.Parent = SoundService
 	sound:Play()
 	TweenService:Create(sound, fade, { Volume = track.volume }):Play()
 	playing = sound
+end
+
+-- The Knifer's after you (on) or you've lost him (off): the chase music comes in fast, and goes.
+function MusicController.setChase(on: boolean)
+	if on ~= chased then
+		chased = on
+		refresh()
+	end
 end
 
 function MusicController.Start()

@@ -7,6 +7,8 @@ export type Props = { [string]: any }
 
 local colorCache: { [string]: Color3 } = {}
 
+local CandyPiece = require(game:GetService("ReplicatedStorage").Shared.Modules.CandyPiece)
+
 function Parts.hex(hex: string): Color3
 	local cached = colorCache[hex]
 	if cached == nil then
@@ -84,6 +86,17 @@ function Parts.ball(
 	local part = Parts.new("Part", parent, name, size, cframe, color, material, props) :: Part
 	part.Shape = Enum.PartType.Ball
 	return part
+end
+
+-- A piece of candy (Modules/CandyPiece: the user's candy bar) where a ball `size` across would be,
+-- for show: it doesn't collide.
+function Parts.candy(parent: Instance, name: string, size: number, cframe: CFrame, color: Color3 | string): BasePart
+	local piece = CandyPiece.make(size, resolveColor(color))
+	piece.Name = name
+	piece.Anchored = true
+	piece.CFrame = cframe
+	piece.Parent = parent
+	return Parts.decor(piece)
 end
 
 -- A cylinder whose axis runs along `cframe`'s X axis (Roblox's convention).

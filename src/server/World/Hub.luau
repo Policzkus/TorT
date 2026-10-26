@@ -6,6 +6,7 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local World = require(ReplicatedStorage.Shared.Config.World)
+local CandyPiece = require(ReplicatedStorage.Shared.Modules.CandyPiece)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local Parts = require(script.Parent.Parts)
 local Props = require(script.Parent.Props)
@@ -60,15 +61,12 @@ local function shopStall(parent: Instance, base: CFrame)
 		local x = -4 + (i - 1) * 4
 		Parts.decor(Parts.pole(m, "Jar", 2.2, 1.6, at(x, 4, -1), "DDEEFF", M.Glass, { Transparency = 0.5 }))
 		for j = 0, 2 do
-			Parts.decor(
-				Parts.ball(
-					m,
-					"Candy",
-					Vector3.one * 0.6,
-					at(x + (j - 1) * 0.35, 4.4 + j * 0.25, -1),
-					color,
-					M.SmoothPlastic
-				)
+			Parts.candy(
+				m,
+				"Candy",
+				0.6,
+				at(x + (j - 1) * 0.35, 4.4 + j * 0.25, -1) * CandyPiece.tumble(i * 3 + j),
+				color
 			)
 		end
 	end

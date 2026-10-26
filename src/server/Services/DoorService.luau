@@ -6,11 +6,13 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
 local HouseTypes = require(ReplicatedStorage.Shared.Config.HouseTypes)
 local Minigames = require(ReplicatedStorage.Shared.Config.Minigames)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
+local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local Formulas = require(ReplicatedStorage.Shared.Modules.Formulas)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
@@ -41,6 +43,9 @@ export type DoorResult = {
 	lost: number?, -- candy lost when caught
 }
 
+-- Goodbyes a homeowner picks from going back in, by how the visit went (HomeownerController.GOODBYES).
+local GOODBYES = { pleased = { "wave", "bow", "nod" }, displeased = { "point", "shoo", "stare" } }
+
 local CAUGHT_LINES = {
 	"THOSE ARE FOR THE TRICK-OR-TREATERS!",
 	"HEY! ONE PER KID!",
@@ -50,7 +55,7 @@ local CAUGHT_LINES = {
 
 local DoorService = {}
 
-local cooldowns: { [Player]: { [string]: number } } = {}
+local houseReadyAt: { [string]: number } = {} -- each house's: when it answers again (server time)
 local streaks: { [Player]: number } = {}
 local random = Random.new()
 local rng = Rng.new(random:NextInteger(1, 2147483646))
@@ -72,19 +77,27 @@ local function pickMinigame(neighborhood: Neighborhoods.Neighborhood, houseType:
 	return rng:weighted(weights) or "TimingBar"
 end
 
-local function cooldownLeft(player: Player, houseId: string): number
-	local list = cooldowns[player]
-	local readyAt = list and list[houseId]
-	return if readyAt then readyAt - now() else 0
+-- A house's cooldown is everyone's (the user wants it synced): once its homeowner has answered, or
+-- its bowl's been raided, nobody gets anything there until it's over. It's on the house model
+-- (ReadyAt, server time), so every client draws the same ring.
+local function cooldownLeft(houseId: string): number
+	return math.max(0, (houseReadyAt[houseId] or 0) - now())
 end
 
-local function startCooldown(player: Player, houseId: string): number
-	local readyAt = now() + Economy.DOOR_COOLDOWN
-	local list = cooldowns[player]
-	if list then
-		list[houseId] = readyAt
+-- `after`: seconds before the cooldown starts counting (a visit's: until the door's shut again).
+local function startCooldown(houseId: string, after: number?): number
+	local at = math.max(houseReadyAt[houseId] or 0, now() + (after or 0) + Economy.DOOR_COOLDOWN)
+	houseReadyAt[houseId] = at
+	local house = WorldService.getHouse(houseId)
+	if house then
+		house.model:SetAttribute("ReadyAt", at)
 	end
-	return readyAt
+	return at
+end
+
+-- A pop-up over the player's head for everyone else (Controllers/PeersController).
+local function pop(player: Player, text: string, kind: string)
+	Net.event("PlayerPop"):FireAllClients(player.UserId, text, kind)
 end
 
 local function nearHouse(player: Player, houseId: string, range: number?): boolean
@@ -106,12 +119,30 @@ local function canVisit(player: Player, houseId: string): (any, Neighborhoods.Ne
 	if MinigameService.isBusy(player) or not nearHouse(player, houseId) then
 		return nil, nil
 	end
-	local wait = cooldownLeft(player, houseId)
+	-- A full bucket takes no more: empty it at your Candy Box first.
+	if data.bucket >= CandyService.bucketCapacity(player) then
+		NotifyService.send(player, "🪣 Your bucket is full! Empty it at your Candy Box", "error")
+		return nil, nil
+	end
+	local wait = cooldownLeft(houseId)
 	if wait > 0 then
 		NotifyService.send(player, `💤 Nobody's answering yet. Come back in {math.ceil(wait)}s`, "info")
 		return nil, nil
 	end
 	return house, Neighborhoods.byId[house.neighborhood]
+end
+
+-- The homeowner at `houseId` says `text` in `after` seconds, for everyone near the door to see
+-- (DoorController); `except` sees it some other way (the Costume Line question, with its answers).
+local function say(houseId: string, text: string, after: number, except: Player?)
+	Net.event("HomeownerSay"):FireAllClients(houseId, text, now() + after, if except then except.UserId else nil)
+end
+
+-- One of the house's personality's lines of a kind ("hello", "pleased", "displeased").
+local function line(houseId: string, kind: string): string?
+	local personality = Dialogue.personalities[HouseService.owner(houseId) :: string]
+	local lines = personality and (personality :: any)[kind]
+	return if type(lines) == "table" and #lines > 0 then lines[random:NextInteger(1, #lines)] else nil
 end
 
 local function updateStreak(player: Player, grade: string): number
@@ -125,15 +156,27 @@ local function updateStreak(player: Player, grade: string): number
 	return streak
 end
 
-local function finish(player: Player, houseId: string, houseType: string, grade: string?)
+-- The visit's over with `grade`: candy, the cooldown, what they say. Returns how long until the
+-- homeowner may go back in (they wait out what they say), or nil for the usual LEAVE_DELAY.
+local function finish(player: Player, houseId: string, houseType: string, grade: string?): number?
 	if grade == nil or player.Parent ~= Players then
-		return -- abandoned: no reward, no cooldown, they can knock again
+		return nil -- abandoned: no reward, no cooldown, they can knock again
 	end
 	local house = WorldService.getHouse(houseId)
 	local neighborhood = house and Neighborhoods.byId[house.neighborhood]
 	if house == nil or neighborhood == nil or DataService.get(player) == nil then
-		return
+		return nil
 	end
+	-- What they'll make of it (a trick house's Nerve Hold ends in the jumpscare instead), and so how
+	-- long they stay out: until it's been said and gone, never less than LEAVE_DELAY.
+	local slapped = grade == "MISS" and houseType ~= "Trick"
+	local reaction = if houseType ~= "Trick"
+		then line(houseId, if grade == "MISS" then "displeased" else "pleased")
+		else nil
+	local sayIn = if slapped then Homeowners.SLAP_LANDS + 0.25 else 0.35
+	local leaveIn = if reaction
+		then math.max(Homeowners.LEAVE_DELAY, sayIn + Dialogue.lineTime(reaction) + Homeowners.AFTER_LINE)
+		else Homeowners.LEAVE_DELAY
 
 	local brave = houseType == "Trick" and grade ~= "MISS"
 	local typeMultiplier = if houseType == "Trick"
@@ -151,7 +194,8 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 	end
 	local amount = Formulas.doorCandy(base, grade, Formulas.streakBonus(streak), bonuses, event)
 	local added, overflow = CandyService.addToBucket(player, amount)
-	local readyAt = startCooldown(player, houseId)
+	-- The door's cooldown (the ring on it) counts from when it shuts on them, not from now.
+	local readyAt = startCooldown(houseId, leaveIn + Homeowners.SHUT_AFTER)
 
 	DataService.mutate(player, "stats", function(stats)
 		stats.doors += 1
@@ -177,9 +221,27 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 		costumed = costume ~= nil,
 	}
 	Net.event("DoorResult"):FireClient(player, result)
+	pop(player, `{grade}  +{Format.number(added)}`, grade)
+	-- What they make of it, for everyone near: get it wrong and they slap you first, then tell you off;
+	-- get it right and they hand you your candy. Their goodbye going back in follows from it (OwnerMood).
+	if houseType ~= "Trick" then
+		local mood = if grade == "MISS" then "displeased" else "pleased"
+		local byes = GOODBYES[mood]
+		house.model:SetAttribute("OwnerMood", mood)
+		house.model:SetAttribute("OwnerBye", byes[random:NextInteger(1, #byes)])
+	end
+	if slapped then
+		Net.event("HomeownerStrike"):FireAllClients(houseId, player.UserId)
+	elseif houseType ~= "Trick" then
+		Net.event("HomeownerGive"):FireAllClients(houseId, player.UserId, grade) -- (a PERFECT gets a slow clap first)
+	end
+	if reaction then
+		say(houseId, reaction, sayIn)
+	end
 	if fullSize > 1 then
 		NotifyService.others(player, `🍫 {player.DisplayName} grabbed a FULL-SIZE BAR!`, "rare")
 	end
+	return leaveIn
 end
 
 local function knock(player: Player, houseId: string)
@@ -191,6 +253,7 @@ local function knock(player: Player, houseId: string)
 	if house == nil or neighborhood == nil then
 		return
 	end
+	Net.event("DoorKnocked"):FireAllClients(houseId, player.UserId) -- everyone near hears it
 	local difficulty = neighborhood.tier
 		+ (HouseTypes.DIFFICULTY[houseType] or 0)
 		+ WorldEventsService.difficultyBonus()
@@ -198,7 +261,7 @@ local function knock(player: Player, houseId: string)
 	local kind = pickMinigame(neighborhood, houseType)
 	-- They come out and say hello before the mini-game starts (Costume Line's question is its
 	-- hello): the challenge's intro, which the client plays out and the clock leaves out.
-	local outIn = HomeownerService.appear(houseId)
+	local outIn = HomeownerService.appear(houseId, player)
 	local intro = outIn + (if kind == "CostumeLine" then 0 else Homeowners.HELLO_TIME)
 	local context = {
 		houseId = houseId,
@@ -208,16 +271,30 @@ local function knock(player: Player, houseId: string)
 		door = house.door.Position, -- the client calls the visit off if you walk away from it
 	}
 	local issued = MinigameService.issue(player, kind, difficulty, function(grade)
-		HomeownerService.leave(houseId)
-		finish(player, houseId, houseType, grade)
+		local leaveIn = finish(player, houseId, houseType, grade)
+		HomeownerService.leave(houseId, leaveIn) -- once what they've said has gone
 		-- Every Nerve Hold ends with the jumpscare (the client tones it down per Settings).
 		if grade and kind == "NerveHold" then
 			Net.event("Jumpscare"):FireClient(player, houseId, "monster")
+			Net.event("ScareSeen"):FireAllClients(houseId, player.UserId, "monster")
 		end
 	end, context, intro)
 	if issued == nil then
 		HomeownerService.leave(houseId)
 		return
+	end
+	-- Their hello once they're out, for everyone near. In Costume Line the question is the hello: the
+	-- visitor gets it with its answers, everyone else hears it asked.
+	if kind == "CostumeLine" then
+		local spec = MinigameService.specOf(player)
+		if spec and type(spec.greeting) == "string" then
+			say(houseId, spec.greeting, outIn, player)
+		end
+	else
+		local hello = line(houseId, "hello")
+		if hello then
+			say(houseId, hello, outIn + 0.3)
+		end
 	end
 	-- Walk away while they're coming out, or mid-game, and it's off (the client usually says so first).
 	task.spawn(function()
@@ -240,7 +317,7 @@ local function takeFromBowl(player: Player, houseId: string, mode: string)
 	if house == nil or neighborhood == nil then
 		return
 	end
-	local readyAt = startCooldown(player, houseId)
+	local readyAt = startCooldown(houseId)
 	local result: DoorResult = {
 		houseId = houseId,
 		grade = "GOOD",
@@ -264,7 +341,9 @@ local function takeFromBowl(player: Player, houseId: string, mode: string)
 		result.bowl = "caught"
 		result.lost = lost
 		Net.event("Jumpscare"):FireClient(player, houseId, "caught", CAUGHT_LINES[random:NextInteger(1, #CAUGHT_LINES)])
+		Net.event("ScareSeen"):FireAllClients(houseId, player.UserId, "caught")
 		Net.event("DoorResult"):FireClient(player, result)
+		pop(player, `CAUGHT  -{Format.number(lost)}`, "caught")
 		return
 	end
 
@@ -277,13 +356,17 @@ local function takeFromBowl(player: Player, houseId: string, mode: string)
 		result.grade = "PERFECT"
 	end
 	Net.event("DoorResult"):FireClient(player, result)
+	pop(player, `+{Format.number(added)}`, result.grade)
 end
 
 function DoorService.resetCooldowns()
-	for _, list in cooldowns do
-		table.clear(list)
+	for houseId in houseReadyAt do
+		local house = WorldService.getHouse(houseId)
+		if house then
+			house.model:SetAttribute("ReadyAt", 0)
+		end
 	end
-	Net.event("CooldownsReset"):FireAllClients()
+	table.clear(houseReadyAt)
 end
 
 function DoorService.streak(player: Player): number
@@ -297,20 +380,8 @@ function DoorService.Start()
 		end)
 	end
 	HouseService.BowlTriggered:Connect(takeFromBowl)
-	WorldEventsService.NightStarted:Connect(function(night: number)
-		if night > 1 then
-			DoorService.resetCooldowns()
-		end
-	end)
 
-	Players.PlayerAdded:Connect(function(player)
-		cooldowns[player] = {}
-	end)
-	for _, player in Players:GetPlayers() do
-		cooldowns[player] = cooldowns[player] or {}
-	end
 	Players.PlayerRemoving:Connect(function(player)
-		cooldowns[player] = nil
 		streaks[player] = nil
 	end)
 end

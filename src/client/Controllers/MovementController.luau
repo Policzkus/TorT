@@ -1,8 +1,9 @@
 --!strict
 -- How you move: walking picks up over a moment instead of snapping to full speed, and you can
 -- sprint (hold Shift, click the left stick, or the 🏃 button on a touch screen) while your stamina
--- lasts. Sprinting widens the view a little (CameraController) and runs the head-bob faster; when
--- you're winded you breathe hard and have to catch your breath before sprinting again. A thin bar
+-- lasts. Sprinting runs the head-bob faster, but the view itself stays put (it used to widen, which
+-- the user saw as Shift changing their height); when you're winded you breathe hard and have to
+-- catch your breath before sprinting again. A thin bar
 -- under the middle of the view shows stamina while it isn't full.
 -- The walking speed itself comes from the server (Sneakers upgrade): Humanoid attribute BaseSpeed.
 
@@ -12,7 +13,6 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local CameraController = require(script.Parent.CameraController)
 local Sound = require(script.Parent.SoundController)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local create = require(script.Parent.Parent.UI.create)
@@ -20,7 +20,6 @@ local create = require(script.Parent.Parent.UI.create)
 local MovementController = {}
 
 local SPRINT_SPEED = 1.6 -- times the walking speed
-local SPRINT_FOV = 8 -- degrees added while sprinting
 local STAMINA = { drain = 17, regen = 26, delay = 0.9, recover = 30 } -- per second; recover: needed after running dry
 local RAMP = 0.22 -- seconds from standing to full walking speed
 local START_SPEED = 0.55 -- of full speed, the moment you start walking
@@ -85,8 +84,6 @@ local function step(dt: number)
 	local target = (START_SPEED + (1 - START_SPEED) * ramp) * (if sprinting then SPRINT_SPEED else 1)
 	current += (target - current) * math.min(1, dt * (if target > current then 6 else 10))
 	humanoid.WalkSpeed = base * current
-
-	CameraController.setFovOffset(if sprinting then SPRINT_FOV else 0)
 
 	if stamina < WINDED and os.clock() >= breathAt then
 		breathAt = os.clock() + 1.1 + stamina / 40

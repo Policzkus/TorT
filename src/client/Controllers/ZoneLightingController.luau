@@ -1,41 +1,59 @@
 --!strict
 -- Blends Lighting, fog and colour tint when you cross into another zone (the server sets the
--- player's "Zone" attribute). Purely visual and local.
+-- player's "Zone" attribute). Purely visual and local. In the Witching Hour (and under the Blood
+-- Moon) the sky goes red: red fog thick with haze, a red glare, red night light (the moon itself:
+-- MoonController).
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local World = require(ReplicatedStorage:WaitForChild("Shared").Config.World)
 local ZoneLighting = require(ReplicatedStorage:WaitForChild("Shared").Modules.ZoneLighting)
 
 local BLEND = TweenInfo.new(2.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+local RED_BLEND = TweenInfo.new(12, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut) -- the sky reddening
 
 local ZoneLightingController = {}
 
 local worldState: Instance? = nil
+local wasRed = false
 
 local function blend(zoneId: string?)
 	local properties = ZoneLighting.properties(zoneId)
+	properties.atmosphere.Haze = World.LIGHTING.fogHaze
+	properties.atmosphere.Glare = World.LIGHTING.fogGlare
 	-- Witching Hour and the Blood Moon paint everything red.
 	local witching = worldState ~= nil and worldState:GetAttribute("Witching") == true
 	local bloodMoon = worldState ~= nil and worldState:GetAttribute("BloodMoon") == true
-	if witching or bloodMoon then
-		properties.atmosphere.Color = Color3.fromHex(if witching then "8A2A2E" else "7A3A40")
-		properties.atmosphere.Decay = Color3.fromHex("3A0A10")
+	local red = witching or bloodMoon
+	if red then
+		properties.atmosphere.Color = Color3.fromHex(if witching then "9A2228" else "7A3A40")
+		properties.atmosphere.Decay = Color3.fromHex("4A0A12")
 		properties.atmosphere.Density = math.min(0.75, properties.atmosphere.Density + 0.12)
-		properties.colorCorrection.TintColor = Color3.fromHex(if witching then "FFC8C8" else "FFDADA")
+		properties.atmosphere.Haze = World.LIGHTING.fogHaze + 1.2
+		properties.atmosphere.Glare = 1.4
+		properties.lighting.OutdoorAmbient = (properties.lighting.OutdoorAmbient :: Color3):Lerp(
+			Color3.fromHex("6A1418"),
+			0.55
+		)
+		properties.lighting.Ambient = (properties.lighting.Ambient :: Color3):Lerp(Color3.fromHex("4A0E12"), 0.35)
+		properties.colorCorrection.TintColor = Color3.fromHex(if witching then "FFC0C0" else "FFDADA")
 		properties.colorCorrection.Saturation = 0.15
 	end
-	TweenService:Create(Lighting, BLEND, properties.lighting):Play()
+	-- Going red (or back) is slow, a zone change quick.
+	local info = if red ~= wasRed then RED_BLEND else BLEND
+	wasRed = red
+	TweenService:Create(Lighting, info, properties.lighting):Play()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		TweenService:Create(atmosphere, BLEND, properties.atmosphere):Play()
+		TweenService:Create(atmosphere, info, properties.atmosphere):Play()
 	end
 	-- By name: the camera's own grade (CameraController's PSXGrade) is a ColorCorrectionEffect too.
 	local colorCorrection = Lighting:FindFirstChild("ZoneTint")
 	if colorCorrection then
-		TweenService:Create(colorCorrection, BLEND, properties.colorCorrection):Play()
+		TweenService:Create(colorCorrection, info, properties.colorCorrection):Play()
 	end
 end
 

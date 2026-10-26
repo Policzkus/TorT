@@ -22,16 +22,37 @@ local EVENTS: { [string]: string } = {
 	MinigameStart = "S→C play a mini-game: (challenge: {id, kind, difficulty, seed, context})",
 	MinigameSubmit = "C→S raw input for a challenge: (id: number, taps: {number})",
 	MinigameCancel = "C→S you walked away from the door: drop the challenge (id: number)",
+	MinigameSkip = "C→S you skipped their hello: the game starts now (id: number)",
+	HomeownerSay = "S→C a homeowner says a line, everyone near sees it: (houseId, text, showAt: server time, except: userId?)",
+	HomeownerStrike = "S→C a homeowner slaps whoever got it wrong, everyone near sees it: (houseId, userId)",
+	HomeownerGive = "S→C a homeowner hands someone their candy, everyone near sees it (a PERFECT: a clap first): (houseId, userId, grade)",
+	LookPitch = "C→S how far up or down you're looking, so others see your head turn: (pitch: radians)",
+	DoorKnocked = "S→C someone knocked on a door, everyone near hears it: (houseId, userId)",
+	ScareSeen = "S→C someone got a scare at a door, everyone near sees it go for them: (houseId, userId, kind)",
+	PlayerPop = "S→C a pop-up over a player's head for everyone else (a grade, a stash): (userId, text, kind)",
+	-- The Knifer (KniferService)
+	Downed = "S→C you're killed and down as a ragdoll, no black screen: (lives, lostBucket, lostBanked, wakeIn)",
+	KniferCame = "S→C the Knifer has come onto a street, everyone on it hears the sting: (streetId)",
+	KniferStruck = "S→C the Knifer got someone, everyone near hears it: (userId)",
+	-- The car (TrafficService)
+	CarTrip = "S→C a car drives down a street, everyone draws it on the same path: (trip: Traffic.Trip)",
+	CarHit = "S→C the car hit someone, everyone sees the same candy fly: (userId, lost: number, seed: number)",
+	CarHonk = "S→C the car honks at someone in front of it, everyone hears it: (tripId)",
 	MinigameCancelled = "S→C your challenge was dropped, you left the door: (id: number)",
 	DoorResult = "S→C candy from a door: (result: DoorService.DoorResult)",
 	Jumpscare = "S→C play a scare: (houseId: string, kind: 'monster' | 'caught', line: string?)",
-	CooldownsReset = "S→C Dawn: every door is ready again",
 	SaveSettings = "C→S store the player's settings: (settings: {music, sfx, jumpscare, reduceFlash})",
 	-- Bucket and bank
 	Stashed = "S→C bucket poured into the Candy Box: (moved: number, boxFull: boolean, dropoffId: string)",
 	-- Travel
 	BusTravel = "C→S ride the bus: (destination: 'Hub' | neighborhoodId)",
 	Teleported = "S→C the character was just moved (fade back in)",
+	-- Lobby parties and runs
+	PartyLeave = "C→S get off the party bus you're on",
+	PartyFriendsOnly = "C→S the host lets only their friends on board, or anyone: (on: boolean)",
+	PartyStart = "C→S the host sends the bus off (a countdown, then the teleport)",
+	RunLeave = "C→S leave the run and go back to the lobby",
+	Fainted = "S→C you were caught: (lives: number, lostBucket: number, lostBanked: number, wakeIn: number)",
 }
 
 local FUNCTIONS: { [string]: string } = {

@@ -20,7 +20,7 @@
 - **Live sync:** `rojo serve` (port 34872) → in Studio: Plugins → Rojo → Connect.
 - **Checks before every commit:** `stylua src tests` · `selene src` · `lune run tests/run` · `rojo build -o build/TorT.rbxlx`.
 - **Studio MCP:** `.mcp.json` registers `Roblox_Studio` (Roblox's built-in Studio MCP via `%LOCALAPPDATA%\Roblox\mcp.bat`). It needs Studio → Assistant → … → Manage MCP Servers → *Enable Studio as MCP server*, and a fresh Claude session. Its tools include execute_luau, start_stop_play, get_console_output, screen_capture, search_asset and insert_asset. Every call needs a `studio_id` from `list_roblox_studios`.
-- **Admin chat commands** (anyone in Studio, owner UserId 4710305538 live): `/admin` (list) · `/candy 5k` · `/setcandy` · `/bucket` · `/souls` · `/setrebirths` · `/unlock <id|all>` · `/upgrade <track> <level>` · `/event dawn|witching|fullsize|bloodmoon on/off/auto` · `/housetype <type>` (nearest house) · `/data [key]` · `/reset` · `/save`. Optional last argument = player name. `/help` is Roblox's built-in, so the list command is `/admin`.
+- **Admin chat commands** (anyone in Studio, owner UserId 4710305538 live): `/admin` (list) · `/candy 5k` · `/setcandy` · `/bucket` · `/souls` · `/setrebirths` · `/unlock <id|all>` · `/upgrade <track> <level>` · `/event calm|witching|fullsize|bloodmoon on/off/auto` · `/faint` · `/housetype <type>` (nearest house) · `/data [key]` · `/reset` · `/save`. Optional last argument = player name. `/help` is Roblox's built-in, so the list command is `/admin`.
 - **Testing a mini-game screen from the MCP:** fire `Remotes.MinigameStart` at the client with a fake challenge, e.g. `{ id = -1, kind = "CostumeLine", difficulty = 5, seed = 7, context = { personality = "WitchyWanda" } }`. The server ignores the submission for an unknown id.
 - **From the Studio MCP / command bar** (play mode, Server datamodel): `game.ServerStorage.DevBridge:Invoke("/candy 5k")` runs a command as the first player, and `DevBridge:Invoke("data")` returns a copy of their data. `require()` from the MCP gets a *separate* module instance with no live profiles, so always go through the bridge.
 
@@ -209,7 +209,300 @@
       - A real knock: SackMask came out facing you, and you were stepped back to 8.4 studs.
     - **Not checked:** the halls' hanging lamps and props. Their paths run down the middle of the hall, clear of the props.
     - **Test gotcha:** CC_07 and CC_13 are Open houses. Their doors already stand open, so a forced visit there is measured in the wrong frame. Nobody answers there in the game.
-- **Look (reworked 2026-10-23, the user found everything too dark):** the moon hangs ~40° up over the far end of each street (`World.LIGHTING.latitude` -26.5 at midnight), brighter cool moonlit ambient per street (later streets darker), exposure +0.4, light grade (saturation -0.12, contrast 0.08), depth of field only far away, and a shadowless cool `MoonFill_<house>` light over each lot's sidewalk, because the low moon throws each house's shadow over the next yard. Faint scanlines; grain off; a flashlight (F). Recommended manual step: Lighting → Technology = Future (MCP can't set it).
+- **Phase 2.5 finished off (2026-10-25): lobby and private runs, party buses, dawn, death.**
+  - **Server modes** (`Modules/Mode`):
+    - A reserved server with no owner is a run. Any other live server is the lobby (a player's private server too).
+    - Studio plays `Game.STUDIO_MODE` (`"run"`; set `"lobby"` to test the lobby).
+    - `init.server` loads only that mode's services: `Loader.run(..., unused)` skips the rest without warnings.
+    - Clients read the `Mode` attribute on ReplicatedStorage. The HUD hides the bag and clock in the lobby.
+  - **The lobby** (`World/Lobby`, built by `WorldService` in lobby mode):
+    - A bus turnaround: a ring road round a paved island, 8 Blender houses all round (shut, lit, yards dressed), dead trees, lamps.
+    - No Night there (`WorldEventsService` doesn't start one).
+  - **Party buses** (`Services/PartyService`, `PartyController`):
+    - Board through the door's prompt and you're sat in the bus. The first aboard hosts; up to 4.
+    - Host: E/ButtonX starts a 5 s countdown, G/ButtonY toggles friends-only. Space gets you off. Touch screens get buttons.
+    - A HUD tile shows the party. A sign over each door shows the host, the count and the lock.
+    - At zero: `ReserveServer` + `TeleportAsync` with the party in the teleport data. Retries, and failures are reported. In Studio it just says it can't teleport.
+    - Verified in Studio lobby mode: board, friends-only, countdown, the Studio notice, get off. The real teleport can only be tested live.
+  - *(Superseded the same day: Nights were deleted, see "Batch 1" below.)* **A run goes Night after Night** (`NightRunService`; `WorldEventsService.setDawn`). The user said going back to the lobby every Night made no sense, so the design was reworked:
+    - Dawn banks the buckets (the box cap applies) and shows a card: "DAWN · NIGHT N SURVIVED", candy collected, banked, doors knocked.
+    - After `Runs.DAWN_BREAK` (15 s) the next Night starts in the same run: house types, cooldowns, open houses and homeowners reroll.
+    - Each Night survived pays +10% candy (`Events.NIGHT_BONUS`, up to +50%), multiplied on top of the event cap.
+    - Leaving is the player's choice: **LOBBY** in the TAB menu → "BACK TO THE LOBBY?" [LEAVE]/[STAY] → `RunLeave` teleports just them. The bucket stays with them.
+    - Verified in Studio: `/dawn` → card → Night 2 by itself with a reroll; the confirm window. The teleports are live-only.
+  - **Lives and death** (`LivesService`, `RunController`):
+    - Lives refill every 20 min, counting time away. `LivesService.faint(player, wakeAt)`:
+      - Costs a life and the carried bucket. Out of lives: −50% banked candy and the lives refill.
+      - The character is held and the screen goes black with a "YOU FAINTED" card. They come to at `wakeAt` or the spawn after 3 s.
+    - The heist's homeowner will call this. `/faint` tests it (verified: 3→2 lives, bucket 5,500→0, banked untouched, refill timer started).
+  - **Art: the party bus and a street lamp in Blender** (`art/scripts/lobby.py` → `art/export/lobby/Lobby.fbx`; `tools/setup_lobby.luau` → `Assets.Lobby.Bus`/`Lamp`).
+    - The user found the first box-built bus "like shit". The rebuild:
+      - A conventional school bus: rounded roof and caps, a sloping hood with a chrome-ringed grille and twin headlights, flared black fenders, a white roof with hatches.
+      - Rubber-sealed rounded windows in a riveted body with rub rails and panel seams. One pane is broken, one boarded.
+      - The crossview mirrors, the stop arm, eight-way lights, "SCHOOL BUS" boards, "HOLLOW PINES SCHOOL DIST.".
+      - Inside: vinyl benches with grab rails, the driver's seat and dash with faintly lit gauges, ceiling ribs, three bare lights, a forgotten backpack.
+    - "Make sure everything is in the same style, look at the houses": recoloured to the houses' palette (faded mustard paint, rust patches, grime, a mossy roof). It's checked in their daylight preview light next to the Mansard.
+    - "Work on the wheels":
+      - Tyres with a rounded sidewall and staggered tread.
+      - Off-white steel disc wheels with hand holes cut through the dish, ten lug nuts and a hub cap. Brake drums behind.
+      - Deep-dish twins at the back with mud flaps, and black arch liners.
+    - The lamp: a cast-iron post with a four-paned lantern glowing like the houses' porch lights.
+      - `Props.lamp` uses it once imported, so the streets get it too.
+    - Markers: `Mark_Origin`, `Mark_Door` (the prompt), `Mark_Seat1..4` (the party's seats). The setup script adds a collider, headlight SpotLights, the interior bulbs and the lantern's light.
+    - The loading cover preloads `Assets.Lobby`.
+    - Seated in a party seat, the tall backs blocked the view, so they were lowered: a seated kid sees down the aisle and out the windshield. The party sits two rows back. The interior is smooth painted steel (`victorian.textured(bump=)`, default 1 for the houses). The bulbs cast no shadows, so your own body doesn't black out the seat ahead.
+    - "This looks glitchy" (the doorway). Fixed:
+      - The rub rails, rivets and a marker light no longer cross the door.
+      - A rubber seal runs round the opening, and the glass leaves fold flat against the frame.
+      - Three real steps with worn white edges, dark stairwell walls, and a barrier by the first seat.
+    - Imported three times (the last with the doorway fix) and set up. Checked in the lobby in Studio.
+  - **UI the user couldn't read or use:**
+    - Hosting is now big:
+      - A lobby band: "WALK UP TO A BUS DOOR AND PRESS [E] TO HOST A RUN".
+      - Large signs over each door ("PARTY BUS · press E at the door to host a run" / "X'S PARTY 2/4 · press E to join"). They're raised above the roof, and the bus streams in whole so the sign finds its door.
+      - On the bus, a big band: "PRESS [E] TO START THE RUN", or "WAITING FOR X TO START", or the countdown. The party is listed on the right.
+    - **A cursor in every menu** ("now I don't know what I'm pointing at"). In first person the mouse still *reads* as locked while a Modal frees it, so `CameraController` now shows the cursor whenever a Modal button is on screen. That covers the radial menu, the shop and wardrobe panels, the dialogs and the leave confirm. Gameplay keeps just the crosshair dot.
+  - **Still part-built (not in the houses' style), for the map work:**
+    - The hub on Home Street: shop stall, title sign, its bus.
+    - The Candy Box drop-offs, the street gates, the bus stop signs and benches, the simple pumpkins.
+- **Batch 1 of the user's big list (2026-10-25): pace, freedom at the door, feedback.** The user then asked for small prompts instead of one big one.
+  - **Nights deleted.** It's always night. The Witching Hour comes round on its own clock: `Events.WITCHING_EVERY` (10 min) calm, then `WITCHING_LENGTH` (3 min) at ×2.
+    - When it ends, the town changes (house types reroll on `WitchingEnded`).
+    - The clock chip reads `WITCHING HOUR IN m:ss` or `WITCHING HOUR ×2 m:ss`. `NightRunService`, Dawn, the night bonus and `/dawn` are gone; `/event calm` ends it.
+    - The sky goes red slowly (12 s blend): red fog with haze and glare, red night light (`ZoneLightingController`).
+    - **The moon turns red** (`MoonController`, new). The sky's own moon keeps its texture under a red disc that gets more solid over the first 50 s, swells 25%, with a red glow round it, then holds still until the hour ends and fades back over 8 s. No other animation (a heartbeat throb read as blinking to the user). The Blood Moon event keeps it red all event.
+  - **Faster pace:**
+    - Homeowners come out and go back in about 40% sooner (`HomeownerController` WALK/doorOpen/leave, `Homeowners.OUT_AFTER`, `HELLO_TIME` 2.4, `LEAVE_DELAY` 2.0).
+    - Lines type twice as fast and leave sooner.
+    - **Skippable:** click, Enter, Space or Ⓐ shows the rest of a line; pressing again puts it away. Putting their hello away starts the mini-game at once (`MinigameSkip`; the server restarts the clock). Verified: game at 3.3 s instead of 4.8 s.
+    - Once a line is all out, moving the mouse puts it away.
+  - **You can move during a visit, but not far:**
+    - `Economy.DOOR_LEASH` (11 studs from the door) holds you on its edge. Keep pushing out for 0.6 s and you leave ("keep walking to leave"). `DOOR_LEAVE` 16 still calls it off.
+    - The walk back to the doorstep still happens; walking yourself overrides it.
+    - Your view lets go of the homeowner as soon as you move the mouse or the right stick.
+  - **A full bucket can't knock.** The doors say "Bucket full · Empty it at your Candy Box", and the server refuses with a toast.
+  - **Door cooldown ring** (the user's reference: a ring timer, time left in one colour, time gone in another). In the HUD palette: 48 rounded segments, bright for the time left and dim for the time gone, sweeping clockwise from the top. The segment at the edge fades over as it goes, so the sweep creeps rather than ticks. The seconds sit in a dark disc, see-through like the HUD's tiles. (A solid-ring version was tried and rejected; the user kept the segments.)
+    - It used to come up with 2-3 segments already gone, because the door takes ~4 s to shut after the result. Now the server's cooldown counts from about when the door shuts (`Homeowners.LEAVE_DELAY + SHUT_AFTER`), and a ring that appears after your own visit starts full. Verified: 90 at appear, 87 three seconds later, 81 nine seconds later.
+    - It's **3D, flat on the door's face**: a SurfaceGui on its own part in `Workspace.DoorRings`. Inside the door model the hinge swing carried it off.
+    - It fades in only **after the homeowner has gone in and the door has shut** (`HomeownerController.atDoor`). Verified.
+  - **Get it wrong and they slap you** (the user: "they slap, not hit"; `HomeownerController.strike`, `SLAP`). On a MISS (any game, a wrong or timed-out costume answer):
+    - The hand is drawn back out to the side as the body turns away. Then it swings flat across at your face as they lunge and turn through (legs planted), with a whoosh.
+    - When it lands, **your head snaps 30° the way the hand was going** and tips 9°. It holds a moment, then turns back over about 0.55 s (`DoorController.hit`; the camera keeps the turn, so only each frame's change is added).
+    - Also: a slap (Kenney's soft impact sped up, until a real slap clip is in a sprite), a little shake, red at the screen's edges (not with Reduce Flashes), and a short shove back. Then they tell you off.
+    - Verified by recording the shoulder, body and camera every frame.
+  - **Dialogue is 3D** (the user: "things like this cooldown and dialogues should be 3d"; then: too high, didn't face the player, not lined up with the homeowner).
+    - The panel sits beside the speaker's head at about mouth height (`MOUTH` under the eyes), on your left of it.
+    - Its leader runs straight in from the panel's side to the head's edge as you see it: the head's box measured along your view's left, `ROUND` for round heads.
+    - It's square to your screen (no tilt when you look up at a tall homeowner). It's drawn a little bigger far off, and is more solid than a HUD tile so porch lamps don't wash it out.
+    - So nothing on the porch hides it, it's drawn at most `NEAR` (3.5) studs from your eye on the same line of sight, scaled to match. It looks just the same, beside their head.
+    - `SurfaceGui.AlwaysOnTop` rendered nothing at all (the earlier "always on top" fix had made lines invisible); removed here and from the head pop-ups.
+    - Your reply chips stay on the HUD (your own input). They're gone the instant you answer, or when the time runs out (the user asked). No right/wrong colouring any more: the grade and the slap say how it went. The question goes 0.4 s later. Verified both ways in Studio.
+    - **The line is gone before they go back in** (the user asked). The line timing is shared (`Config/Dialogue.TIMING`, `lineTime`).
+      - The server keeps the homeowner out until their reaction has typed, held and faded, plus `Homeowners.AFTER_LINE` (never less than `LEAVE_DELAY`). The door's cooldown counts from that.
+      - If they start back in early (a visit called off), the line goes at once.
+      - Verified: line gone at 3.20 s, turning back in at 3.58 s.
+  - **Shift no longer "changes your height":**
+    - The sprint FOV widening (+8°) read as rising up, so it's gone, and the head-bob no longer grows with speed.
+    - Roblox's Shift Lock is off (`StarterPlayer.EnableMouseLockOption` false in the project, and `DevEnableMouseLock` false per player).
+  - **Bus seats see more:** sat on a party bus seat your view is raised 1.4 studs (`PartyController`).
+  - **Who's on the bus shows from outside** (the user asked): each party seat has a warm SpotLight in the roof over it, on while someone sits there (`Lobby.luau`, `SEAT_LIGHT`). It's server-side, so everyone sees it.
+  - **Seated properly:**
+    - Our characters had no sitting pose, so kids stood inside the bench. Now they sit: legs out in front, a slight lean back, hands in the lap (`CharacterAnimController`, `SIT`).
+    - A Roblox seat holds the middle of the body at its top, which sank the hips 0.5 studs into the cushion. The seat's top now matches the cushion (`SEAT_ON_BENCH`). Each build is raised by what it needs (`sitLift`): thighs on the cushion, nothing of the body below it. The ghost sheet sits on its hem.
+    - The benches were 3.05 apart, leaving 1.6 studs of leg room against the 2.2–2.4 the kids need. `art/scripts/lobby.py` now has 6 rows 4.2 apart; the party seats stay on rows 2 and 3.
+    - The user imported the re-spaced bus; `tools/setup_lobby.luau` was run through the MCP (party seats now 4.2 apart).
+      - Verified with the biggest costume (ghost sheet): feet 2.39 ahead of the seat marker with 2.66 of room, the back touching the backrest's foot without going in, the sheet on the cushion.
+    - The carried bucket is put away while seated: worn on the back, it went through the seat back (`CharacterAnimController`, every client).
+  - Checks: stylua, selene, 55 Lune tests and the rojo build pass. Verified in Studio: knock, step-back with movement on, 3D hello, skip, MISS hit (flash and knockback), ring after the door shut, red sky and moon.
+  - **Not verified in Studio:** the leash edge, the full-bucket doors, the raised bus seat, the last moon nudge (disc lifted 2.5%, deeper red), and the strike's arm swing on screen. Studio hung starting a play session.
+
+- **The rocking chair is off the Victorian's porch** (2026-10-25, the user asked). It's gone from `art/scripts/victorian.py` (the mesh and its collider), `HouseData/VictorianRooms.luau` (the collider in game) and the part-built fallback (`HouseStyles/Victorian.luau`).
+  - Re-exported to `art/export/victorian/Victorian.fbx`. **Needs the user to re-import** (File → Import 3D) and run `tools/setup_victorian.luau`. Until then the old mesh still shows the chair, but you can walk through where it was.
+
+- **More homeowner moments (2026-10-25, the user: "more animations/interactions like homeowners peeking through the door").** All server-driven, so everyone sees them.
+  - **Peeks at passers-by** (`HomeownerService`, `Glance`/`GlanceSlam` on the house; `HomeownerController` glance figures).
+    - Rare (the user: "peeking should be rarer"): every 28–55 s, one house someone's walking past (9–38 studs from its door) cracks its door to 40% for 2.5–4 s. Its homeowner stands off to the side of the gap, leans into it, and watches the nearest kid (`OwnerVisitor`).
+    - Come within 9 studs and the door slams. A house rests 3 minutes between peeks; only one peeks at a time.
+    - Knocking turns a peek into a normal visit.
+    - Tall homeowners that can't peek round a door just crack it on the dark.
+  - **The candy hand-off:** on any good result the homeowner reaches out (`HomeownerGive`). A piece of candy (one of the receiver's own bucket pieces) leaves the hand and arcs into your bucket at the bottom of your view (or into another kid's), with a pop.
+  - **Goodbyes** (reworked: "work on goodbyes"). The server picks one to fit how the visit went (`OwnerBye`, cleared at each knock). Going back in, they do it still facing you, then turn to the door (`HomeownerController.GOODBYES`, each a pose over time).
+    - **Did well:** a slow wave with the hand up by the head and the head tilted; a deep bow held too long, eyes still on you; or two nods with a small raised hand.
+    - **Didn't:** a finger jabbed at you twice, leaning in; a shoo (the back of the hand flicked at you, head turned away); or a long stare, the head tipping over. These end with the **door slammed**.
+    - Verified the wave (arm out and swinging at the head, ~1.4 s) and the bow (0.77 rad bend, held ~1.2 s) by recording the joints.
+  - Verified in Studio:
+    - The plague-doctor homeowner peeking through a 40° crack (screenshot).
+    - The candy left the hand at 4.48 s and landed at 5.28 s.
+    - The point raised the arm to 1.55 rad before they turned.
+
+- **Everyone sees the same thing (2026-10-25, the user: "everything should be visible to everyone, synced").**
+  - Already shared before this: the homeowner coming out and going in, the doors swinging, characters' animation, footsteps, costumes and buckets, the Witching Hour sky and moon, the party buses.
+  - **What homeowners say** is now decided by the server (`DoorService.say`/`line`, the house's `Config/Dialogue` personality). It's sent to everyone (`HomeownerSay`: house, text, server time to show it), so everyone near the door sees the same hello and the same reaction.
+    - The Costume Line question goes to everyone except the visitor, who gets it with the answers.
+    - Walking away from your own visit drops what's still to come, for you.
+  - **The slap** is the server's too (`HomeownerStrike`: house, who). Everyone near sees the homeowner slap that kid and hears it land on them; only the slapped player's head turns. What they say after waits for `Homeowners.SLAP_LANDS`.
+  - **The homeowner faces whoever knocked** (`OwnerVisitor` on the house), for everyone. Before, each player saw them turn to their own camera.
+  - **Heads look up and down where their players do.** Each client sends its look (`LookPitch`, about 8 times a second when it moves). The server puts it on the character, and `CharacterAnimController` tilts that head for everyone else.
+  - **Second pass** (the user: "cooldown should sync too, think of all the things that should sync"):
+    - **Door cooldowns are per house, shared.** Once a homeowner has answered (or a bowl's been raided), nobody gets anything there until it's over.
+      - It's on the house model (`ReadyAt`, server time), so everyone sees the same ring and the prompt is off for everyone.
+      - A second visitor's result only stretches it. `CooldownsReset` is gone; `DoorService.resetCooldowns` clears the attributes.
+    - **Knocks are heard** by everyone near (`DoorKnocked`).
+    - **Scares are seen:** when someone gets the Nerve Hold jumpscare or is caught at a bowl, everyone else sees the homeowner lunge out at them and hears the scream from the door (`ScareSeen`, `HomeownerController.lunge`). The victim still gets the camera jumpscare.
+    - **Results over heads:** others see a 3D pop-up rise and fade over a player's head, like "PERFECT +24", "CAUGHT -50" or "+300 STASHED" (`PlayerPop`, new `PeersController`). Your own stay on your HUD.
+    - **Fainting is seen:** the character drops flat on its back where it stood (`Fainted` on the character, `CharacterAnimController`).
+    - **The open-house hall figure is the server's** (new `HallFigureService`, `HallSpot`/`HallGone` on the house).
+      - It comes a spot closer while anyone watches the door, and is gone when anyone comes close.
+      - Every client blinks the light and moves it together; it turns to whoever's nearest.
+  - **Still personal (on purpose):** the mini-game screen and grade on your HUD, the jumpscare camera, menus and the shop, your own lives and bucket numbers, which gates you've unlocked, background ambience and music.
+  - The flashlight was deleted (the user: there'll be no flashlight in the game).
+  - Verified with one player in Studio: knock, line, slap, pop-up and `ReadyAt` (94 s, 90 plus the door shutting) all sent; the hall figure stepped 1 → 2 → 3 while watched and went in the doorway on both server and client; `/faint` laid the rig flat. Earlier: hello and Costume Line question sent to everyone, slap and reaction on a MISS, `LookPitch` 0.6 when looking up 35°, `OwnerVisitor` set. Two clients at once can't be run through the MCP.
+
+- **The car (2026-10-26).** The user asked for a random car that drives often; if it hits you, you're ragdolled and lose all your carried candy. Then they said "every 5min or sum".
+  - **The model** (`art/scripts/car.py`, Blender, the houses' pipeline; renders `art/renders/car_{front,side,back}.png`):
+    - A 1950s pontoon sedan left out for decades: faded black-cherry paint with rust through it, a toothy chrome grille, round headlights, wrap-around bumpers with bullet guards, a hood ornament, whitewall tyres on body-coloured steel wheels with chrome caps, dark glass, and an empty bench seat with nobody at the wheel.
+    - Every wheel is its own meshes, so the game can roll it.
+    - It exports to `art/export/car/Car.fbx` (30 meshes). `tools/setup_car.luau` files it under `ReplicatedStorage.Assets.Vehicles.Car`. It makes a model per wheel on its axle (with a `Radius` attribute) and adds headlight spots, a glow and red tail lights.
+    - Exporter fix (`export_victorian.bake`): a metal material bakes no diffuse colour, so chrome came out pure black. It now bakes metals as if painted. **The bus's chrome is black in the game for the same reason**: it needs a re-export of the lobby to pick this up.
+  - **How it drives** (`Config/Traffic`, new `TrafficService` + `TrafficController`):
+    - A street with someone on it gets a car every 4–6 minutes; the first comes after 1–2.5 minutes.
+    - The car comes out of the mist 26 studs in from one end, headlights first. It drives the street in the right-hand lane at 40–48 studs/s (it swerved round the middle Candy Box until that was removed in the second pass), and fades back into the mist at the other end.
+    - Its headlights waver, the engine rumbles (looped from the car itself), the wheels roll, and it honks at anyone in front of it, at most twice a trip.
+    - The path is shared (`Traffic.pose`, on server time), so the server's hit check and every client's car are in the same place (`CarTrip`).
+  - **The hit:** the server checks the car's box against everyone (0.1 s back, to match how far behind it sees players), once the car is mostly out of the mist. If you're hit:
+    - You're thrown the way the car was going (up and off to your side) and ragdolled for 3.2 s by the new `RagdollService`: ball sockets with limits at the neck, shoulders and hips, and limbs that collide.
+    - Your own client does the throw and the fall (new `RagdollController`). The view leaves your eyes and follows you from behind and above, and your hand's bucket is hidden. When the joints lock back, you're stood up where you landed and back in first person.
+    - **Everything in your bucket is gone** (banked candy is safe). Everyone hears the thud and sees your candy fly out of your bucket and bounce across the road (`CarHit`), with "RUN OVER -N 🍬" over your head (`PlayerPop`). You get a red flash and "Run over! -N candy from your bucket".
+  - Sounds (ProSoundEffects, load-tested in Studio): engine `Hot Rod Humming Idle 1`, horn `Ferrari 308 … Dual Air Horns 2`, hit `Metal Whomps … 8`.
+  - `/car [down|up]` sends one down the street you're on, now.
+  - Traffic stays off until the car is set up (Output warns once).
+  - Verified in Studio with a stand-in box for the car (only for that play session):
+    - Hit 3.2–3.8 s after `/car down` from 124 studs away; thrown ~25 studs.
+    - The bucket went 533 → 0 with banked candy untouched, and the joints came back.
+    - Screenshots: the chase view, the limp body on the sidewalk, candy flying, the toast and flash, the hand bucket hidden.
+    - After getting up: the camera is Custom on the humanoid, the body upright, the state Running. No errors from our scripts.
+  - **To do (user):** File → Import 3D `art/export/car/Car.fbx` into Workspace. Then run `tools/setup_car.luau` (I can run it through the MCP), and save and publish.
+
+- **Second pass (2026-10-26).** The user: "the ragdoll shouldn't be from 3rd person, work on the car more especially on wheels, add the slap sound I gave u, delete candy box from the middle of the street, add grain effect on camera like ps1 graphics, re-export the bus".
+  - **Ragdoll in first person** (`RagdollController`):
+    - The view stays in your eyes and goes with your head (thrown, tumbling, landing however it lands), eased a touch against physics jitter.
+    - Your flopping body shows; your own head stays hidden.
+    - Verified in Studio: from the head as you're thrown, then back to the normal first-person camera, upright.
+  - **The car, more detail, mostly the wheels** (`art/scripts/car.py`, renders `art/renders/car_{wheel,front,side}.png`, re-exported `Car.fbx`):
+    - The tyres are 1.1 wide, with stepped tread blocks either side of a centre groove (two rings at each block edge, so the steps are sheer and shade cleanly).
+    - The whitewalls are aged cream. The steel wheels are body-coloured, dished, with six punched slots.
+    - Each wheel has a chrome trim ring (an open lathe, so it doesn't cap over the middle), a domed chrome cap, a boss with a two-eared spinner, and a red badge. The slots and spinner show the wheel turning.
+    - New on the body: a chrome mirror on the driver's door, wipers, a whip aerial on the front fender and an exhaust pipe.
+    - `setup_car.luau`: the wheel looks are updated (metal rim and chrome, yellowed wall).
+  - **The middle Candy Box is gone** from every street (`Street.luau`: drop-offs at the entrance and end only; 5 in the world now). The car no longer swerves (`Traffic.pose` holds its lane).
+  - **PS1 grain** (`CameraController`, `Config/Images.Grain` = "noise2", a loopable noise from the Creator Store; the old one showed a tile grid):
+    - The noise is tiled at 384 px, sampled pixel-sharp, slightly darkened so it doesn't lift the blacks, at 0.8 transparency, and jumps ~20 times a second.
+    - Settings → PSX effects still turns it off. Tuned live in Studio by screenshot.
+  - **The slap sound** the user gave (`slap_sound.mp3`) is trimmed and saved as mono `art/export/audio/TorT_Slap.ogg` (2.6 s).
+    - The user uploaded it: `Sounds.Slap` = 82925254970803 (found in their inventory, load-tested), at volume 0.4 (at 1 it was too loud, the user said).
+    - The old Kenney clip and the thud layered under it are gone.
+  - **The bus re-exported** (`art/export/lobby/Lobby.fbx`) with the chrome bake fix, so its chrome has colour now.
+  - **Imports set up (2026-10-26):** the user imported `Victorian.fbx`, `Car.fbx` and `Lobby.fbx`, and I ran `setup_victorian`, `setup_car` and `setup_lobby` through the MCP.
+    - The porch chair is gone from the street's Victorians (screenshot).
+    - Car bug fixed: the importer leaves each mesh a rotated pivot offset (Blender Z-up). `CarPaint` is the car's PrimaryPart, so the car's pivot came out turned -90° about X, and it drove standing on its end, headlights up into the sky.
+      - `setup_car` now resets every part's `PivotOffset` to the car's origin, as `setup_lobby` does.
+      - The template in the place was fixed the same way.
+    - Fresh imports show "Asset content representation is being generated" in Output for a few minutes, while Roblox processes the meshes and textures. They draw nothing until then.
+    - Verified in Studio after the fix: a parked copy sits on its wheels with the tail lights at the back, and a car on `/car down` comes at you headlights first.
+    - The pale sheet in the sky was a stray `candy` model in Workspace: 253 × 100 × 109 studs, 60 studs up, seen only when the headlights lit it. Deleted at the user's request.
+
+- **Candy is the user's candy bar (2026-10-26).** The user imported a wrapped candy bar (inventory model "candy-bar", 96785013814575) and asked for it as the candy.
+  - `tools/setup_candy.luau` files it as `ReplicatedStorage.Assets.Candy.Bar`, scaled to 1 stud long (it came in 489 studs long). I ran it through the MCP.
+  - New `Modules/CandyPiece` makes every piece: a bar 1.5× the size of the ball it replaces, laid in a jumbled pile (any way round, tipped a little). It falls back to the old coloured ball until the bar is in the place. `Parts.candy` is the server props' wrapper.
+  - Used for the bucket fill (`Buckets`), the Candy Box topping (`Props`), the shop's jars (`Hub`), the take-one bowls (`HouseService`), the candy a homeowner hands over (`HomeownerController`) and the car hit's burst (`TrafficController`).
+  - Verified in Studio: the Candy Box shows a pile of wrapped bars, and the bucket shows bars sticking out of the top as it fills.
+  - The wrapper's logo looks like a real brand's (Mars), which could get the asset moderated; told the user.
+  - The stray `candy` model (a first try, hundreds of studs across) was the sheet in the sky; deleted.
+
+- **The Knifer (2026-10-26, placeholder block for now).** The user: a serial killer who roams the streets and appears from nowhere (out of a building, from behind one). The only warning is a sound when he appears, his loud footsteps and chase music. Catching you kills you with no second chance. He's not hard to escape: you hide in bushes and gardens. Lose him and he goes to your last known position, looks around it, then goes back somewhere he can disappear. He hears you walk and run.
+  - Settings live in `Config/Knifer`; the numbers are my defaults:
+    - A street with someone on it gets him every 3.3–6.3 min, the first after 1.5–3.3 min. He stays 50–80 s, and is gone 45 s after that whatever he's doing.
+    - Speed is 9 roaming, 11 searching, 14 investigating and 20 chasing (you walk 16 and sprint ~26).
+    - He sees 90 studs in a 150° cone, any direction within 10. Inside a `HideSpot`-tagged part he only sees you within 7.
+    - He hears walking within 20 studs and running within 55. He gives up a chase after 2.5 s out of sight.
+    - He catches within 4.2 studs, and searches 3 spots within 14 studs.
+  - **Server** (`KniferService`, RUN_ONLY):
+    - Spawns at an unseen exit 25–75 studs from a player: an Open house's doorway, or round a house's back corners. No one within 45 studs may see the spot.
+    - States: appear (0.7 s) → roam (wanders the road and pavements; doesn't know where anyone is until he sees or hears them, so hiding works) → chase / investigate → search → leave (walks to the nearest unseen exit and vanishes).
+    - Moves as a Humanoid on an invisible slim root floating 2 studs up, so it steps up kerbs, with PathfindingService paths, and straight at you when he can see you.
+    - If he's wedged for 2.5 s he's nudged on and picks a new goal. That happened between two houses' collision boxes by the pavement.
+    - Kill: `LivesService.down(player, push)`, others see "KNIFED". The user: "change the screen when he catches you to just ragdoll".
+      - Same cost as fainting (a life and the bucket; `pay` is shared with `faint`), but no black screen and no card.
+      - You're shoved away from him and drop as a ragdoll (`RagdollService`, from your own eyes) for `Runs.DOWN_TIME` 4 s.
+      - Then a quick 0.25 s fade and you wake at the spawn, so he can't catch you again on the spot.
+      - The cost shows as a toast ("The Knifer got you · ♥ 2 left · -N candy from your bucket"; `Downed` remote, `RunController`).
+      - Verified in Studio: ragdoll on, no Fainted pose, no anchoring, no card; respawned 4.0 s later; the camera back on the new body; the toast shown.
+      - A test took the profile's last life and so half its banked candy; I gave the 118 back with `/candy`.
+    - The model is Persistent-streamed, tag "Knifer", attributes Street/State/Target.
+  - **Client** (`KniferController`):
+    - The sting (`Stinger`) for everyone on his street the moment he appears (`KniferCame` remote, so it works however far off he is).
+    - His heavy footsteps: ProSoundEffects "Foot Stomp 3" lowered, 3D, a step every 2.8 studs walking and 4.2 running.
+    - The chase music (`MusicController.setChase`, APM "Pista Omicida 2nd vers.", fades in and out in 0.4 s) while he's after you, or after anyone within 30 studs of you.
+  - **He patrols with sense** (the user: "better pathing, so he walks with sense, not just randomly"):
+    - He learns each street once in the background (`lotsOf`). Per house: the pavement in front, the foot of the porch steps, and the gaps down its sides (looking on into the back gardens).
+      - A yard or gap only counts if he can walk to it from that pavement within `PATROL.reach` (75 studs, checked with PathfindingService). Gates and fences rule out the rest.
+      - On Cardboard Court that leaves 14 front yards and 25 side gaps of 16 houses.
+    - Roaming is a patrol (`planPatrol`): along one pavement, the way he's heading, to the next house. There he may go up the path to stare at the house (20%), down a side gap to look into the back gardens (25%), straight across the road (12%), or stop and look round.
+    - At the end of a side he crosses over and comes back up the other. He sets off into the street, not off its end.
+    - Standing, his gaze sweeps ±0.7 rad round what he's looking at (no more spinning). A step that's far off or takes over 15 s means he plans again from where he is.
+    - Searching after losing you, he checks the hiding places nearest where he last saw you (the spot itself, then the side gaps, front yards and HideSpots within 30 studs), pausing at each, looking into them.
+    - He comes out of the side gaps that lead to the street, and only out of open doorways whose yard does.
+    - Pathfinding keeps 1 stud off walls and his collision body is slim (1.4), so yard gates fit him. The rough bounding-box "room" check is gone: it made whole fenced yards look solid.
+    - `/knifer info` says what he knows of the street you're on.
+    - Verified in Studio: from a side gap to the pavement in 5 s; across the road nearly straight; down the pavement house by house; a side-gap peek and a front-path stare; into a gap and gone when his time was up. An earlier run walked right past a test HideSpot on the pavement and saw me inside 7 studs, as designed.
+  - **He's the SackMask homeowner** (the user: "pick some model we already have"): burlap sack head, one button eye with the other torn out, a stitched grin, overalls (`Knifer.CHARACTER`).
+    - Built with `CharacterRig.build(..., "player")`, so `CharacterAnimController` walks and runs him on every client. Sight comes from his head; paths use his own height.
+    - Taken out of the homeowners' cast (`Config/Homeowners`), so the killer is never the one at a door. That leaves 16 homeowners.
+    - If his meshes aren't in the place he falls back to the old stand-in: a 2.2 × 6 × 1.6 dark block with a red eye slit.
+    - Verified in Studio: spawned as Owner_SackMask (tags Knifer and TorTRig), screenshot mid-stride on the road, and a chase → catch → ragdoll in 1.7 s. The tests cost the test profile lives (they refill).
+  - `/knifer` brings him to your street now; `/knifer away` sends him off.
+  - Verified in Studio:
+    - He came out of a back garden, walked round to the street, saw a still player 89 studs off and ran them down: chase → kill in 4.4 s, faint with the knifer card.
+    - Hidden player (in a test HideSpot) and quiet: he wandered 530 studs in 62 s without finding them, left and vanished.
+    - Chase music crossfaded in, and his footstep sounds played on the client.
+  - Not built yet: real bushes to hide in (Blender, tagged `HideSpot`), his Blender model, a knife, and a stab sound. Test profile: my tests cost the Studio test profile 2 lives (they refill on the timer).
+
+- **Sync pass for the new things (2026-10-26, the user: "make sure everything is synced, the ragdolls etc.").**
+  - **Ragdolls replicate.** The victim's client owns the physics, the server makes the joints loose (ball sockets, limbs given to that player), and the server and every other client get the motion.
+    - Checked from the server's side, which is what every other player gets. Car hit: thrown at 43 studs/s, tumbling, lying at ~100°, limbs 70–95° off their rest pose. Knifer kill: lying at 88°, no Fainted pose.
+    - Other clients' `CharacterAnimController` leaves the joints to physics (`Ragdoll` attribute).
+  - **The car is now the same for everyone:**
+    - The server decides the honks (`CarHonk`: someone in front of it). Before, each client honked on its own.
+    - Each trip has a `seed`, so the headlights' waver (seed + server-time step) and the engine's start match on every screen.
+    - A hit carries a seed (`CarHit`), so the candy flies the same way on every screen.
+    - Verified: the honk and the hit's seed arrived on the client.
+  - **The Knifer's kill is heard by everyone near** (`KniferStruck`): a deep thud and ProSoundEffects "Body Fall Master 4" at the victim. Verified that the event reached the client.
+  - Already shared: the Knifer himself (one server model, Persistent, his walk animated on every client), the sting for his street, his footsteps from his replicated movement, the car's path (server time), the bucket fills and candy bars, the homeowner giving candy.
+  - Personal on purpose: your first-person ragdoll view, the chase music, the red flash, the toasts, the grain.
+
+- **Animation pass: the Knifer and the homeowners (2026-10-26, the user: "work more on the knifer, more animations, the same with the homeowners").** Written, linted and tested (55 pass), **not yet seen in Studio**: the Rojo plugin needs reconnecting, and the knife needs importing.
+  - **His knife** (`art/scripts/knife.py`, Blender): a butcher knife with a steel blade and a dark, bloody edge, a wooden handle (CC0 dark_wooden_planks), a steel bolster and 3 brass rivets. Render: `art/renders/knife.png`. Export: `art/export/knife/Knife.fbx`.
+    - `tools/setup_knife.luau` files it as `Assets.Props.Knife`: a Grip part (PrimaryPart) with the pieces welded to it, unanchored, massless, no collision.
+    - `KniferService.arm` welds a copy into his right fist, the blade out along the back of the arm (`Knifer.KNIFE.grip`). With no knife in the place he goes without one.
+  - **The Knifer has his own animator** (`KniferController`, at the same choppy 14 poses a second). `CharacterAnimController` skips any rig with `OwnAnimator`.
+    - Gait: a stiff stride, one leg limping, a hunch that deepens when he runs or searches, a bob on each step. The left arm hangs dead when he walks and pumps when he runs.
+    - The knife arm follows his state: hanging at his side on patrol, held ready when he's investigating, raised over his head in a chase. On the kill: a two-stab overhand swing (`STAB` keyframes), then he stands over you looking down.
+    - The head: down when he appears, then a snap up (`SNAP_UP`). In a chase it tracks the target's head. Otherwise a slow scan, with sudden snaps to one side, held.
+    - Heavy breathing now and then.
+    - Everything is from server time and his `Seed` attribute, so his head snaps and breaths match on every screen.
+  - **Homeowners do things at the door** (`HomeownerController` ACTS). Every 4.5 s there's a 55% chance one starts, picked from the house's `OwnerSeed` and server time, so everyone sees the same act:
+    - a look back over the shoulder into the dark house;
+    - the head cocked over too far and held;
+    - a scratch at the side of the head;
+    - fingers drumming on the leg;
+    - weight shifting from foot to foot;
+    - leaning in for a closer look;
+    - sniffing the air.
+  - **They gesture as they talk:** `HomeownerController.talk`, called by `DoorController` with each line. The far hand beats with the words and the head nods.
+  - **A slow clap at a PERFECT:** `HomeownerGive` now carries the grade. On a PERFECT, three claps with a clap sound (`Sounds.Clap`) come first, then they hand over the candy.
+  - To check in Studio: the knife sits in his fist; the arm is raised in a chase; the stab; the head snap. The acts, the talk gestures and the clap.
+
+- **Look (reworked 2026-10-23, the user found everything too dark):** the moon hangs ~40° up over the far end of each street (`World.LIGHTING.latitude` -26.5 at midnight), brighter cool moonlit ambient per street (later streets darker), exposure +0.4, light grade (saturation -0.12, contrast 0.08), depth of field only far away, and a shadowless cool `MoonFill_<house>` light over each lot's sidewalk, because the low moon throws each house's shadow over the next yard. Faint scanlines; grain off. *(The flashlight was deleted on 2026-10-25: the user wants none in the game. PROMPT's Flashlight upgrade track is dropped.)* Recommended manual step: Lighting → Technology = Future (MCP can't set it).
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)
 
@@ -239,6 +532,15 @@ Verified in Studio through the MCP: house types roll at boot (e.g. Cardboard Cou
 **Phase 2 user test (5 min):** Play → walk into Cardboard Court and look at the badges over the doors (owner + preference icon). Try a 🍬 bowl house: **E** = take one, hold **F** = TAKE ALL (risky!). In chat: `/housetype Trick` next to a door, knock, and **hold Space** through the scares (jumpscare at the end). `/event witching` turns everything red with ×2 candy, and `/event fullsize` spawns a gold-beam house. ⚙ Settings → Jumpscares Reduced/Off.
 
 ## Next up
+
+- **From the user's big list, not done yet** (they'll send these as separate prompts):
+  - Door levels: a door opened 3 times upgrades; 3 levels with new characters, harder games, more candy.
+  - More homeowner interactions (peeking through the door, etc.).
+  - The yard chase: entering a plot closes the gate behind you, a homeowner chases you with a knife, the rest of the map goes black, and you hide in a backyard bush. Needs a Blender bush and knife.
+  - A run-and-hide monster event every 10 min (no model yet).
+  - ~~A car driving the streets~~: done 2026-10-26, waiting on the user to import `Car.fbx` (see "The car").
+  - "More addictive" as a whole.
+  - Then the open-house heists (Phase 3).
 
 0. **Phase 3 · Heists** (PROMPT §3.9): interiors per style, loot spots, server-side noise, crouch/sprint, Homeowner AI, caught/escape, house lockout, safe-cracking.
 1. The user asked for proof that real models are possible, then to continue with the plan ("give me one high quality model … and continue with the prompt"). Done (the pumpkin bucket). **From now on every feature ships with real art, juicy UI and sound** (see the memory note). The remaining 11 bucket tiers, houses and props are modelled in Blender as each phase touches them (AI meshes were rejected for houses).

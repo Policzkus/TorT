@@ -90,6 +90,11 @@ local function onRender(dt: number)
 		return
 	end
 	local character = Players.LocalPlayer.Character
+	if character and character:GetAttribute("Ragdoll") == true then
+		-- Knocked down (RagdollController): your arms are flopping about, no bucket held up in view.
+		model:PivotTo(camera.CFrame * CFrame.new(0, -500, 0))
+		return
+	end
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local moving = humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.1
 	swayTime += dt * (if moving then 8 else 1.5)

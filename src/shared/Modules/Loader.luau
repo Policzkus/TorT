@@ -1,12 +1,13 @@
 --!strict
 -- Boots a folder of Services/Controllers in a fixed order.
 -- Each module may define Init() (runs in order, must not yield) and Start() (runs after every Init, own thread).
+-- `unused` names modules this kind of server deliberately doesn't run (no warning for those).
 
 local Loader = {}
 
 type Entry = { name: string, module: any }
 
-function Loader.run(folder: Instance, order: { string }, label: string)
+function Loader.run(folder: Instance, order: { string }, label: string, unused: { string }?)
 	local startedAt = os.clock()
 	local entries: { Entry } = {}
 	local listed: { [string]: boolean } = {}
@@ -19,8 +20,12 @@ function Loader.run(folder: Instance, order: { string }, label: string)
 		listed[name] = true
 		table.insert(entries, { name = name, module = (require :: any)(child) })
 	end
+	local skipped: { [string]: boolean } = {}
+	for _, name in unused or {} do
+		skipped[name] = true
+	end
 	for _, child in folder:GetChildren() do
-		if child:IsA("ModuleScript") and not listed[child.Name] then
+		if child:IsA("ModuleScript") and not listed[child.Name] and not skipped[child.Name] then
 			warn(`[{label}] '{child.Name}' is not in the load order and was skipped`)
 		end
 	end
