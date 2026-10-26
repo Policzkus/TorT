@@ -11,12 +11,13 @@ local ServerStorage = game:GetService("ServerStorage")
 local TextChatService = game:GetService("TextChatService")
 
 local Admins = require(ReplicatedStorage.Shared.Config.Admins)
+local Knifer = require(ReplicatedStorage.Shared.Config.Knifer)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local DataService = require(script.Parent.DataService)
 local NotifyService = require(script.Parent.NotifyService)
 local HouseService = require(script.Parent.HouseService)
-local LivesService = require(script.Parent.LivesService)
+local HealthService = require(script.Parent.HealthService)
 local KniferService = require(script.Parent.KniferService)
 local OwnerChaseService = require(script.Parent.OwnerChaseService)
 local TrafficService = require(script.Parent.TrafficService)
@@ -245,13 +246,35 @@ commands.reset = {
 }
 
 commands.faint = {
-	usage = "/faint [player] - be caught: lose a life and the bucket, black out, come to at the spawn",
+	usage = "/faint [player] - be caught: lose the bucket, black out, come to at the spawn",
 	run = function(admin, args)
 		local target = requireTarget(admin, args[1])
-		if not LivesService.faint(target) then
+		if not HealthService.faint(target) then
 			error(`{target.Name} is already out`, 0)
 		end
 		return `{target.Name} fainted`
+	end,
+}
+
+commands.hurt = {
+	usage = "/hurt [amount] [player] - take health off (default a Knifer stab); down to nothing is death",
+	run = function(admin, args)
+		local amount = tonumber(args[1]) or Knifer.DAMAGE
+		local target = requireTarget(admin, args[2])
+		local result = HealthService.hurt(target, amount, Vector3.new(0, 10, 0))
+		if result == nil then
+			error(`{target.Name} is already down`, 0)
+		end
+		return `{target.Name} {if result == "dead" then "died" else "is at " .. math.round(HealthService.get(target))}`
+	end,
+}
+
+commands.heal = {
+	usage = "/heal [player] - all your health back",
+	run = function(admin, args)
+		local target = requireTarget(admin, args[1])
+		HealthService.heal(target)
+		return `{target.Name} is healed`
 	end,
 }
 

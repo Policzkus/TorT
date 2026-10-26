@@ -3,8 +3,9 @@
 -- draws them: Controllers/TrafficController). Nobody at the wheel: an old rusted sedan comes out of
 -- the mist at one end of a street, headlights first, drives the length of it in the right-hand lane
 -- and goes back into the mist at the other end, and a moment later (PAIR) another comes the other
--- way in the other lane, so they pass each other. Get hit and you're thrown, ragdolled, and
--- everything in your bucket is gone.
+-- way in the other lane, so they pass each other. Sometimes (LURK) that second one waits for you
+-- instead: it comes the moment someone steps out into the road. Get hit and you're thrown,
+-- ragdolled, and everything in your bucket is gone.
 -- `pose` is shared so the server's hit check and every client's car are in the same place.
 
 local Traffic = {
@@ -12,7 +13,10 @@ local Traffic = {
 	FIRST = { 60, 150 }, -- seconds before a street's first car
 	RETRY = { 20, 45 }, -- a car is due but nobody's on that street: look again in this long
 	SPEED = { 60, 72 }, -- studs a second (half as fast again as it was, the user asked: 40-48)
-	PAIR = { 1.5, 4 }, -- seconds after the first car that the one the other way comes out of the mist
+	PAIR = { 0.5, 2 }, -- seconds after the first car that the one the other way comes out of the mist
+	-- How often the one the other way waits (from PAIR[1] on) for someone to step into the road, and
+	-- comes then; nobody does within `wait` seconds and it comes anyway.
+	LURK = { chance = 0.35, wait = 12 },
 	LANE = 5.5, -- studs out from the road's centre: the middle of the right-hand lane
 	ENDS = 26, -- studs in from each end of the street where it comes out of the mist / goes back in
 	FADE = 1.2, -- seconds it takes to come out of the mist and to go back in

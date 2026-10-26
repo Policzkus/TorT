@@ -14,7 +14,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Motion = require(ReplicatedStorage.Shared.Modules.Motion)
-local LivesService = require(script.Parent.Parent.Services.LivesService)
+local CollisionGroups = require(script.Parent.Parent.World.CollisionGroups)
+local HealthService = require(script.Parent.Parent.Services.HealthService)
 local WorldService = require(script.Parent.Parent.Services.WorldService)
 
 local Hunter = {}
@@ -62,7 +63,15 @@ export type Hunter = {
 
 -- The paths they walk keep this far off walls: slim enough for a yard gate (wider, and gates and the
 -- gaps between houses close up, and every path goes round the block).
-Hunter.AGENT = { AgentRadius = 1, AgentHeight = 7.5, AgentCanJump = false, AgentCanClimb = false, WaypointSpacing = 5 }
+-- Round a candy bowl if there's room (they can walk through one: CollisionGroups, HouseService).
+Hunter.AGENT = {
+	AgentRadius = 1,
+	AgentHeight = 7.5,
+	AgentCanJump = false,
+	AgentCanClimb = false,
+	WaypointSpacing = 5,
+	Costs = { Bowl = 6 },
+}
 
 local random = Random.new()
 local folder: Folder? = nil
@@ -104,7 +113,7 @@ function Hunter.huntable(street: string): { Player }
 			root
 			and humanoid
 			and humanoid.Health > 0
-			and not LivesService.isFainting(player)
+			and not HealthService.isFainting(player)
 			and WorldService.zoneAt(root.Position) == street
 		then
 			table.insert(list, player)
@@ -382,6 +391,11 @@ end
 
 -- Sets up a Humanoid to walk a hunter: it can't be hurt, jump, climb or fall over, and shows no name
 -- or health.
+-- Their whole body walks through candy bowls (CollisionGroups).
+function Hunter.ghost(model: Model)
+	CollisionGroups.put(model, CollisionGroups.HUNTERS)
+end
+
 function Hunter.configure(humanoid: Humanoid, speed: number)
 	humanoid.MaxHealth = math.huge
 	humanoid.Health = math.huge

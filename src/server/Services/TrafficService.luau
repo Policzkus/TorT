@@ -1,6 +1,6 @@
 --!strict
 -- The cars (Config/Traffic): every few minutes two drive down a street someone's on, one each way, the
--- second a moment after the first. The server picks each trip and tells every client (CarTrip), and
+-- second a moment after the first (or, now and then, the moment someone steps into the road). The server picks each trip and tells every client (CarTrip), and
 -- checks it against everyone itself: whoever a car hits is thrown and ragdolled (RagdollService) and
 -- loses everything in their bucket, and everyone sees it (CarHit, PlayerPop). Only runs once the car is in the place
 -- (ReplicatedStorage.Assets.Vehicles.Car, tools/setup_car.luau): nobody gets hit by a car nobody
@@ -12,10 +12,11 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Traffic = require(ReplicatedStorage.Shared.Config.Traffic)
+local World = require(ReplicatedStorage.Shared.Config.World)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local CandyService = require(script.Parent.CandyService)
-local LivesService = require(script.Parent.LivesService)
+local HealthService = require(script.Parent.HealthService)
 local RagdollService = require(script.Parent.RagdollService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -101,14 +102,49 @@ function TrafficService.send(streetId: string, dir: number?): number?
 	return trip.id
 end
 
+-- Whether anyone (up and about) is out in the road of `streetId`, off the pavement, where a car
+-- coming out of the mist would reach them.
+local function inRoad(streetId: string): boolean
+	local street = WorldService.info().streets[streetId]
+	if street == nil then
+		return false
+	end
+	for _, player in Players:GetPlayers() do
+		local root = rootOf(player)
+		if root and not RagdollService.isDown(player) and not HealthService.isFainting(player) then
+			local p = street.start:PointToObjectSpace(root.Position)
+			if
+				math.abs(p.X) < World.ROAD_WIDTH / 2
+				and -p.Z > Traffic.ENDS
+				and -p.Z < street.length - Traffic.ENDS
+				and math.abs(p.Y) < 8
+			then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- Two cars down `streetId`: one now (either way), and a moment later (Traffic.PAIR) one the other
--- way, in the other lane. False if not even the first could go.
+-- way, in the other lane; or that one waits for someone to step into the road (Traffic.LURK). False
+-- if not even the first could go.
 function TrafficService.pair(streetId: string): boolean
 	local first = if random:NextNumber() < 0.5 then 1 else -1
 	if TrafficService.send(streetId, first) == nil then
 		return false
 	end
-	task.delay(between(Traffic.PAIR), function()
+	local lurks = random:NextNumber() < Traffic.LURK.chance
+	task.spawn(function()
+		if lurks then
+			task.wait(Traffic.PAIR[1])
+			local giveUp = os.clock() + Traffic.LURK.wait
+			while os.clock() < giveUp and not inRoad(streetId) do
+				task.wait(0.1)
+			end
+		else
+			task.wait(between(Traffic.PAIR))
+		end
 		TrafficService.send(streetId, -first)
 	end)
 	return true
@@ -189,7 +225,7 @@ local function check()
 				and p.Y > -2
 				and p.Y < body.height + 2
 				and not RagdollService.isDown(player)
-				and not LivesService.isFainting(player)
+				and not HealthService.isFainting(player)
 			then
 				car.hit[player] = true
 				knock(player, pose, trip.speed)

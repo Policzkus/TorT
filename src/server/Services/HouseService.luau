@@ -18,6 +18,7 @@ local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local CandyPiece = require(ReplicatedStorage.Shared.Modules.CandyPiece)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
+local CollisionGroups = require(script.Parent.Parent.World.CollisionGroups)
 local Parts = require(script.Parent.Parent.World.Parts)
 local HomeownerService = require(script.Parent.HomeownerService)
 local WorldEventsService = require(script.Parent.WorldEventsService)
@@ -108,6 +109,17 @@ local function buildBowl(houseId: string): Model?
 	takeAll.Triggered:Connect(function(player)
 		HouseService.BowlTriggered:Fire(player, houseId)
 	end)
+	-- Right in front of the door, where a homeowner comes out after you: they walk through it
+	-- (CollisionGroups), and their paths go round it if there's room, else through.
+	CollisionGroups.put(m, CollisionGroups.BOWLS)
+	for _, part in m:GetDescendants() do
+		if part:IsA("BasePart") and part.CanCollide then
+			local modifier = Instance.new("PathfindingModifier")
+			modifier.Label = "Bowl"
+			modifier.PassThrough = true
+			modifier.Parent = part
+		end
+	end
 	m.Parent = house.model
 	return m
 end

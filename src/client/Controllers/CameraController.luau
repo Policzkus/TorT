@@ -63,12 +63,14 @@ local BREATH_RISE = 0.035 -- studs the view rises and falls with each breath, fu
 local LAND = { frequency = 11, damping = 0.6, drop = { 0.6, 3.6 }, nod = { 0.15, 0.85 }, roll = 0.25, jump = 0.4 }
 local REDUCED = 0.2 -- the bob's size with Settings → Head bob off
 -- The view trailing where you look: moved back by each turn, sprung back onto it (`frequency`
--- radians/s, `damping`), never more than `most` radians behind. (A quarter less than it first was,
--- the user asked: 24 rad/s and 4°.)
-local TRAIL = { frequency = 32, damping = 0.85, most = math.rad(3) }
--- Stepping up (or down) a kerb or a stair moves you at once; the view follows at `rate` a second.
--- More than `most` studs at once is a teleport (or a fall), followed straight away; not in the air.
-local STEP = { rate = 16, most = 2.5 }
+-- radians/s, `damping`), never more than `most` radians behind. (It first was 24 rad/s and 4°, a
+-- quarter too much, the user said; then 32 and 3°, a little too little.)
+local TRAIL = { frequency = 28, damping = 0.85, most = math.rad(3.5) }
+-- Stepping up (or down) a kerb or a stair moves you at once; the view is left behind by it and
+-- catches up at `rate` a second. More than `most` studs in a frame is a teleport, followed straight
+-- away. Jumps and falls aren't steps: in the air (and from the moment you jump) the view goes with
+-- you, only what's left of a step catching up as before (it used to lag the jump, then snap up to it).
+local STEP = { rate = 16, most = 2.5, jump = 0.3 }
 local CROUCH_NOD = { down = 0.32, up = 0.14 } -- radians/s kicked into the nod going down, coming up
 
 local CameraController = {}
@@ -91,7 +93,10 @@ local trailYaw, trailYawSpeed, trailPitch, trailPitchSpeed = 0, 0, 0, 0
 local lookYaw: number? = nil -- where you really looked last frame
 local lookPitch: number? = nil
 local addedYaw, addedPitch = 0, 0 -- the turn we drew on top of it (still on the camera)
-local shownY: number? = nil -- the view's height, following you up and down steps
+local lastY: number? = nil -- the view's height last frame (before ours)
+local stepLag = 0 -- studs the view is behind you, after a step up (-) or down (+)
+local jumpedAt = -math.huge
+local wasAirborne = false
 local wasCrouching = false
 local tilt, tiltSpeed = 0, 0
 
@@ -154,7 +159,7 @@ end
 -- Whoever has the camera now set it outright: nothing of ours is on it, and nothing saved up.
 local function letGo()
 	addedYaw, addedPitch = 0, 0
-	lookYaw, lookPitch, shownY = nil, nil, nil
+	lookYaw, lookPitch, lastY, stepLag = nil, nil, nil, 0
 	trailYaw, trailYawSpeed, trailPitch, trailPitchSpeed = 0, 0, 0, 0
 	drop, dropSpeed, nod, nodSpeed, tilt, tiltSpeed = 0, 0, 0, 0, 0, 0
 end
@@ -193,15 +198,18 @@ local function onRender(dt: number)
 	trailYaw, trailYawSpeed = Motion.spring(trailYaw, trailYawSpeed, 0, TRAIL.frequency, TRAIL.damping, dt)
 	trailPitch, trailPitchSpeed = Motion.spring(trailPitch, trailPitchSpeed, 0, TRAIL.frequency, TRAIL.damping, dt)
 
-	-- Up and down steps: the view follows your height over a moment (straight away in the air, or a
-	-- jump of more than STEP.most: a teleport, a fall).
+	-- Up and down steps: the view is left behind and catches up over a moment (not in the air, nor
+	-- jumping; and a teleport is followed at once).
 	local position = at.Position
 	local y = position.Y
-	if shownY == nil or gait.airborne or math.abs(y - shownY :: number) > STEP.most then
-		shownY = y
-	else
-		shownY = Motion.ease(shownY :: number, y, STEP.rate, dt)
+	local before = lastY
+	if before == nil or math.abs(y - before) > STEP.most then
+		stepLag = 0
+	elseif not gait.airborne and not wasAirborne and os.clock() - jumpedAt > STEP.jump then
+		stepLag = math.clamp(stepLag - (y - before), -STEP.most, STEP.most)
 	end
+	lastY, wasAirborne = y, gait.airborne
+	stepLag = Motion.ease(stepLag, 0, STEP.rate, dt)
 
 	local bob = gait.moving * (if bobOn then 1 else REDUCED)
 	local calm = if bobOn then 1 else 0.5
@@ -219,7 +227,7 @@ local function onRender(dt: number)
 		+ tilt
 	local addYaw = trailYaw
 	local shownPitch = math.clamp(pitch + trailPitch - footfall * bobOf(gait, "nod") * bob + nod, -1.45, 1.45)
-	local height = (shownY :: number) - y - gait.drop * gait.crouch
+	local height = stepLag - gait.drop * gait.crouch
 	camera.CFrame = CFrame.new(position + Vector3.new(0, height, 0))
 		* CFrame.Angles(0, yaw + addYaw, 0)
 		* CFrame.Angles(shownPitch, 0, 0)
@@ -303,6 +311,7 @@ function CameraController.Start()
 	end)
 	MovementController.landed:Connect(onLanded)
 	MovementController.jumped:Connect(function()
+		jumpedAt = os.clock()
 		dropSpeed -= LAND.jump * (if bobOn then 1 else 0.5) -- pushing off
 	end)
 	applySetting()

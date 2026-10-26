@@ -1,5 +1,6 @@
 --!strict
--- Procedural bucket models, one per tier (Config/Upgrades → bucketTier.tiers[n].model).
+-- Procedural bucket models, one per tier (Config/Upgrades → bucketTier.tiers[n].model; for now every
+-- tier carries the PlasticPumpkin).
 -- Each model has an invisible "Handle" at the mount point and candy pieces "Candy1".."CandyN"
 -- that BucketService shows as the bucket fills. Attribute "Mount" says where it attaches:
 --   hand  - hangs from the right hand (handle top at the origin)

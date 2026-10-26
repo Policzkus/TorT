@@ -10,7 +10,13 @@
 
 local Template = require(script.Parent.Template)
 
-local STEPS: { [number]: (data: any) -> () } = {}
+local STEPS: { [number]: (data: any) -> () } = {
+	-- v2: health took the place of the three lives (HealthService); nothing of them is kept.
+	[2] = function(data)
+		data.lives = nil
+		data.livesRefillAt = nil
+	end,
+}
 
 local Migrations = {}
 

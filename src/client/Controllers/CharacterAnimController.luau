@@ -4,7 +4,7 @@
 -- update at a low frame rate like a 1990s console game. Every client animates every rig itself.
 -- Heads look up and down where their players do: each client tells the server how far up or down
 -- it's looking (LookPitch), and the server puts it on the character for everyone else. A kid who
--- faints (Fainted, LivesService) drops flat on their back where they stood, for everyone to see.
+-- faints (Fainted, HealthService) drops flat on their back where they stood, for everyone to see.
 -- Sat down (a party bus seat), they sit: legs out in front, leaning back a touch, hands in the lap,
 -- raised so they sit on the seat rather than in it (a seat holds the middle of the body at its top:
 -- each build is lifted until its thighs rest on it and nothing of the body is under it). The bucket

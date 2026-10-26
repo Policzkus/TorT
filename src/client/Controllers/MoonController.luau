@@ -5,7 +5,9 @@
 -- moon (its texture); over it sits a red disc that's see-through at first and less so as it reddens,
 -- with fainter, wider discs for the glow. They're a billboard out along the moon's direction, sized
 -- to the sky's moon (Sky.MoonAngularSize), so they stay on it wherever you look from. The red sky
--- itself is ZoneLightingController's.
+-- itself is ZoneLightingController's. Its thick red haze all but hid the moon (the user wanted it to
+-- stand out): red, it's bigger, near solid and lit past white (the billboard's Brightness), so it
+-- glows through the haze and the bloom catches it.
 
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,16 +21,17 @@ local MoonController = {}
 
 local DISTANCE = 2000 -- studs out along the moon's direction (past everything in the town)
 local DISC = 1.06 -- of the sky moon's angular size: a touch over, so no white rim peeks out round it
-local RED_IN = 50 -- seconds for the moon to go all the way red once the Witching Hour starts
+local RED_IN = 25 -- seconds for the moon to go all the way red once the Witching Hour starts
 local FADE_OUT = 8 -- seconds back to white once it's over
-local SWELL = 1.25 -- how much bigger the moon gets, all red
+local SWELL = 1.7 -- how much bigger the moon gets, all red
 local PALE = Color3.fromHex("E8C9B0")
-local RED = Color3.fromHex("C81E1A") -- blood red, bright enough to read through the red fog
-local GLOW = Color3.fromHex("E2323C") -- the glow round it, brighter than the red sky
-local OPAQUE = 0.88 -- how much of the moon the red covers, all red (its craters just show through)
+local RED = Color3.fromHex("E8281E") -- blood red, bright enough to read through the red fog
+local GLOW = Color3.fromHex("FF4A3C") -- the glow round it, brighter than the red sky
+local OPAQUE = 0.95 -- how much of the moon the red covers, all red (its craters only just show through)
+local LIT = 2.6 -- the billboard's Brightness, all red: past white, so it glows through the haze
 -- Glow round it: size (times the disc) and how see-through, all red.
 local HALOS =
-	{ { size = 1.35, transparency = 0.72 }, { size = 2.1, transparency = 0.86 }, { size = 3.4, transparency = 0.93 } }
+	{ { size = 1.35, transparency = 0.55 }, { size = 2.1, transparency = 0.76 }, { size = 3.4, transparency = 0.88 } }
 
 local worldState: Instance? = nil
 local anchor: Attachment
@@ -105,6 +108,7 @@ local function update()
 	disc.Size = UDim2.fromScale(1 / widest, 1 / widest)
 	disc.BackgroundColor3 = PALE:Lerp(RED, red)
 	disc.BackgroundTransparency = 1 - red * OPAQUE
+	billboard.Brightness = 1 + (LIT - 1) * red
 	for index, halo in halos do
 		local spec = HALOS[index]
 		local grow = 0.85 + 0.15 * red

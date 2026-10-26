@@ -2,9 +2,10 @@
 -- The Knifer (Services/KniferService runs him, Controllers/KniferController is what you hear): a
 -- serial killer who roams a street now and then. He comes out of nowhere: out of an open house's
 -- doorway or round the back of a house nobody's looking at. All the warning you get is a sting when
--- he appears, his heavy footsteps and, once he's after you, the chase music. Catch you and you're
--- dead: no struggle, no second chance. No black screen either: you drop as a ragdoll where you are
--- (a life and your bucket gone), then wake at the spawn.
+-- he appears, his heavy footsteps and, once he's after you, the chase music. Catch you and he stabs
+-- you: half your health (the user: not one shot). The first knocks you down for a moment while he
+-- stands over you, then you've a few seconds' start before he can again; the second kills you. No
+-- black screen: you drop as a ragdoll where you are (your bucket gone), then wake at the spawn.
 -- He isn't hard to outrun (slower than a sprint), and the way to live is to hide: get out of his
 -- sight (behind a house, round the back gardens, in a bush: parts tagged HideSpot) and keep quiet.
 -- Lose him and he goes to where he last saw you, looks around it, and goes back where he came
@@ -48,7 +49,11 @@ return {
 		reach = 75, -- studs: a yard or gap further than this to walk to from the pavement in front (round fences) doesn't count
 		replan = 70, -- studs: his next step further off than this (something sent him the long way) and he plans again
 	},
-	CATCH = 4.2, -- studs: this close (and seeing you) and you're dead
+	CATCH = 4.2, -- studs: this close (and seeing you) and he stabs you
+	DAMAGE = 50, -- health a stab takes (Config/Health: 100 in all), so the second kills you
+	-- A stab that doesn't kill: you're knocked down `down` seconds (thrown at `push` of SHOVE), and he
+	-- can't stab you again for `again` seconds after it (get up and run).
+	WOUND = { down = 1.2, push = 0.6, again = 3.5 },
 	KILL_PAUSE = 1.6, -- seconds he stands over you
 	SHOVE = { away = 22, up = 14 }, -- studs/s you're thrown down with, away from him (then a ragdoll)
 

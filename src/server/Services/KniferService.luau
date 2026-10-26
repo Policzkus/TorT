@@ -4,8 +4,10 @@
 -- like he means it (a patrol: down one pavement house by house, stepping into a front yard to stare
 -- at a house, going down the side of one to look into the back gardens, crossing straight over,
 -- turning back at the end), sees you in front of him if nothing's in the way (unless you're in a HideSpot), hears you walk
--- close by or run from further off. Seen: he runs at you, and if he gets to you you're dead
--- (LivesService.down). Lost: he goes to where he last saw you, checks the hiding places round it
+-- close by or run from further off. Seen: he runs at you, and if he gets to you he stabs you
+-- (Knifer.DAMAGE off your health, HealthService.hurt): the first knocks you down a moment while he
+-- stands over you, then you get a few seconds' start; the second kills you (HealthService.down).
+-- Lost: he goes to where he last saw you, checks the hiding places round it
 -- (the gaps beside the houses, the front yards, bushes), and when his time's
 -- up he walks back somewhere out of sight and is gone. He's the server's: one model in the
 -- workspace (tag "Knifer", attributes Street/State/Target) that every client hears
@@ -22,7 +24,8 @@ local CharacterRig = require(ReplicatedStorage.Shared.Modules.CharacterRig)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local Hunter = require(script.Parent.Parent.AI.Hunter)
 local HouseService = require(script.Parent.HouseService)
-local LivesService = require(script.Parent.LivesService)
+local HealthService = require(script.Parent.HealthService)
+local RagdollService = require(script.Parent.RagdollService)
 local WorldService = require(script.Parent.WorldService)
 
 local KniferService = {}
@@ -55,6 +58,7 @@ type Him = Hunter.Hunter & {
 	plan: { Beat }, -- roaming: his patrol's next steps
 	heading: number, -- roaming: 1 down the street, -1 back up it
 	beatSince: number,
+	stabbed: { [Player]: number }, -- when he last stabbed each of them (os.clock)
 }
 
 local WALK_X = World.ROAD_WIDTH / 2 + World.SIDEWALK_WIDTH / 2 -- studs out from the road's centre: the pavements' middle
@@ -396,18 +400,31 @@ local function vanish(him: Him)
 	nextAt[him.street] = os.clock() + between(Knifer.EVERY)
 end
 
--- Caught: dead on the spot, no second chance. Shoved down away from him, a ragdoll (LivesService.down).
-local function kill(him: Him, player: Player)
+-- Whether he can stab `player` now (not again straight after the last time: Knifer.WOUND.again).
+local function canStab(him: Him, player: Player): boolean
+	return os.clock() - (him.stabbed[player] or -math.huge) > Knifer.WOUND.again
+end
+
+-- Caught: he stabs you (Knifer.DAMAGE off your health). Enough to kill you and you're shoved down
+-- away from him, a ragdoll (HealthService.down); otherwise knocked down a moment (Knifer.WOUND) while
+-- he stands over you.
+local function stab(him: Him, player: Player)
 	setState(him, "kill")
 	stand(him)
 	him.target = nil
+	him.stabbed[player] = os.clock()
 	local root = rootOf(player)
 	local away = if root then flat(root.Position - him.root.Position) else Vector3.zero
 	local push = (if away.Magnitude > 0.1 then away.Unit else flat(him.root.CFrame.LookVector)) * Knifer.SHOVE.away
 		+ Vector3.new(0, Knifer.SHOVE.up, 0)
-	if LivesService.down(player, push) then
-		Net.event("KniferStruck"):FireAllClients(player.UserId)
+	local result = HealthService.hurt(player, Knifer.DAMAGE, push)
+	if result == "dead" then
+		Net.event("KniferStruck"):FireAllClients(player.UserId, true)
 		Net.event("PlayerPop"):FireAllClients(player.UserId, "KNIFED", "caught")
+	elseif result == "hurt" then
+		RagdollService.knock(player, push * Knifer.WOUND.push, Knifer.WOUND.down)
+		Net.event("KniferStruck"):FireAllClients(player.UserId, false)
+		Net.event("PlayerPop"):FireAllClients(player.UserId, `STABBED  -{Knifer.DAMAGE} HP`, "caught")
 	end
 end
 
@@ -456,8 +473,9 @@ local function think(him: Him)
 		if
 			flat(root.Position - him.root.Position).Magnitude <= Knifer.CATCH
 			and math.abs(root.Position.Y - him.root.Position.Y) < 5
+			and canStab(him, seen)
 		then
-			kill(him, seen)
+			stab(him, seen)
 			return
 		end
 	elseif him.state ~= "chase" and him.state ~= "kill" and him.state ~= "leave" and him.state ~= "appear" then
@@ -616,6 +634,7 @@ function KniferService.summon(street: string, near: Player?): boolean
 		return false
 	end
 	local model, root, humanoid, lift = build(exit.at, exit.out)
+	Hunter.ghost(model)
 	model:SetAttribute("Street", street)
 	model:SetAttribute("Target", 0)
 	model:SetAttribute("Seed", random:NextInteger(1, 2 ^ 30)) -- his head snaps, his breaths: the same on every client
@@ -644,6 +663,7 @@ function KniferService.summon(street: string, near: Player?): boolean
 		plan = {},
 		heading = 1,
 		beatSince = now,
+		stabbed = {},
 		points = {},
 		pauseUntil = 0,
 		look = nil,
