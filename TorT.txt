@@ -25,3 +25,8 @@ delete lives, hp instead
 moon should be more visible on witching hour
 in the day u gather candy, in the witching hour u have to defend yrself
 seller in one of the door, he sells lockpicks, traps, (items that helps against mobs), bandage that gives u xp
+Free candy van instead of candy box
+take all rare spawn (200 candies)
+starting cutscene
+notification full bucket not knocking to check
+blackout flashlight knifer
