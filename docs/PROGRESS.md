@@ -591,6 +591,24 @@
   - **Close the window, walk off (16 studs), or a new night** and he says goodbye ("Come back alive.", `Items.SELLER.BYE`), bows/waves/nods and goes back in once it's said (`SellerDone`, `DoorService.sellerDone`). Buying needs him out and you within 16 studs of his door (`ItemService`).
   - Simulated (DoorService on a virtual clock): knock → he comes (Waiting) → hello → window at 2.5 s; knocking again while it's open does nothing; closing it → goodbye, back in after the line; walking off → the same; three nights of rerolls (he moves house each night, only his houses have him and a lantern; made Normal, someone else lives there); buying refused when he's gone back in or it isn't his house.
 
+- **The seller, polished (2026-10-27, the user: "Work on the seller more now its a little buggy. Make it more qol. Improve it.").** Linted, tested (76 pass), simulated. **Not yet seen in Studio.**
+  - **Fixed:**
+    - The window opened over him, in the middle of the screen, hiding him and what he said: it's on the **right** now (`SellerController`), so you see him and his lines.
+    - He said one line and the window showed another: the window doesn't have one any more; his are in his speech bubble, where you can see them.
+    - You only stepped back and turned to him once he was already out: now from the knock (`SellerOpen` comes at once, with when he'll be out; the window opens then), as at every other door.
+    - His door still took knocks while you were at it (E knocked again, with the sound): it's off for you till you're done (`DoorController.faceHouse`/`release`).
+    - Walk off and the server ended the visit, but the window stayed open (and buying failed, "too far") until you were further still or he'd gone in: the server closes it now (`SellerShut`), and the client at the same distance (`Economy.DOOR_LEAVE`).
+    - A click in the window that missed a button skipped his line: clicks anywhere in an open window don't skip dialogue now (`DialogController.onButton`).
+    - Prices were worked out from the door's street attribute: now the street comes from the server with the visit, so what you see is what you pay.
+    - A cooldown ring left from earlier in the night could show on his door: it's cleared when the house becomes his (`ReadyAt`).
+  - **Better:**
+    - At the top of the window, your banked candy and health; a line on using your things (1–4, the d-pad).
+    - Each row: owned / most, **Buy** (green when you can), **Fill ×N · price** (as many as you can carry and pay for: `BuyItem` takes a count now, `ItemService` buys what fits), "need N more" when you can't afford one, FULL when you can't carry more; a green flash on the row when you buy; the bandage's row outlined red while you're hurt.
+    - Close with its X, **E** or **Ⓑ**; on a gamepad the first Buy is selected when it opens.
+    - He talks to you: a different hello if you're hurt ("You're bleeding on my step. Bandage?"), a word when you buy (no more than one every 4 s: "Use it well."), and going back in, a goodbye if you bought something or a snub if you didn't ("Nothing? Your loss.", with a stare) (`Items.SELLER.HURT/THANKS/BYE/SNUB`, `ItemService.Bought`).
+    - Coming onto a street with a seller tonight, you're told: "🏮 The seller's on this street tonight. Look for his lantern."
+  - Simulated: the visit on a virtual clock (knock → SellerOpen at once with his out-in time and the street; two quick buys, one thanks; close → goodbye, pleased; hurt → the hurt hello; walk off → SellerShut, snub, displeased; a stray SellerDone ignored); Fill (125 candy, 50 each, 1 of 5 carried → 2 bought, 25 left; then the rest; then FULL; a nonsense count buys 1).
+
 - **Look (reworked 2026-10-23, the user found everything too dark):** the moon hangs ~40° up over the far end of each street (`World.LIGHTING.latitude` -26.5 at midnight), brighter cool moonlit ambient per street (later streets darker), exposure +0.4, light grade (saturation -0.12, contrast 0.08), depth of field only far away, and a shadowless cool `MoonFill_<house>` light over each lot's sidewalk, because the low moon throws each house's shadow over the next yard. Faint scanlines; grain off. *(The flashlight was deleted on 2026-10-25: the user wants none in the game. PROMPT's Flashlight upgrade track is dropped.)* Recommended manual step: Lighting → Technology = Future (MCP can't set it).
 
 ## Phase 0 checkpoint (verified 2026-10-22 through the Studio MCP)

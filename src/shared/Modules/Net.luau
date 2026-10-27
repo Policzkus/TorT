@@ -58,7 +58,8 @@ local EVENTS: { [string]: string } = {
 	Fainted = "S→C you were caught: (lostBucket: number, wakeIn: number)",
 	-- The seller's things (ItemService)
 	UseItem = "C→S use one of your things from the bar: (itemId, aim: Vector3 where you're looking)",
-	SellerOpen = "S→C the seller's come to his door for you: open his window (houseId)",
+	SellerOpen = "S→C the seller's coming to his door for you: open his window once he's out (houseId, { outIn, street })",
+	SellerShut = "S→C your visit to the seller's over (you walked off, a new night): close his window (houseId)",
 	SellerDone = "C→S you closed the seller's window: he can go back in (houseId)",
 	ItemUsed = "S→C someone used one of their things, everyone near hears it: (userId, itemId)",
 }
@@ -68,7 +69,7 @@ local FUNCTIONS: { [string]: string } = {
 	BuyCostume = "C→S buy a costume with candy and put it on: (costumeId) -> (ok: boolean, message: string)",
 	EquipCostume = "C→S wear an owned costume ('' = take it off): (costumeId) -> (ok: boolean, message: string)",
 	ChooseStarter = "C→S pick which starter kid you are: (starterId) -> (ok: boolean, message: string)",
-	BuyItem = "C→S buy one of the seller's things at his crate: (houseId, itemId) -> (ok: boolean, message: string)",
+	BuyItem = "C→S buy some of the seller's things at his door: (houseId, itemId, count?) -> (ok: boolean, message: string)",
 }
 
 type Options = {

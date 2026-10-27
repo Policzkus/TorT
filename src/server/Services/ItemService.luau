@@ -23,6 +23,7 @@ local Health = require(ReplicatedStorage.Shared.Config.Health)
 local Items = require(ReplicatedStorage.Shared.Config.Items)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
+local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 local Hunter = require(script.Parent.Parent.AI.Hunter)
 local Parts = require(script.Parent.Parent.World.Parts)
 local CandyService = require(script.Parent.CandyService)
@@ -34,6 +35,8 @@ local RagdollService = require(script.Parent.RagdollService)
 local WorldService = require(script.Parent.WorldService)
 
 local ItemService = {}
+
+ItemService.Bought = Signal.new() -- (player, houseId, itemId, count) at the seller's door (DoorService: his thanks)
 
 local TRAP, FIRECRACKER = Items.TRAP, Items.FIRECRACKER
 local CHECK = 0.1 -- seconds between looks at the traps
@@ -80,10 +83,12 @@ end
 
 -- Buying ---------------------------------------------------------------------------------------
 
-local function buy(player: Player, houseId: any, itemId: any): (boolean, string)
+-- `count` of `itemId` (1 if nil), or as many of them as you can carry and pay for.
+local function buy(player: Player, houseId: any, itemId: any, count: any): (boolean, string)
 	if type(houseId) ~= "string" or not Items.sells(itemId) then
 		return false, "He doesn't sell that"
 	end
+	local wanted = if type(count) == "number" and count == count then math.clamp(math.floor(count), 1, 99) else 1
 	local item = (Items :: any)[itemId] :: Items.Item
 	local house = WorldService.getHouse(houseId)
 	local character = player.Character
@@ -98,17 +103,21 @@ local function buy(player: Player, houseId: any, itemId: any): (boolean, string)
 	if data == nil then
 		return false, "Still loading your candy..."
 	end
-	if (data.consumables[itemId] or 0) >= item.most then
+	local room = item.most - (data.consumables[itemId] or 0)
+	if room <= 0 then
 		return false, `You can't carry more than {item.most}`
 	end
 	local price = Items.price(itemId, house.neighborhood)
-	if not CandyService.spend(player, price) then
+	local buying = math.min(wanted, room, math.floor(data.candy / price))
+	if buying <= 0 or not CandyService.spend(player, price * buying) then
 		return false, `You need {Format.number(price - data.candy)} more 🍬`
 	end
 	DataService.mutate(player, "consumables", function(consumables)
-		consumables[itemId] = (consumables[itemId] or 0) + 1
+		consumables[itemId] = (consumables[itemId] or 0) + buying
 	end)
-	return true, `{item.icon} {item.name} bought`
+	ItemService.Bought:Fire(player, houseId, itemId, buying)
+	local many = if buying > 1 then ` ×{buying}` else ""
+	return true, `{item.icon} {item.name}{many} bought · -{Format.number(price * buying)} 🍬`
 end
 
 -- Bandage --------------------------------------------------------------------------------------

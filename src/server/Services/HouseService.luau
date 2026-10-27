@@ -190,6 +190,9 @@ local function apply(houseId: string, state: HouseState, refill: boolean?)
 	if state.houseType == "Seller" and CharacterRig.ready(Items.SELLER.CHARACTER) then
 		house.model:SetAttribute("OwnerModel", Items.SELLER.CHARACTER)
 	end
+	if state.houseType == "Seller" then
+		house.model:SetAttribute("ReadyAt", nil) -- no cooldown at his door (nor a ring left from before)
+	end
 	houses[houseId] = state
 	house.model:SetAttribute("HouseType", state.houseType)
 	house.model:SetAttribute("Owner", state.owner)
