@@ -57,6 +57,13 @@ return {
 	KILL_PAUSE = 1.6, -- seconds he stands over you
 	SHOVE = { away = 22, up = 14 }, -- studs/s you're thrown down with, away from him (then a ragdoll)
 
+	-- When he comes onto a street the power goes (the user: "when knifer appears blackout occurs every
+	-- light is off"): every electric light on it dies, in a wave from where he came out at `wave`
+	-- studs/s (each one stutters first, a little apart: `stagger` s), and the dark itself gets
+	-- `darker` of its usual light (ZoneLightingController). `back` seconds after he's gone the lights
+	-- come back on, one by one over `backOver` s. (Services/KniferService, Controllers/BlackoutController.)
+	BLACKOUT = { wave = 160, stagger = 0.3, darker = 0.62, back = 3, backOver = 2 },
+
 	SPAWN = { near = 25, far = 75, unseen = 45 }, -- studs from someone; no one closer than `unseen` may see the spot
 	CHARACTER = "Owner_SackMask", -- Config/Characters id: burlap sack head, one button eye, a stitched grin, overalls
 	BODY = Vector3.new(2.2, 6, 1.6), -- the stand-in block if that character's meshes aren't in the place

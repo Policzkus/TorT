@@ -2,13 +2,15 @@
 -- Blends Lighting, fog and colour tint when you cross into another zone (the server sets the
 -- player's "Zone" attribute). Purely visual and local. In the Witching Hour (and under the Blood
 -- Moon) the sky goes red: red fog thick with haze, a red glare, red night light (the moon itself:
--- MoonController).
+-- MoonController). In a blackout on your street (the Knifer's come: BlackoutController) the night
+-- itself is darker too (Knifer.BLACKOUT.darker of its light).
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Knifer = require(ReplicatedStorage:WaitForChild("Shared").Config.Knifer)
 local World = require(ReplicatedStorage:WaitForChild("Shared").Config.World)
 local ZoneLighting = require(ReplicatedStorage:WaitForChild("Shared").Modules.ZoneLighting)
 
@@ -42,6 +44,14 @@ local function blend(zoneId: string?)
 		properties.colorCorrection.TintColor = Color3.fromHex(if witching then "FFC0C0" else "FFDADA")
 		properties.colorCorrection.Saturation = 0.15
 	end
+	-- The power's out here: darker still.
+	if worldState ~= nil and zoneId ~= nil and worldState:GetAttribute("Blackout_" .. zoneId) ~= nil then
+		local k = Knifer.BLACKOUT.darker
+		for _, key in { "OutdoorAmbient", "Ambient" } do
+			local color = properties.lighting[key] :: Color3
+			properties.lighting[key] = Color3.new(color.R * k, color.G * k, color.B * k)
+		end
+	end
 	-- Going red (or back) is slow, a zone change quick.
 	local info = if red ~= wasRed then RED_BLEND else BLEND
 	wasRed = red
@@ -68,6 +78,11 @@ function ZoneLightingController.Start()
 	if worldState then
 		worldState:GetAttributeChangedSignal("Witching"):Connect(refresh)
 		worldState:GetAttributeChangedSignal("BloodMoon"):Connect(refresh)
+		worldState.AttributeChanged:Connect(function(name)
+			if string.sub(name, 1, 9) == "Blackout_" then
+				refresh()
+			end
+		end)
 		refresh()
 	end
 end

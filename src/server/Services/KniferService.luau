@@ -12,11 +12,15 @@
 -- up he walks back somewhere out of sight and is gone. He's the server's: one model in the
 -- workspace (tag "Knifer", attributes Street/State/Target) that every client hears
 -- (KniferController: the sting when he comes, his footsteps, the chase music).
+-- And when he comes the street's power goes (Knifer.BLACKOUT): WorldState's Blackout_<street> is
+-- when, BlackoutFrom_<street> where he came out, for every client to put out the lights
+-- (BlackoutController); a moment after he's gone they're cleared and the lights come back.
 
 local CollectionService = game:GetService("CollectionService")
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Knifer = require(ReplicatedStorage.Shared.Config.Knifer)
 local World = require(ReplicatedStorage.Shared.Config.World)
@@ -388,6 +392,19 @@ local function exits(street: string): { Exit }
 	return list
 end
 
+local blackouts: { [string]: number } = {} -- per street: counts power cuts (a restore checks it's still its own)
+
+-- The power goes on `street` (from `from`: where it starts going out), or comes back (`on` false).
+function KniferService.blackout(street: string, on: boolean, from: Vector3?)
+	local state = ReplicatedStorage:FindFirstChild("WorldState")
+	if state == nil then
+		return
+	end
+	blackouts[street] = (blackouts[street] or 0) + 1
+	state:SetAttribute("BlackoutFrom_" .. street, if on then from else nil)
+	state:SetAttribute("Blackout_" .. street, if on then Workspace:GetServerTimeNow() else nil)
+end
+
 local function vanish(him: Him)
 	if him.gone then
 		return
@@ -398,6 +415,14 @@ local function vanish(him: Him)
 		active[him.street] = nil
 	end
 	nextAt[him.street] = os.clock() + between(Knifer.EVERY)
+	-- The power comes back a moment after he's gone (unless he, or another cut, comes first).
+	local street = him.street
+	local cut = blackouts[street]
+	task.delay(Knifer.BLACKOUT.back, function()
+		if blackouts[street] == cut and active[street] == nil then
+			KniferService.blackout(street, false)
+		end
+	end)
 end
 
 -- Whether he can stab `player` now (not again straight after the last time: Knifer.WOUND.again).
@@ -692,6 +717,7 @@ function KniferService.summon(street: string, near: Player?): boolean
 	him.heading = if along < streetInfo.length / 2 then 1 else -1
 	setState(him, "appear")
 	active[street] = him
+	KniferService.blackout(street, true, exit.at)
 	Net.event("KniferCame"):FireAllClients(street)
 	task.spawn(function()
 		while not him.gone do

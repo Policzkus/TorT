@@ -21,6 +21,7 @@ Loader.run(script.Controllers, {
 	"CelebrationController",
 	"ZoneLightingController",
 	"MoonController",
+	"BlackoutController",
 	"DialogController",
 	"DoorController",
 	"PeersController",
