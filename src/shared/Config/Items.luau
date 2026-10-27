@@ -68,11 +68,14 @@ local Items = {
 	-- (nor hears anyone) till `blind` seconds after the first bang.
 	FIRECRACKER = { throw = 26, fuse = 1.3, bangs = 5, reach = 120, blind = 7 },
 	COOLDOWN = 0.8, -- seconds between using anything
-	-- The seller: who he is (Config/Characters), how near his crate you have to be to buy, and what
-	-- he says when you come to look.
+	-- The seller: who he is (Config/Characters; out of the homeowners' cast), how he comes to the door
+	-- (Homeowners.STYLES: already standing there in the dark hall), how near his door you have to be
+	-- to buy, what he says when he opens it, and going back in.
 	SELLER = {
 		CHARACTER = "Owner_BagMan",
+		STYLE = "Waiting",
 		RANGE = 16,
+		BYE = { "Come back alive.", "Don't waste them.", "Mind the dark out there." },
 		LINES = {
 			"Candy for these. Everything has a price.",
 			"Out late? You'll want something.",

@@ -1,19 +1,21 @@
 --!strict
--- The seller's window (Config/Items; his stall: HouseService; ItemService sells): his crate's prompt
--- opens it. A line from him at the top, then a row a thing: what it is and does, how many you've got
--- of how many you can carry, and its price on this street in banked candy. Walk off
--- (Items.SELLER.RANGE) and it closes.
+-- The seller's window (Config/Items; ItemService sells): knock at his door and once he's come to it
+-- (DoorService: SellerOpen) it opens, your view on him as at any door. A line from him at the top,
+-- then a row a thing: what it is and does, how many you've got of how many you can carry, and its
+-- price on this street in banked candy. Close it, walk off (Items.SELLER.RANGE) or let him go back
+-- in, and it's done (SellerDone: he says goodbye and goes in).
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Items = require(Shared.Config.Items)
 local Format = require(Shared.Modules.Format)
+local Houses = require(Shared.Modules.Houses)
 local Net = require(Shared.Modules.Net)
+local DoorController = require(script.Parent.DoorController)
 local NotificationController = require(script.Parent.NotificationController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
@@ -29,7 +31,8 @@ type Row = { owned: TextLabel, buy: TextButton }
 local panel: Panel.Panel
 local line: TextLabel
 local rows: { [string]: Row } = {}
-local crate: BasePart? = nil
+local door: BasePart? = nil
+local house: Model? = nil
 local houseId: string? = nil
 local street: string? = nil
 local buying = false
@@ -138,30 +141,60 @@ local function buildRow(itemId: string, order: number, parent: Instance): Row
 	return { owned = owned, buy = buyButton }
 end
 
-local function open(stall: BasePart)
-	local model = stall.Parent
-	if model == nil then
+-- The front door of `id`, and its house.
+local function doorOf(id: string): (BasePart?, Model?)
+	for _, part in CollectionService:GetTagged("Door") do
+		if part:IsA("BasePart") and part:GetAttribute("HouseId") == id then
+			return part, Houses.of(part)
+		end
+	end
+	return nil, nil
+end
+
+-- He's at his door for you.
+local function open(id: any)
+	if type(id) ~= "string" then
 		return
 	end
-	crate = stall
-	houseId = model:GetAttribute("House") :: string?
-	street = model:GetAttribute("Street") :: string?
+	local part, model = doorOf(id)
+	if part == nil or model == nil then
+		Net.event("SellerDone"):FireServer(id)
+		return
+	end
+	door, house, houseId = part, model, id
+	street = part:GetAttribute("Neighborhood") :: string?
 	local lines = Items.SELLER.LINES
 	line.Text = `“{lines[math.random(1, #lines)]}”`
 	refresh()
 	panel:open()
+	DoorController.faceHouse(id)
 end
 
--- Walked off, or he's gone (a new night): the window goes.
+-- Walked off, or he's gone back in (a new night): the window goes.
 local function watch()
-	local stall = crate
-	if stall == nil or not panel:isOpen() then
+	local at = door
+	if at == nil or not panel:isOpen() then
 		return
 	end
 	local character = Players.LocalPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if stall.Parent == nil or root == nil or (root.Position - stall.Position).Magnitude > Items.SELLER.RANGE + 2 then
+	if
+		at.Parent == nil
+		or root == nil
+		or (root.Position - at.Position).Magnitude > Items.SELLER.RANGE + 2
+		or (house and house:GetAttribute("OwnerOut") ~= true)
+	then
 		panel:close()
+	end
+end
+
+-- The window's shut: he can go back in.
+local function closed()
+	local id = houseId
+	door, house, houseId = nil, nil, nil
+	if id then
+		Net.event("SellerDone"):FireServer(id)
+		DoorController.release(id)
 	end
 end
 
@@ -199,12 +232,8 @@ function SellerController.Start()
 			end
 		end)
 	end
-	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
-		local parent = prompt.Parent
-		if parent and parent:IsA("BasePart") and CollectionService:HasTag(parent, "SellerStall") then
-			open(parent)
-		end
-	end)
+	Net.event("SellerOpen").OnClientEvent:Connect(open)
+	panel.Closed:Connect(closed)
 	RunService.Heartbeat:Connect(watch)
 end
 

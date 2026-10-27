@@ -2,6 +2,10 @@
 -- Knock on a door → mini-game → candy into the bucket → per-player cooldown on that house.
 -- Also the candy bowls (Config/Bowl): take the lot, the porch lamp bursts, and maybe the homeowner
 -- comes out after you (OwnerChaseService).
+-- And the seller (Config/Items): knock at his door and he comes to it like any homeowner (the same
+-- figure and walk, HomeownerService), says something, and once he's out your window of his things
+-- opens (SellerOpen; ItemService sells). Close it (SellerDone) or walk off and he says goodbye and
+-- goes back in. No mini-game, no candy, no cooldown; a full bucket can still knock.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +15,7 @@ local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
 local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
 local HouseTypes = require(ReplicatedStorage.Shared.Config.HouseTypes)
+local Items = require(ReplicatedStorage.Shared.Config.Items)
 local Minigames = require(ReplicatedStorage.Shared.Config.Minigames)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
@@ -54,6 +59,7 @@ local houseReadyAt: { [string]: number } = {} -- each house's: when it answers a
 local darkKnocks: { [string]: number } = {} -- when someone last knocked at a dark house (os.clock)
 local DARK_KNOCK_GAP = 1.2 -- seconds: knocks at a dark house closer together than this aren't heard
 local streaks: { [Player]: number } = {}
+local browsing: { [Player]: string } = {} -- at the seller's door, his window open: which house
 local random = Random.new()
 local rng = Rng.new(random:NextInteger(1, 2147483646))
 
@@ -241,8 +247,66 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 	return leaveIn
 end
 
+-- Done at the seller's: he says goodbye and goes back in once it's said (and nobody else is there).
+local function sellerDone(player: Player, houseId: any)
+	if browsing[player] ~= houseId then
+		return
+	end
+	browsing[player] = nil
+	local house = WorldService.getHouse(houseId)
+	local bye = Items.SELLER.BYE[random:NextInteger(1, #Items.SELLER.BYE)]
+	if house then
+		house.model:SetAttribute("OwnerMood", "pleased")
+		house.model:SetAttribute("OwnerBye", GOODBYES.pleased[random:NextInteger(1, #GOODBYES.pleased)])
+	end
+	say(houseId, bye, 0.2)
+	HomeownerService.leave(
+		houseId,
+		math.max(Homeowners.LEAVE_DELAY, 0.2 + Dialogue.lineTime(bye) + Homeowners.AFTER_LINE)
+	)
+end
+
+-- Knocked at the seller's: he comes to the door, says something, and your window opens once he's
+-- out. Walk off and he goes back in.
+local function sellerVisit(player: Player, houseId: string)
+	if browsing[player] == houseId or MinigameService.isBusy(player) or not nearHouse(player, houseId) then
+		return
+	end
+	local previous = browsing[player]
+	if previous then
+		sellerDone(player, previous)
+	end
+	Net.event("DoorKnocked"):FireAllClients(houseId, player.UserId) -- everyone near hears it
+	local outIn = HomeownerService.appear(houseId, player, Items.SELLER.STYLE)
+	browsing[player] = houseId
+	local lines = Items.SELLER.LINES
+	say(houseId, lines[random:NextInteger(1, #lines)], outIn + 0.3)
+	task.delay(outIn, function()
+		if browsing[player] == houseId then
+			Net.event("SellerOpen"):FireClient(player, houseId)
+		end
+	end)
+	task.spawn(function()
+		while browsing[player] == houseId do
+			if
+				player.Parent ~= Players
+				or not nearHouse(player, houseId, Economy.DOOR_LEAVE)
+				or HouseService.houseType(houseId) ~= "Seller" -- a new night: he's moved on
+			then
+				sellerDone(player, houseId)
+				break
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
 local function knock(player: Player, houseId: string)
 	local houseType = HouseService.houseType(houseId)
+	if houseType == "Seller" then
+		sellerVisit(player, houseId)
+		return
+	end
 	if houseType == "LightsOff" then
 		-- A dark house: you can knock (everyone near hears it), but nobody comes.
 		local last = darkKnocks[houseId]
@@ -252,8 +316,8 @@ local function knock(player: Player, houseId: string)
 		end
 		return
 	end
-	if houseType == "Bowl" or houseType == "Open" or houseType == "Seller" or OwnerChaseService.away(houseId) then
-		return -- nobody answers (or they're out after someone; the seller doesn't take knocks)
+	if houseType == "Bowl" or houseType == "Open" or OwnerChaseService.away(houseId) then
+		return -- nobody answers (or they're out after someone)
 	end
 	local house, neighborhood = canVisit(player, houseId)
 	if house == nil or neighborhood == nil then
@@ -385,6 +449,7 @@ function DoorService.Start()
 		end)
 	end
 	HouseService.BowlTriggered:Connect(takeFromBowl)
+	Net.connect("SellerDone", sellerDone, { rate = 2, burst = 4 })
 
 	Players.PlayerRemoving:Connect(function(player)
 		streaks[player] = nil

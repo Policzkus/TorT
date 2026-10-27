@@ -195,7 +195,7 @@ local function nearestHouse(admin: Player): string
 end
 
 commands.housetype = {
-	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open|Seller> - change the house nearest to you (Bowl: a full bowl, the lamp mended; Seller: his stall)",
+	usage = "/housetype <Normal|Decorated|Trick|Bowl|LightsOff|Open|Seller> - change the house nearest to you (Bowl: a full bowl, the lamp mended; Seller: he lives there tonight)",
 	run = function(admin, args)
 		local wanted = args[1]
 		local valid =

@@ -28,7 +28,7 @@ local CAST = {
 	"Owner_Butler",
 	"Owner_MaskedLady",
 	"Owner_Gown",
-	"Owner_BagMan",
+	-- (Owner_BagMan is the seller now: Config/Items.SELLER.CHARACTER. Only at his own door.)
 }
 
 local POOLS: { [string]: { string } } = {

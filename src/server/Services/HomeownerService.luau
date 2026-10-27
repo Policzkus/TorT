@@ -75,8 +75,8 @@ function HomeownerService.roll(model: Model, neighborhoodId: string)
 end
 
 -- Someone knocked: the homeowner comes out (safe to call for several visitors at once) and turns to
--- `visitor`.
-function HomeownerService.appear(houseId: string, visitor: Player?): number
+-- `visitor`; `style`: how (Homeowners.STYLES; one at random if nil).
+function HomeownerService.appear(houseId: string, visitor: Player?, style: string?): number
 	local house = WorldService.getHouse(houseId)
 	if house == nil then
 		return 0
@@ -100,11 +100,11 @@ function HomeownerService.appear(houseId: string, visitor: Player?): number
 	model:SetAttribute("OwnerBye", nil) -- no goodbye unless this visit earns one
 	local number = ((model:GetAttribute("OwnerVisit") :: number?) or 0) + 1
 	model:SetAttribute("OwnerVisit", number)
-	local style = Homeowners.STYLES[random:NextInteger(1, #Homeowners.STYLES)]
-	model:SetAttribute("OwnerStyle", style)
+	local how = style or Homeowners.STYLES[random:NextInteger(1, #Homeowners.STYLES)]
+	model:SetAttribute("OwnerStyle", how)
 	model:SetAttribute("OwnerOutAt", workspace:GetServerTimeNow())
 	model:SetAttribute("OwnerOut", true)
-	return Homeowners.OUT_AFTER[style] or 2.4
+	return Homeowners.OUT_AFTER[how] or 2.4
 end
 
 -- One visitor is done; the homeowner goes back inside `after` seconds (LEAVE_DELAY by default)
