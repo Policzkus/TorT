@@ -15,6 +15,9 @@
 -- ground), hunched over with the head up to look ahead, hands by the knees; creeping, they shuffle,
 -- bobbing a little with each step. Running they lean into it, arms and legs pumping harder. In the
 -- air one leg's drawn up and the other trails, the arms out a little for balance.
+-- With a flashlight on (FlashlightOn on their player) they hold it up in their left hand, the arm
+-- out in front along where they look, up and down with it (FlashlightController puts the torch in
+-- the hand and the beam along the arm); the bucket stays in the right.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -57,6 +60,9 @@ local AIR = { legs = { 0.55, -0.2 }, arms = 0.45, out = 0.35 }
 -- Reaching out to grab someone (Reaching: a homeowner after a bowl thief, OwnerChaseService): both
 -- arms `arms` radians up in front, `splay` apart, swinging only `swing` of the usual.
 local REACH = { arms = 1.45, splay = 0.12, swing = 0.3 }
+-- Holding a flashlight up: the left arm `raise` radians up in front, following `follow` of where
+-- they look up or down, turned `inward` toward the middle, swinging only `swing` of the usual.
+local TORCH = { raise = 1.45, follow = 0.9, inward = 0.14, swing = 0.15 }
 
 type Rig = {
 	model: Model,
@@ -73,6 +79,8 @@ type Rig = {
 	crouch: number, -- 0..1 how crouched
 	run: number, -- 0..1 how hard they're running
 	reach: number, -- 0..1 how far their arms are out to grab
+	torch: number, -- 0..1 how far up they're holding a flashlight
+	player: Player?, -- whose (found once it's theirs)
 	lift: number?, -- studs this build is raised sitting down (worked out once)
 	bucketHidden: boolean, -- put away while they sit
 }
@@ -109,6 +117,8 @@ local function add(model: Instance)
 		crouch = 0,
 		run = 0,
 		reach = 0,
+		torch = 0,
+		player = Players:GetPlayerFromCharacter(model),
 		bucketHidden = false,
 	}
 end
@@ -201,6 +211,12 @@ local function step(dt: number)
 		rig.run += ((if airborne then rig.run else running) - rig.run) * math.min(1, dt * 6)
 		local reaching = if model:GetAttribute("Reaching") == true then 1 else 0
 		rig.reach += (reaching - rig.reach) * math.min(1, dt * 8)
+		if rig.player == nil then
+			rig.player = Players:GetPlayerFromCharacter(model)
+		end
+		local owner = rig.player
+		local holding = if owner and owner:GetAttribute("FlashlightOn") == true and not dead then 1 else 0
+		rig.torch += (holding - rig.torch) * math.min(1, dt * 9)
 		if (sitting == 1) ~= rig.bucketHidden then
 			local bucket = model:FindFirstChild("Bucket")
 			if bucket then
@@ -274,6 +290,13 @@ local function step(dt: number)
 				"RootJoint",
 				CFrame.new(0, sitLift(rig) * s, 0) * CFrame.Angles(SIT.lean * s + breathe * 0.5, 0, 0)
 			)
+		end
+		if rig.torch > 0.01 then
+			-- The flashlight held up in front, along where they look (the body's lean taken out of it).
+			local h = rig.torch
+			local hanging = -armSwing + breathe + arms + SIT.arms * rig.sit
+			local up = TORCH.raise + rig.pitch * TORCH.follow - lean - armSwing * TORCH.swing + breathe
+			set(rig, "Left Shoulder", CFrame.Angles(hanging + (up - hanging) * h, 0, -out + (TORCH.inward + out) * h))
 		end
 		if rig.faint > 0.01 then
 			-- Down on their back, arms and legs splayed (from the hips: the body tips over them).

@@ -79,20 +79,34 @@ local Items = {
 	-- (nor hears anyone) till `blind` seconds after the first bang.
 	FIRECRACKER = { throw = 26, fuse = 1.3, bangs = 5, reach = 120, blind = 7 },
 	-- The flashlight: `battery` seconds of light in a new one (it runs down only while it's on, and
-	-- what's left is kept between runs: PlayerData.battery). Under `low` of it left the beam dims (to
-	-- `dimmest` of full, just before it dies) and goes yellow; under `flicker` it stutters, more and
-	-- more. The beam at full: `range` studs, `angle` degrees, `brightness`; `spill` is the faint light
-	-- round the lens. With it on, hunters see you from `seen` times as far, and a hiding place
-	-- doesn't hide you: a light in the dark gives you away. `toggle`: seconds between switches.
+	-- what's left is kept between runs: PlayerData.battery). Like a torch on real cells it dims as it
+	-- goes: from full, slowly, going a little warmer, to `fade` of full when `low` is left; then fast
+	-- (to `dimmest`, just before it dies) and yellow; under `flicker` it stutters, more and more. Left
+	-- off a while, a tired battery picks up a little (`rest`: after `full` s off it's as if it had
+	-- `gain` more charge, fading over `lasts` s once it's on again).
+	-- Its light (the user: "it needs to be better more realistic"), from the lens: a bright `hotspot`
+	-- (degrees across, brightness, studs; with shadows from yours) inside a dim, wide `corona`; the
+	-- light that comes back off whatever it's pointed at (`bounce`: as bright as this at the lens,
+	-- lighting `near`..`far` studs round the spot, nearer to further); the beam seen in the fog
+	-- (`shaft`: how strong yours and anyone else's look, as far as `length` studs). Held in a hand it
+	-- shakes a little (`tremor`, degrees: standing, walking, running) and trails your turns (`lag`).
+	-- Pointed at your eyes (within `glare.cone` degrees, `glare.range` studs) it dazzles you.
+	-- With it on, hunters see you from `seen` times as far, and a hiding place doesn't hide you: a
+	-- light in the dark gives you away. `toggle`: seconds between switches.
 	FLASHLIGHT = {
 		battery = 240,
 		low = 0.3,
+		fade = 0.82,
 		dimmest = 0.3,
 		flicker = 0.15,
-		range = 54,
-		angle = 46,
-		brightness = 2.4,
-		spill = { range = 9, brightness = 0.3 },
+		rest = { full = 30, lasts = 8, gain = 0.06 },
+		hotspot = { angle = 22, brightness = 3.4, range = 62 },
+		corona = { angle = 70, brightness = 0.5, range = 30 },
+		bounce = { brightness = 0.9, near = 7, far = 15 },
+		shaft = { yours = 0.05, theirs = 0.14, length = 34 },
+		tremor = { still = 0.22, moving = 0.6, running = 1.5 },
+		lag = 13,
+		glare = { range = 45, cone = 10 },
 		seen = 1.35,
 		toggle = 0.25,
 	},
