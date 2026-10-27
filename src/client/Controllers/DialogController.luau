@@ -413,19 +413,23 @@ local function allOut(bubble: Bubble): boolean
 	return os.clock() - bubble.started >= bubble.typed
 end
 
--- Whether a click at `position` lands on a button on the screen (a reply, a menu's): it's that
--- button's, not a skip.
+-- Whether a click at `position` lands on a button on the screen (a reply, a menu's) or anywhere in an
+-- open window (the seller's: a near miss of his Buy): it's theirs, not a skip.
 local function onButton(position: Vector3): boolean
 	local playerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
 	if playerGui == nil then
 		return false
 	end
 	for _, object in playerGui:GetGuiObjectsAtPosition(position.X, position.Y) do
+		local holder = object:FindFirstAncestorWhichIsA("LayerCollector")
+		if holder == nil or not holder:IsA("ScreenGui") then
+			continue
+		end
 		if object:IsA("GuiButton") and object.Active and object.Name ~= "MouseUnlock" then
-			local holder = object:FindFirstAncestorWhichIsA("LayerCollector")
-			if holder and holder:IsA("ScreenGui") then
-				return true
-			end
+			return true
+		end
+		if object.Name == "Window" or object:FindFirstAncestor("Window") then -- (UI/Components/Panel)
+			return true
 		end
 	end
 	return false

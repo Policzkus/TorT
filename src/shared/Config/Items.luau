@@ -70,12 +70,22 @@ local Items = {
 	COOLDOWN = 0.8, -- seconds between using anything
 	-- The seller: who he is (Config/Characters; out of the homeowners' cast), how he comes to the door
 	-- (Homeowners.STYLES: already standing there in the dark hall), how near his door you have to be
-	-- to buy, what he says when he opens it, and going back in.
+	-- to buy, and what he says: opening the door (LINES; HURT if you're hurt), when you buy (THANKS, no
+	-- more than one every THANKS_GAP seconds) and going back in (BYE if you bought something, SNUB if
+	-- you didn't).
 	SELLER = {
 		CHARACTER = "Owner_BagMan",
 		STYLE = "Waiting",
 		RANGE = 16,
+		THANKS_GAP = 4,
 		BYE = { "Come back alive.", "Don't waste them.", "Mind the dark out there." },
+		SNUB = { "Nothing? Your loss.", "Window shopping. Tonight of all nights.", "Don't come crying back." },
+		THANKS = { "Pleasure.", "Use it well.", "Good choice.", "Mm. Careful with that.", "Sold." },
+		HURT = {
+			"You're bleeding on my step. Bandage?",
+			"He got you, didn't he. I have just the thing.",
+			"That looks bad. I can help, for a price.",
+		},
 		LINES = {
 			"Candy for these. Everything has a price.",
 			"Out late? You'll want something.",

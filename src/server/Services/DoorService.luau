@@ -4,8 +4,9 @@
 -- comes out after you (OwnerChaseService).
 -- And the seller (Config/Items): knock at his door and he comes to it like any homeowner (the same
 -- figure and walk, HomeownerService), says something, and once he's out your window of his things
--- opens (SellerOpen; ItemService sells). Close it (SellerDone) or walk off and he says goodbye and
--- goes back in. No mini-game, no candy, no cooldown; a full bucket can still knock.
+-- opens (SellerOpen; ItemService sells, and he thanks you now and then). Close it (SellerDone) or walk
+-- off (SellerShut) and he says goodbye (a different one if you bought nothing) and goes back in. No
+-- mini-game, no candy, no cooldown; a full bucket can still knock.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,6 +14,7 @@ local Workspace = game:GetService("Workspace")
 
 local Dialogue = require(ReplicatedStorage.Shared.Config.Dialogue)
 local Economy = require(ReplicatedStorage.Shared.Config.Economy)
+local Health = require(ReplicatedStorage.Shared.Config.Health)
 local Homeowners = require(ReplicatedStorage.Shared.Config.Homeowners)
 local HouseTypes = require(ReplicatedStorage.Shared.Config.HouseTypes)
 local Items = require(ReplicatedStorage.Shared.Config.Items)
@@ -24,8 +26,10 @@ local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
 local CandyService = require(script.Parent.CandyService)
 local DataService = require(script.Parent.DataService)
+local HealthService = require(script.Parent.HealthService)
 local HomeownerService = require(script.Parent.HomeownerService)
 local HouseService = require(script.Parent.HouseService)
+local ItemService = require(script.Parent.ItemService)
 local MinigameService = require(script.Parent.MinigameService)
 local NotifyService = require(script.Parent.NotifyService)
 local OwnerChaseService = require(script.Parent.OwnerChaseService)
@@ -60,6 +64,8 @@ local darkKnocks: { [string]: number } = {} -- when someone last knocked at a da
 local DARK_KNOCK_GAP = 1.2 -- seconds: knocks at a dark house closer together than this aren't heard
 local streaks: { [Player]: number } = {}
 local browsing: { [Player]: string } = {} -- at the seller's door, his window open: which house
+local sellerBought: { [Player]: boolean } = {} -- bought something this visit
+local sellerThanked: { [string]: number } = {} -- when he last said thanks (os.clock), per house
 local random = Random.new()
 local rng = Rng.new(random:NextInteger(1, 2147483646))
 
@@ -247,17 +253,25 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 	return leaveIn
 end
 
--- Done at the seller's: he says goodbye and goes back in once it's said (and nobody else is there).
+local function pick(lines: { string }): string
+	return lines[random:NextInteger(1, #lines)]
+end
+
+-- Done at the seller's: he says goodbye (one thing if you bought something, another if you didn't)
+-- and goes back in once it's said (and nobody else is there).
 local function sellerDone(player: Player, houseId: any)
 	if browsing[player] ~= houseId then
 		return
 	end
 	browsing[player] = nil
+	local bought = sellerBought[player] == true
+	sellerBought[player] = nil
 	local house = WorldService.getHouse(houseId)
-	local bye = Items.SELLER.BYE[random:NextInteger(1, #Items.SELLER.BYE)]
+	local bye = pick(if bought then Items.SELLER.BYE else Items.SELLER.SNUB)
 	if house then
-		house.model:SetAttribute("OwnerMood", "pleased")
-		house.model:SetAttribute("OwnerBye", GOODBYES.pleased[random:NextInteger(1, #GOODBYES.pleased)])
+		local mood = if bought then "pleased" else "displeased"
+		house.model:SetAttribute("OwnerMood", mood)
+		house.model:SetAttribute("OwnerBye", pick(GOODBYES[mood]))
 	end
 	say(houseId, bye, 0.2)
 	HomeownerService.leave(
@@ -266,10 +280,17 @@ local function sellerDone(player: Player, houseId: any)
 	)
 end
 
--- Knocked at the seller's: he comes to the door, says something, and your window opens once he's
--- out. Walk off and he goes back in.
+-- Knocked at the seller's: he comes to the door and says something (it's about bandages if you're
+-- hurt). Your client hears at once (SellerOpen: when he'll be out), steps back to see him and opens
+-- his window once he's out. Walk off, or a new night, and it's over (SellerShut).
 local function sellerVisit(player: Player, houseId: string)
-	if browsing[player] == houseId or MinigameService.isBusy(player) or not nearHouse(player, houseId) then
+	local house = WorldService.getHouse(houseId)
+	if
+		house == nil
+		or browsing[player] == houseId
+		or MinigameService.isBusy(player)
+		or not nearHouse(player, houseId)
+	then
 		return
 	end
 	local previous = browsing[player]
@@ -279,13 +300,10 @@ local function sellerVisit(player: Player, houseId: string)
 	Net.event("DoorKnocked"):FireAllClients(houseId, player.UserId) -- everyone near hears it
 	local outIn = HomeownerService.appear(houseId, player, Items.SELLER.STYLE)
 	browsing[player] = houseId
-	local lines = Items.SELLER.LINES
-	say(houseId, lines[random:NextInteger(1, #lines)], outIn + 0.3)
-	task.delay(outIn, function()
-		if browsing[player] == houseId then
-			Net.event("SellerOpen"):FireClient(player, houseId)
-		end
-	end)
+	sellerBought[player] = false
+	local hurt = HealthService.get(player) < Health.MAX
+	say(houseId, pick(if hurt then Items.SELLER.HURT else Items.SELLER.LINES), outIn + 0.3)
+	Net.event("SellerOpen"):FireClient(player, houseId, { outIn = outIn, street = house.neighborhood })
 	task.spawn(function()
 		while browsing[player] == houseId do
 			if
@@ -293,12 +311,28 @@ local function sellerVisit(player: Player, houseId: string)
 				or not nearHouse(player, houseId, Economy.DOOR_LEAVE)
 				or HouseService.houseType(houseId) ~= "Seller" -- a new night: he's moved on
 			then
+				if player.Parent == Players then
+					Net.event("SellerShut"):FireClient(player, houseId)
+				end
 				sellerDone(player, houseId)
 				break
 			end
 			task.wait(0.25)
 		end
 	end)
+end
+
+-- Someone bought something at his door: he thanks them (now and then, not every time).
+local function onBought(player: Player, houseId: string)
+	if browsing[player] ~= houseId then
+		return
+	end
+	sellerBought[player] = true
+	local clock = os.clock()
+	if clock - (sellerThanked[houseId] or -math.huge) >= Items.SELLER.THANKS_GAP then
+		sellerThanked[houseId] = clock
+		say(houseId, pick(Items.SELLER.THANKS), 0.15)
+	end
 end
 
 local function knock(player: Player, houseId: string)
@@ -450,9 +484,11 @@ function DoorService.Start()
 	end
 	HouseService.BowlTriggered:Connect(takeFromBowl)
 	Net.connect("SellerDone", sellerDone, { rate = 2, burst = 4 })
+	ItemService.Bought:Connect(onBought)
 
 	Players.PlayerRemoving:Connect(function(player)
 		streaks[player] = nil
+		sellerBought[player] = nil
 	end)
 end
 

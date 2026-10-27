@@ -71,6 +71,7 @@ local HIT = {
 }
 
 local doors: { [string]: BasePart } = {}
+local busy: { [string]: boolean } = {} -- doors you're at already (the seller's, his window open): no knocking
 local readyAt: { [string]: number } = {}
 type Ring = { part: BasePart, door: BasePart, ticks: { Frame }, seconds: TextLabel, total: number }
 local badges: { [string]: Ring } = {}
@@ -239,7 +240,7 @@ local function apply(houseId: string)
 			local model = Houses.of(door)
 			local houseType = model and model:GetAttribute("HouseType")
 			local seller = houseType == "Seller" -- (no cooldown, and no candy: a full bucket can knock)
-			prompt.Enabled = (seller or not onCooldown) and knockable(door)
+			prompt.Enabled = (seller or not onCooldown) and knockable(door) and not busy[houseId]
 			local full = bucketFull() and not seller
 			prompt.ActionText = if full then "Bucket full" else "Knock"
 			prompt.ObjectText = if seller
@@ -508,12 +509,17 @@ local function releaseLook(houseId: string?, after: number)
 	end
 end
 
--- At the seller's (SellerController): your view goes to him while his window's open, as at any door.
+-- At the seller's (SellerController): you step back and your view goes to him as he comes out, as at
+-- any door, and his door takes no more knocks while you're there.
 function DoorController.faceHouse(houseId: string)
+	busy[houseId] = true
+	apply(houseId)
 	onAnswered(houseId)
 end
 
 function DoorController.release(houseId: string)
+	busy[houseId] = nil
+	apply(houseId)
 	releaseLook(houseId, LOOK_AFTER)
 end
 
