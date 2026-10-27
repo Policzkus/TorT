@@ -43,7 +43,7 @@ local GRADE = {
 	TintColor = Color3.fromRGB(226, 234, 228), -- a cold, slightly sick green
 }
 local DEPTH = { FarIntensity = 0.12, FocusDistance = 40, InFocusRadius = 70, NearIntensity = 0 }
-local GRAIN_TRANSPARENCY = 0.85 -- (0.8 was a quarter too strong, the user said)
+local GRAIN_TRANSPARENCY = 0.8875 -- (0.8 was a quarter too strong, the user said; then 0.85 was too: a quarter less again)
 local GRAIN_TILE = 384
 local GRAIN_TINT = Color3.fromRGB(200, 200, 200) -- a touch dark, so the specks don't lift the blacks
 local SCANLINE_TRANSPARENCY = 0.88
