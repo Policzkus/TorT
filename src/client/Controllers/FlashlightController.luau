@@ -2,10 +2,14 @@
 -- Flashlights (Config/Items.FLASHLIGHT; ItemService keeps FlashlightOn and Battery on each player;
 -- F / R3 switch yours, through the items bar: ItemsController). The user: "it needs to be better
 -- more realistic".
--- A real torch's light: a bright hotspot inside a dim, wide corona (two spotlights from the lens;
--- yours throws shadows), light coming back off whatever it's pointed at and lighting round it
--- (bounce: a wall close up throws a lot back over a small patch, something far off a faint glow;
--- tinted by what it hits), and the beam itself seen in the fog, fading out along it (shaft).
+-- A real torch's light: brightest in the middle and falling off smoothly to a dim, wide edge, like
+-- a reflector's (spotlights from the lens, one inside the other, Items.FLASHLIGHT.cones: one cone
+-- alone is a hard-edged disc; the middle ones throw shadows from yours), and light coming back off
+-- whatever it's pointed at, softly lighting round it (bounce: a wall close up throws a lot back
+-- over a small patch, something far off a faint glow; tinted by what it hits; from a little way
+-- back toward you, so it's a glow round the spot, not a second spot). It all needs the place's
+-- Lighting.Technology on Future (default.project.json sets it): on Voxel or ShadowMap every light
+-- is drawn in 4-stud blocks (the user: "too blocky and weird").
 -- Yours is a torch in your left hand, low in your view: a ribbed metal body, a flared head, a bezel,
 -- the reflector glowing behind the glass. It's raised when you switch it on and lowered when you
 -- switch it off, swings with your steps, rises and falls with your breath, trails your turns (it
@@ -13,8 +17,8 @@
 -- wall you draw it in, and the light never comes from the other side of one. Knocked down, it's in
 -- your hand on the ground.
 -- Everyone else holds theirs in their left hand, the arm raised along where they look
--- (CharacterAnimController), the beam from its lens: you see where they're pointing it, and the
--- beam in the fog from far off. Pointed at your eyes it dazzles you: a flare on the lens, and your
+-- (CharacterAnimController), the beam from its lens: you see where they're pointing it. Pointed at
+-- your eyes it dazzles you: a flare on the lens, and your
 -- view washes out for as long as it's in them (less with Settings' reduce flashes).
 -- All of them dim, go yellow and stutter alike as their batteries run down (Modules/Flashlight: the
 -- server's time and whose it is); a dying one left off a while picks up a little. Switched on, the
@@ -59,8 +63,6 @@ local AFTERGLOW = 0.6 -- seconds the filament glows once it's died
 local THEIRS = { scale = 0.5, grip = 0.25 }
 local HEAD = CFrame.new(0.35, -0.15, -0.6) -- (no left arm: from beside their head)
 local BOUNCE_EVERY = 0.1 -- seconds between looks at what theirs is pointed at
--- The beam in the fog: three layers, wide and faint to narrow and denser, so it's soft at the edges.
-local SHAFT = { { width = 1, alpha = 0.35 }, { width = 0.55, alpha = 0.6 }, { width = 0.25, alpha = 1 } }
 local DAZZLE = { rise = 14, fall = 3.5, brightness = 0.32, contrast = -0.18, calm = 0.35 } -- calm: reduce flashes
 
 type Torch = { model: Model, reflector: BasePart, lens: Vector3 } -- lens: from its pivot
@@ -68,13 +70,9 @@ type Torch = { model: Model, reflector: BasePart, lens: Vector3 } -- lens: from 
 type Light = {
 	player: Player,
 	holder: Part, -- what the beam shines from (its front: -Z)
-	hotspot: SpotLight,
-	corona: SpotLight,
+	cones: { SpotLight }, -- Items.FLASHLIGHT.cones, narrowest first
 	bounce: Part, -- where the light comes back off what it's pointed at
 	bounceLight: PointLight,
-	tip: Attachment, -- the shaft's far end (on the holder)
-	shaft: { Beam },
-	shaftKey: number, -- its look last set (to skip resetting it every frame)
 	torch: Torch?, -- theirs: in their hand
 	flare: BillboardGui?, -- theirs: on the lens when it's in your eyes
 	flareParts: { Frame },
@@ -131,7 +129,7 @@ local function buildTorch(scale: number, parent: Instance): Torch
 		made.CFrame = CFrame.new(0, 0, z * scale) * CFrame.Angles(0, math.pi / 2, 0)
 		return made
 	end
-	local body = round("Body", 0.95, 0.24, 0, metal, Enum.Material.Metal)
+	round("Body", 0.95, 0.24, 0, metal, Enum.Material.Metal)
 	for i, z in { 0.12, 0.22, 0.32 } do
 		round("Grip" .. i, 0.035, 0.255, z, Color3.fromRGB(46, 46, 50), Enum.Material.Metal)
 	end
@@ -151,7 +149,8 @@ local function buildTorch(scale: number, parent: Instance): Torch
 		model
 	)
 	switch.CFrame = CFrame.new(0, 0.125 * scale, -0.2 * scale)
-	model.PrimaryPart = body
+	-- No PrimaryPart: with one, Roblox pivots the model on it (and the body's turned 90° to run along
+	-- Z, so the whole torch went on sideways). The pivot is the grip's middle, pointing along -Z.
 	model.WorldPivot = CFrame.new()
 	model.Parent = parent
 	return { model = model, reflector = reflector, lens = Vector3.new(0, 0, -0.84 * scale) }
@@ -195,41 +194,23 @@ local function newLight(player: Player): Light
 	local mine = player == Players.LocalPlayer
 	local holder = part("FlashlightBeam", Vector3.one * 0.2, WHITE, Enum.Material.SmoothPlastic, camera)
 	holder.Transparency = 1
-	local hotspot = spot(RULES.hotspot.angle, mine, holder) -- (everyone's with shadows would cost too much)
-	local corona = spot(RULES.corona.angle, false, holder)
+	local cones = {}
+	for _, cone in RULES.cones do
+		-- (shadows from yours only: everyone's would cost too much)
+		table.insert(cones, spot(cone.angle, mine and cone.shadows == true, holder))
+	end
 	local bounce = part("FlashlightBounce", Vector3.one * 0.2, WHITE, Enum.Material.SmoothPlastic, camera)
 	bounce.Transparency = 1
 	local bounceLight = Instance.new("PointLight")
 	bounceLight.Shadows = false
 	bounceLight.Enabled = false
 	bounceLight.Parent = bounce
-	local from = Instance.new("Attachment")
-	from.Parent = holder
-	local tip = Instance.new("Attachment")
-	tip.Parent = holder
-	local shaft = {}
-	for _ in SHAFT do
-		local beam = Instance.new("Beam")
-		beam.Attachment0, beam.Attachment1 = from, tip
-		beam.FaceCamera = true
-		beam.LightEmission = 1
-		beam.LightInfluence = 0
-		beam.Segments = 1
-		beam.Texture = ""
-		beam.Enabled = false
-		beam.Parent = holder
-		table.insert(shaft, beam)
-	end
 	local light: Light = {
 		player = player,
 		holder = holder,
-		hotspot = hotspot,
-		corona = corona,
+		cones = cones,
 		bounce = bounce,
 		bounceLight = bounceLight,
-		tip = tip,
-		shaft = shaft,
-		shaftKey = -1,
 		torch = nil,
 		flare = nil,
 		flareParts = {},
@@ -352,83 +333,46 @@ local function lensLook(light: Light, level: number, yellow: number): (Color3, n
 	return DARK_GLASS, 0
 end
 
--- How thick the fog is (the beam shows more in more of it).
-local function fogginess(): number
-	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
-	return if atmosphere then math.clamp(atmosphere.Density / 0.3, 0.5, 1.6) else 0.6
-end
-
 local function luminance(color: Color3): number
 	return 0.299 * color.R + 0.587 * color.G + 0.114 * color.B
 end
 
--- Lights it from `origin` (its lens, facing along -Z) to `level` (0..1), `yellow` (0..1): the
--- hotspot and corona, the light bounced off what it's pointed at (looked for again if `look`), and
--- the beam in the fog (`shaft`: how strong, Items.FLASHLIGHT.shaft).
-local function shine(
-	light: Light,
-	origin: CFrame,
-	level: number,
-	yellow: number,
-	look: boolean,
-	ignore: { Instance },
-	shaft: number
-)
+-- Lights it from `origin` (its lens, facing along -Z) to `level` (0..1), `yellow` (0..1): the cones,
+-- warmer toward the edge (a reflector's beam is), and the light bounced off what it's pointed at
+-- (looked for again if `look`).
+local function shine(light: Light, origin: CFrame, level: number, yellow: number, look: boolean, ignore: { Instance })
 	light.holder.CFrame = origin
 	local color = WHITE:Lerp(AMBER, yellow)
 	local lit = level > 0.01
-	local hot, wide = RULES.hotspot, RULES.corona
-	light.hotspot.Enabled = lit
-	light.corona.Enabled = lit
-	light.hotspot.Brightness = hot.brightness * level
-	light.hotspot.Range = hot.range * (0.55 + 0.45 * level)
-	light.hotspot.Color = color
-	light.corona.Brightness = wide.brightness * level
-	light.corona.Range = wide.range * (0.55 + 0.45 * level)
-	light.corona.Color = color:Lerp(AMBER, 0.15) -- (the edge of a reflector's beam is warmer)
+	for i, cone in RULES.cones do
+		local spotlight = light.cones[i]
+		spotlight.Enabled = lit
+		spotlight.Brightness = cone.brightness * level
+		spotlight.Range = cone.range * (0.55 + 0.45 * level)
+		spotlight.Color = color:Lerp(AMBER, 0.06 * (i - 1))
+	end
 	-- What it's pointed at, and the light that comes back off it.
+	local reach = RULES.cones[1].range
 	if look then
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = ignore
-		light.hit = if lit then Workspace:Raycast(origin.Position, origin.LookVector * hot.range, params) else nil
+		light.hit = if lit then Workspace:Raycast(origin.Position, origin.LookVector * reach, params) else nil
 		light.castAt = os.clock()
 	end
 	local hit = light.hit
-	local reach = if hit then hit.Distance else RULES.shaft.length
 	if hit and lit then
 		local surface = if hit.Instance:IsA("BasePart") then hit.Instance.Color else Color3.new(0.5, 0.5, 0.5)
-		local strength, radius =
-			Flashlight.bounce(hit.Distance, hot.range, math.clamp(luminance(surface) * 1.4, 0.15, 1))
-		light.bounce.CFrame = CFrame.new(hit.Position + hit.Normal * 0.6 - origin.LookVector * 0.3)
+		local strength, radius = Flashlight.bounce(hit.Distance, reach, math.clamp(luminance(surface) * 1.4, 0.15, 1))
+		-- From a little way back toward you: a glow round the spot (and you, close up), not a second spot.
+		local back = math.clamp(hit.Distance * 0.35, 0.8, 5)
+		light.bounce.CFrame = CFrame.new(hit.Position + hit.Normal * 0.5 - origin.LookVector * back)
 		light.bounceLight.Range = radius
 		light.bounceLight.Brightness = RULES.bounce.brightness * level * strength
 		light.bounceLight.Color = color:Lerp(surface, 0.45)
 		light.bounceLight.Enabled = strength * level > 0.01
 	else
 		light.bounceLight.Enabled = false
-	end
-	-- The beam in the fog, as far as it goes (to what it hits), soft at the edges, fading out.
-	local length = math.min(reach, RULES.shaft.length)
-	local strength = if lit then shaft * level * fogginess() else 0
-	light.tip.Position = Vector3.new(0, 0, -length)
-	local key = math.floor(strength * 200) + math.floor(length) * 1000 + math.floor(yellow * 20) * 100000
-	if key ~= light.shaftKey then
-		light.shaftKey = key
-		local spread = 2 * math.tan(math.rad(hot.angle / 2)) * 1.15
-		for i, layer in SHAFT do
-			local beam = light.shaft[i]
-			local alpha = math.clamp(strength * layer.alpha, 0, 1)
-			beam.Enabled = alpha > 0.002 and length > 1
-			beam.Color = ColorSequence.new(color)
-			beam.Width0 = 0.3 * layer.width + 0.05
-			beam.Width1 = length * spread * layer.width
-			beam.Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 1 - alpha * 0.5),
-				NumberSequenceKeypoint.new(0.12, 1 - alpha),
-				NumberSequenceKeypoint.new(1, 1),
-			})
-		end
 	end
 end
 
@@ -523,7 +467,7 @@ local function drawMine(dt: number, light: Light?)
 			lens = lens.Rotation + (blocked.Position - toLens.Unit * 0.1)
 		end
 	end
-	shine(light, lens, level, yellow, true, ignore, RULES.shaft.yours)
+	shine(light, lens, level, yellow, true, ignore)
 end
 
 -- Someone else's: in their left hand, along their arm; a flare and a dazzle when it's in your eyes.
@@ -536,7 +480,7 @@ local function drawTheirs(light: Light, camera: Camera): number
 	local head = character and character:FindFirstChild("Head") :: BasePart?
 	local up = light.on or (light.diedAt ~= nil and os.clock() - light.diedAt < AFTERGLOW)
 	if (hand == nil and head == nil) or not up then
-		shine(light, light.holder.CFrame, 0, 1, false, {}, 0)
+		shine(light, light.holder.CFrame, 0, 1, false, {})
 		showTorch(held, false)
 		if light.flare then
 			light.flare.Enabled = false
@@ -551,7 +495,7 @@ local function drawTheirs(light: Light, camera: Camera): number
 	held.reflector.Transparency = transparency
 	local lens = pivot * CFrame.new(held.lens)
 	local look = os.clock() - light.castAt >= BOUNCE_EVERY
-	shine(light, lens, level, yellow, look, ignoreFor(character), RULES.shaft.theirs)
+	shine(light, lens, level, yellow, look, ignoreFor(character))
 	-- In your eyes?
 	local toYou = camera.CFrame.Position - lens.Position
 	local distance = toYou.Magnitude

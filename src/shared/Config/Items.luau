@@ -84,12 +84,13 @@ local Items = {
 	-- (to `dimmest`, just before it dies) and yellow; under `flicker` it stutters, more and more. Left
 	-- off a while, a tired battery picks up a little (`rest`: after `full` s off it's as if it had
 	-- `gain` more charge, fading over `lasts` s once it's on again).
-	-- Its light (the user: "it needs to be better more realistic"), from the lens: a bright `hotspot`
-	-- (degrees across, brightness, studs; with shadows from yours) inside a dim, wide `corona`; the
-	-- light that comes back off whatever it's pointed at (`bounce`: as bright as this at the lens,
-	-- lighting `near`..`far` studs round the spot, nearer to further); the beam seen in the fog
-	-- (`shaft`: how strong yours and anyone else's look, as far as `length` studs). Held in a hand it
-	-- shakes a little (`tremor`, degrees: standing, walking, running) and trails your turns (`lag`).
+	-- Its light (the user: "it needs to be better more realistic"; then "too blocky and weird"), from
+	-- the lens: `cones` one inside the other (degrees across, brightness, studs; `shadows` from
+	-- yours), so it's brightest in the middle and falls off smoothly to a dim, wide edge, like a
+	-- reflector's beam, not one hard-edged disc. The light that comes back off whatever it's pointed
+	-- at (`bounce`: as bright as this, from a little way back toward you, lighting `near`..`far` studs
+	-- round, nearer to further). Held in a hand it shakes a little (`tremor`, degrees: standing,
+	-- walking, running) and trails your turns (`lag`).
 	-- Pointed at your eyes (within `glare.cone` degrees, `glare.range` studs) it dazzles you.
 	-- With it on, hunters see you from `seen` times as far, and a hiding place doesn't hide you: a
 	-- light in the dark gives you away. `toggle`: seconds between switches.
@@ -100,10 +101,13 @@ local Items = {
 		dimmest = 0.3,
 		flicker = 0.15,
 		rest = { full = 30, lasts = 8, gain = 0.06 },
-		hotspot = { angle = 22, brightness = 3.4, range = 62 },
-		corona = { angle = 70, brightness = 0.5, range = 30 },
-		bounce = { brightness = 0.9, near = 7, far = 15 },
-		shaft = { yours = 0.05, theirs = 0.14, length = 34 },
+		cones = {
+			{ angle = 14, brightness = 1.5, range = 60, shadows = true },
+			{ angle = 26, brightness = 1.0, range = 58, shadows = true },
+			{ angle = 42, brightness = 0.55, range = 44 },
+			{ angle = 70, brightness = 0.28, range = 28 },
+		},
+		bounce = { brightness = 0.38, near = 7, far = 15 },
 		tremor = { still = 0.22, moving = 0.6, running = 1.5 },
 		lag = 13,
 		glare = { range = 45, cone = 10 },

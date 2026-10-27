@@ -12,6 +12,11 @@
 				"$path": "src/server"
 			}
 		},
+		"Lighting": {
+			"$properties": {
+				"Technology": "Future"
+			}
+		},
 		"StarterPlayer": {
 			"$properties": {
 				"EnableMouseLockOption": false
