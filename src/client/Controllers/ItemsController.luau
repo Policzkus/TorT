@@ -1,7 +1,8 @@
 --!strict
 -- Your things from the seller (Config/Items, ItemService): a row of slots at the bottom of the view,
--- one a thing you've got (its icon, how many, its key), used with 1-4 (the d-pad on a gamepad, a tap
--- on a touch screen). The firecracker goes where you're looking. Everyone near hears them: a bandage
+-- one a thing you've got (its icon, how many, its key), used with 1-4 and F (the d-pad and R3 on a
+-- gamepad, a tap on a touch screen). The flashlight's slot shows what's left in its battery (lit up
+-- while it's on: FlashlightController). The firecracker goes where you're looking. Everyone near hears them: a bandage
 -- wrapped (ItemUsed), a bear trap set and snapping shut (its Sprung), a firecracker thrown, fizzing,
 -- then banging and flashing (its BangAt, BangFor). The bar only shows in a run.
 
@@ -16,8 +17,10 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Items = require(Shared.Config.Items)
+local Flashlight = require(Shared.Modules.Flashlight)
 local Mode = require(Shared.Modules.Mode)
 local Net = require(Shared.Modules.Net)
+local FlashlightController = require(script.Parent.FlashlightController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -29,10 +32,11 @@ local ACTION = "UseItem"
 local SLOT = Vector2.new(58, 38)
 local THROWN = 0.45 -- seconds a thrown firecracker is in the air (only the look: it's already there)
 local BANG_GAP = { 0.12, 0.45 } -- seconds between bangs
-local KEY_TEXT: { [string]: string } = { One = "1", Two = "2", Three = "3", Four = "4" }
+local KEY_TEXT: { [string]: string } = { One = "1", Two = "2", Three = "3", Four = "4", F = "F" }
 
 local bar: Frame
 local slots: { [string]: TextButton } = {}
+local charge: Frame? = nil -- the flashlight slot's battery
 local usedAt = 0
 
 local function counts(): { [string]: number }
@@ -69,7 +73,7 @@ local function buildSlot(itemId: string, order: number): TextButton
 	local item = (Items :: any)[itemId] :: Items.Item
 	local slot = create("TextButton", {
 		Name = itemId,
-		LayoutOrder = order,
+		LayoutOrder = if itemId == "Flashlight" then 99 else order, -- (last: its key isn't a number)
 		Size = UDim2.fromOffset(SLOT.X, SLOT.Y),
 		BackgroundColor3 = Theme.Colors.Panel,
 		BackgroundTransparency = Theme.TileTransparency,
@@ -112,7 +116,48 @@ local function buildSlot(itemId: string, order: number): TextButton
 	slot.Activated:Connect(function()
 		use(itemId)
 	end)
+	if itemId == "Flashlight" then
+		local fill = create("Frame", {
+			Name = "Fill",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Theme.Colors.Text,
+			BorderSizePixel = 0,
+		})
+		create("Frame", {
+			Name = "Battery",
+			Position = UDim2.new(0, 5, 1, -6),
+			Size = UDim2.new(1, -10, 0, 3),
+			BackgroundColor3 = Theme.Colors.Text,
+			BackgroundTransparency = 0.8,
+			BorderSizePixel = 0,
+			fill,
+			Parent = slot,
+		})
+		charge = fill
+	end
 	return slot
+end
+
+-- The flashlight slot: what's left in its battery (a new one's full), and lit while it's on.
+local function drawBattery()
+	local fill = charge
+	local slot = slots.Flashlight
+	if fill == nil or slot == nil or not slot.Visible then
+		return
+	end
+	local lit = FlashlightController.myCharge()
+	local saved = StateController.get("battery")
+	local left = lit or (if type(saved) == "number" and saved > 0 then Flashlight.charge(saved) else 1)
+	fill.Size = UDim2.fromScale(left, 1)
+	fill.BackgroundColor3 = if left < Items.FLASHLIGHT.flicker
+		then Theme.Colors.Danger
+		elseif left < Items.FLASHLIGHT.low then Theme.Colors.OrangeLight
+		else Theme.Colors.Text
+	local stroke = slot:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = if lit then Color3.fromRGB(255, 236, 200) else Theme.Colors.Hairline
+		stroke.Transparency = if lit then 0.25 else 0.85
+	end
 end
 
 local function refresh()
@@ -273,6 +318,7 @@ function ItemsController.Start()
 	end
 	StateController.observe("consumables", refresh)
 	refresh()
+	RunService.Heartbeat:Connect(drawBattery)
 	local byKey: { [Enum.KeyCode]: string } = {}
 	local keys = {}
 	for _, itemId in Items.ORDER do

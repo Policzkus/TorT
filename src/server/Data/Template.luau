@@ -31,6 +31,7 @@ local Template: Types.PlayerData = {
 
 	boosts = {},
 	consumables = {},
+	battery = 0, -- seconds of light left in the flashlight in hand (0: a new one, if you've one: ItemService)
 	codes = {},
 	purchases = {},
 

@@ -3,7 +3,7 @@
 -- traps, (items that helps against mobs), bandage that gives u hp"). One stands at a random house on
 -- every street, a different one each night (HouseService: house type "Seller"). Bought with banked
 -- candy (Services/ItemService), kept between runs (PlayerData.consumables), used from the bar at the
--- bottom of the view (Controllers/ItemsController: keys 1-4).
+-- bottom of the view (Controllers/ItemsController: keys 1-4, F for the flashlight).
 -- Prices are a number of the street's doors (`doors`: its average door's candy), so they're worth
 -- the same on every street. You carry at most `most` of each.
 
@@ -20,7 +20,7 @@ export type Item = {
 }
 
 local Items = {
-	ORDER = { "Bandage", "BearTrap", "Firecracker", "Lockpick" },
+	ORDER = { "Bandage", "BearTrap", "Firecracker", "Flashlight", "Lockpick" },
 
 	Bandage = {
 		name = "Bandage",
@@ -49,6 +49,17 @@ local Items = {
 		key = "Three",
 		pad = "DPadRight",
 	} :: Item,
+	-- The user: "it has to be realistic with battery that decreases. When battery runs out item is
+	-- removed from your inventory." (FLASHLIGHT below; ItemService, Controllers/FlashlightController.)
+	Flashlight = {
+		name = "Flashlight",
+		icon = "🔦",
+		blurb = "F to switch it on and off. Its battery only runs down while it's on; dead, it's gone.",
+		doors = 15,
+		most = 2,
+		key = "F",
+		pad = "ButtonR3",
+	} :: Item,
 	-- (The user: "leave it without usage for now".)
 	Lockpick = {
 		name = "Lockpick",
@@ -67,7 +78,25 @@ local Items = {
 	-- bangs for `bangs` seconds. Every hunter within `reach` studs of it goes to it and sees no one
 	-- (nor hears anyone) till `blind` seconds after the first bang.
 	FIRECRACKER = { throw = 26, fuse = 1.3, bangs = 5, reach = 120, blind = 7 },
-	COOLDOWN = 0.8, -- seconds between using anything
+	-- The flashlight: `battery` seconds of light in a new one (it runs down only while it's on, and
+	-- what's left is kept between runs: PlayerData.battery). Under `low` of it left the beam dims (to
+	-- `dimmest` of full, just before it dies) and goes yellow; under `flicker` it stutters, more and
+	-- more. The beam at full: `range` studs, `angle` degrees, `brightness`; `spill` is the faint light
+	-- round the lens. With it on, hunters see you from `seen` times as far, and a hiding place
+	-- doesn't hide you: a light in the dark gives you away. `toggle`: seconds between switches.
+	FLASHLIGHT = {
+		battery = 240,
+		low = 0.3,
+		dimmest = 0.3,
+		flicker = 0.15,
+		range = 54,
+		angle = 46,
+		brightness = 2.4,
+		spill = { range = 9, brightness = 0.3 },
+		seen = 1.35,
+		toggle = 0.25,
+	},
+	COOLDOWN = 0.8, -- seconds between using anything (the flashlight aside)
 	-- The seller: who he is (Config/Characters; out of the homeowners' cast), how he comes to the door
 	-- (Homeowners.STYLES: already standing there in the dark hall), how near his door you have to be
 	-- to buy, and what he says: opening the door (LINES; HURT if you're hurt), when you buy (THANKS, no
@@ -92,6 +121,7 @@ local Items = {
 			"Bandages, traps... a little noise. Take your pick.",
 			"He's out there tonight. I'd buy something.",
 			"Don't ask where I got them.",
+			"Batteries don't last. Nothing does.",
 		},
 	},
 }

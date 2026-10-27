@@ -304,6 +304,7 @@ local function decorate(entry: Tracked)
 	end
 	-- A big glowing pumpkin by the door.
 	local pumpkin = Instance.new("Part")
+	pumpkin.Name = "PumpkinLight" -- a candle in it: it gutters like one, and burns on in a blackout
 	pumpkin.Shape = Enum.PartType.Ball
 	pumpkin.Size = Vector3.new(2.6, 2.1, 2.6)
 	pumpkin.Color = Color3.fromHex("FF7A1A")

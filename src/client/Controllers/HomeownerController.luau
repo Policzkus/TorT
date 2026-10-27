@@ -27,6 +27,7 @@ local Characters = require(Shared.Config.Characters)
 local Homeowners = require(Shared.Config.Homeowners)
 local CandyPiece = require(Shared.Modules.CandyPiece)
 local CharacterRig = require(Shared.Modules.CharacterRig)
+local Blackout = require(script.Parent.BlackoutController)
 local Sound = require(script.Parent.SoundController)
 
 local HomeownerController = {}
@@ -1357,9 +1358,11 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 		figure.void.Transparency = if width < 0.06 then 1 else 0
 		figure.void.CFrame = doorFrame * CFrame.new(hingeX - figure.side * width / 2, 0, -DOOR_FRONT + 0.03)
 	end
-	figure.glow.Brightness = p.glow
+	-- In a blackout (the Knifer's about) there's no light in the hall behind them, nor on the porch.
+	local powerOut = Blackout.isOut(figure.house)
+	figure.glow.Brightness = if powerOut then 0 else p.glow
 	for _, light in figure.porch do
-		light.Enabled = p.porch
+		light.Enabled = p.porch and not powerOut
 	end
 
 	figure.poseClock += dt

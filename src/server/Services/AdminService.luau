@@ -209,12 +209,26 @@ commands.housetype = {
 	end,
 }
 
+commands.blackout = {
+	usage = "/blackout [off] - the power goes on the street you're on (off: it comes back); the Knifer brings one with him",
+	run = function(admin, args)
+		local root = admin.Character and admin.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local street = root and WorldService.zoneAt(root.Position)
+		if root == nil or street == nil or WorldService.info().streets[street] == nil then
+			error("Stand on a street first", 0)
+		end
+		local on = args[1] ~= "off"
+		KniferService.blackout(street, on, root.Position)
+		return if on then `The power's gone on {street}` else `The power's back on {street}`
+	end,
+}
+
 commands.item = {
-	usage = "/item <Bandage|BearTrap|Firecracker|Lockpick|all> [count] [player] - the seller's things, free (up to what you can carry)",
+	usage = "/item <Bandage|BearTrap|Firecracker|Flashlight|Lockpick|all> [count] [player] - the seller's things, free (up to what you can carry)",
 	run = function(admin, args)
 		local ids = if args[1] == "all" then Items.ORDER elseif Items.sells(args[1]) then { args[1] } else nil
 		if ids == nil then
-			error("Try Bandage, BearTrap, Firecracker, Lockpick or all", 0)
+			error("Try Bandage, BearTrap, Firecracker, Flashlight, Lockpick or all", 0)
 		end
 		local count = math.floor(tonumber(args[2]) or 1)
 		local target = requireTarget(admin, args[3])

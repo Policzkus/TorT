@@ -10,6 +10,11 @@
 --     "Firecracker": BangAt, BangFor, for the clients' bangs and flashes). Every hunter within
 --     FIRECRACKER.reach of it while it bangs goes to it, seeing and hearing no one till
 --     FIRECRACKER.blind seconds after the first bang (LuredTo, LuredUntil).
+--   Flashlight: F switches it (not used up). Its battery (PlayerData.battery, seconds) runs down only
+--     while it's on, and is kept between runs; dead, the flashlight's gone from your things (the next
+--     one, if you've another, is new). Every client draws everyone's beam from FlashlightOn and
+--     Battery (player attributes; Controllers/FlashlightController); hunters see you further with it
+--     on (AI/Hunter).
 --   Lockpick: nothing yet (the user).
 -- Only out on the streets, up and about.
 
@@ -38,7 +43,8 @@ local ItemService = {}
 
 ItemService.Bought = Signal.new() -- (player, houseId, itemId, count) at the seller's door (DoorService: his thanks)
 
-local TRAP, FIRECRACKER = Items.TRAP, Items.FIRECRACKER
+local TRAP, FIRECRACKER, FLASHLIGHT = Items.TRAP, Items.FIRECRACKER, Items.FLASHLIGHT
+local SAVE_EVERY = 5 -- seconds between saving a lit flashlight's battery
 local CHECK = 0.1 -- seconds between looks at the traps
 
 type Jaw = { part: BasePart, shut: CFrame, teeth: { { part: BasePart, offset: CFrame } } }
@@ -46,6 +52,9 @@ type Trap = { model: Model, at: Vector3, owner: Player, setAt: number, jaws: { J
 
 local traps: { Trap } = {}
 local lastUse: { [Player]: number } = {}
+local lit: { [Player]: boolean } = {} -- flashlights on
+local switchedAt: { [Player]: number } = {}
+local savedAt: { [Player]: number } = {}
 local folder: Folder? = nil
 
 local function things(): Folder
@@ -309,6 +318,73 @@ local function throw(player: Player, root: BasePart, aim: any): (boolean, string
 	return true, nil
 end
 
+-- Flashlight -----------------------------------------------------------------------------------
+
+-- On or off, for everyone to see (FlashlightOn), with what's left in it (Battery, seconds) for every
+-- client's beam. Switched off, what's left is saved.
+local function setLit(player: Player, on: boolean)
+	lit[player] = if on then true else nil
+	player:SetAttribute("FlashlightOn", on)
+	local data = DataService.get(player)
+	if data then
+		player:SetAttribute("Battery", data.battery)
+		if not on then
+			DataService.markDirty(player, "battery")
+		end
+	end
+end
+
+local function switch(player: Player)
+	if lit[player] then
+		setLit(player, false)
+		return
+	end
+	local data = DataService.get(player)
+	if data == nil or (data.consumables.Flashlight or 0) <= 0 then
+		return
+	end
+	if data.battery <= 0 then
+		data.battery = FLASHLIGHT.battery -- a new one
+	end
+	setLit(player, true)
+end
+
+-- Every lit flashlight's battery runs down. Dead, it's gone from your things.
+local function drain(dt: number)
+	local clock = os.clock()
+	for player in lit do
+		local data = DataService.get(player)
+		if data == nil or player.Parent ~= Players then
+			lit[player] = nil
+			continue
+		end
+		local before = data.battery
+		data.battery = math.max(0, before - dt)
+		-- (Every half second is plenty: every client runs it down itself in between.)
+		if math.floor(before * 2) ~= math.floor(data.battery * 2) then
+			player:SetAttribute("Battery", data.battery)
+		end
+		if data.battery <= 0 then
+			setLit(player, false)
+			DataService.mutate(player, "consumables", function(consumables)
+				local left = (consumables.Flashlight or 1) - 1
+				consumables.Flashlight = if left > 0 then left else nil
+			end)
+			local spare = (data.consumables.Flashlight or 0) > 0
+			NotifyService.send(
+				player,
+				if spare
+					then "🔦 The battery's dead. You've another."
+					else "🔦 The battery's dead. The flashlight's gone.",
+				"error"
+			)
+		elseif clock - (savedAt[player] or 0) >= SAVE_EVERY then
+			savedAt[player] = clock
+			DataService.markDirty(player, "battery")
+		end
+	end
+end
+
 -- Using ----------------------------------------------------------------------------------------
 
 local function use(player: Player, itemId: any, aim: any)
@@ -316,6 +392,18 @@ local function use(player: Player, itemId: any, aim: any)
 		return
 	end
 	local clock = os.clock()
+	if itemId == "Flashlight" then
+		-- Switched, not used up; its own pace, not the others' cooldown. Off always works.
+		if clock - (switchedAt[player] or -math.huge) < FLASHLIGHT.toggle then
+			return
+		end
+		if not lit[player] and (HealthService.isFainting(player) or RagdollService.isDown(player)) then
+			return
+		end
+		switchedAt[player] = clock
+		switch(player)
+		return
+	end
 	if clock - (lastUse[player] or -math.huge) < Items.COOLDOWN then
 		return
 	end
@@ -364,13 +452,17 @@ function ItemService.Start()
 	Net.connect("UseItem", use, { rate = 4, burst = 6 })
 	Players.PlayerRemoving:Connect(function(player)
 		lastUse[player] = nil
+		lit[player] = nil
+		switchedAt[player] = nil
+		savedAt[player] = nil
 	end)
 	local since = 0
 	RunService.Heartbeat:Connect(function(dt)
 		since += dt
 		if since >= CHECK then
-			since = 0
 			checkTraps()
+			drain(since)
+			since = 0
 		end
 	end)
 end

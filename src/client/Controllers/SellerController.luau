@@ -374,7 +374,7 @@ function SellerController.Start()
 		Size = UDim2.new(1, 0, 0, 18),
 		BackgroundTransparency = 1,
 		FontFace = Theme.Fonts.Body,
-		Text = "Use your things with 1-4 (the d-pad on a controller).",
+		Text = "Use your things with 1-4, the flashlight with F (the d-pad and R3 on a controller).",
 		TextColor3 = Theme.Colors.TextDim,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Left,
