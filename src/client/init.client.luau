@@ -35,6 +35,7 @@ Loader.run(script.Controllers, {
 	"RadialMenuController",
 	"ShopController",
 	"SellerController",
+	"FlashlightController",
 	"ItemsController",
 	"CostumeController",
 	"BusController",

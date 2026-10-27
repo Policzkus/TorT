@@ -10,12 +10,14 @@
 -- The seller's things work on them (Services/ItemService, through attributes on their models): a
 -- bear trap holds them where they stand (HeldUntil), a firecracker's bangs draw them to it, seeing
 -- and hearing no one till they're done (LuredTo, LuredUntil). Server time, so clients can read them.
+-- And against you: with your flashlight on they see you from further, hiding place or not.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local Items = require(ReplicatedStorage.Shared.Config.Items)
 local Motion = require(ReplicatedStorage.Shared.Modules.Motion)
 local CollisionGroups = require(script.Parent.Parent.World.CollisionGroups)
 local HealthService = require(script.Parent.Parent.Services.HealthService)
@@ -216,7 +218,10 @@ function Hunter.sees(hunter: Hunter, player: Player, params: RaycastParams): boo
 	local eye = eyeOf(hunter)
 	local offset = root.Position - eye
 	local distance = offset.Magnitude
-	if distance > rules.SIGHT.range or (distance > rules.HIDDEN_NEAR and hidden(root.Position)) then
+	-- A flashlight on gives you away: seen from further, and no hiding place hides it.
+	local lit = player:GetAttribute("FlashlightOn") == true
+	local range = rules.SIGHT.range * (if lit then Items.FLASHLIGHT.seen else 1)
+	if distance > range or (not lit and distance > rules.HIDDEN_NEAR and hidden(root.Position)) then
 		return false
 	end
 	if distance > rules.SIGHT.near then

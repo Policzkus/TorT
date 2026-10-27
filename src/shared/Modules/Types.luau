@@ -40,6 +40,7 @@ export type PlayerData = {
 
 	boosts: { [string]: number }, -- [boostId] = remaining play-seconds
 	consumables: { [string]: number },
+	battery: number, -- seconds of light left in the flashlight in hand (0: a new one, if you've one)
 	codes: { [string]: boolean },
 	purchases: { string }, -- recent developer-product PurchaseIds (receipt idempotency)
 
