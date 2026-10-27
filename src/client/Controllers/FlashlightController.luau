@@ -8,8 +8,9 @@
 -- whatever it's pointed at, softly lighting round it (bounce: a wall close up throws a lot back
 -- over a small patch, something far off a faint glow; tinted by what it hits; from a little way
 -- back toward you, so it's a glow round the spot, not a second spot). It all needs the place's
--- Lighting.Technology on Future (default.project.json sets it): on Voxel or ShadowMap every light
--- is drawn in 4-stud blocks (the user: "too blocky and weird").
+-- Lighting.LightingStyle on Realistic (default.project.json sets it, with PrioritizeLightingQuality):
+-- Soft is the flat, retro look, its lights coarse and blocky (the user: "too blocky and weird").
+-- (LightingStyle replaced the old Lighting.Technology; Realistic is what Future was.)
 -- Yours is a torch in your left hand, low in your view: a ribbed metal body, a flared head, a bezel,
 -- the reflector glowing behind the glass. It's raised when you switch it on and lowered when you
 -- switch it off, swings with your steps, rises and falls with your breath, trails your turns (it
