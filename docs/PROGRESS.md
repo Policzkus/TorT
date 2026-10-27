@@ -623,8 +623,16 @@
   - **The server** (`KniferService.blackout`): when he's summoned onto a street its power goes: WorldState's `Blackout_<street>` is when (server time), `BlackoutFrom_<street>` where he came out. `Knifer.BLACKOUT.back` (3 s) after he's gone they're cleared, unless he (or another cut) has come back meanwhile.
   - **Every client** (`BlackoutController`): every electric light on that street dies (its folder of the world, its houses wherever they stand, its handmade lots). That covers porch lights, windows and the rooms behind them, street lamps, string lights, hall lights, and the light from the hall behind an opening door (`HomeownerController` asks `isOut`). Electric means every PointLight, SpotLight and SurfaceLight and every Neon part; a glowing part goes dull and dark.
     - They go in a wave from where he came out (`wave` 160 studs/s, `stagger` 0.3 s apart). Each one stutters first (off, on, off, out) and each street lamp pops as it goes.
-    - For whoever's on the street, a deep thud as the power dies. The night itself is darker: ambient × `darker` (0.62, `ZoneLightingController`).
-    - What stays lit: candles and jack-o'-lanterns (`PumpkinLight`, `PumpkinGlow`; the decoration pumpkin's light is now named so), the seller's lantern, the Candy Boxes' glow, the moon and its `MoonFill_` lights, the passing cars' headlights (they're not the street's: `Traffic`; a parked prop van's do go), the Knifer's eyes, and flashlights (their own batteries: the night to have one).
+    - For whoever's on the street, a deep thud as the power dies.
+    - **The night itself goes dark** (2026-10-27, the user: "the night should be darker when its blackout because now flashlight is useless"), so you see by flashlight (`Knifer.BLACKOUT.night`, `ZoneLightingController`; it comes down over 1.2 s and lifts over 3 s):
+      - the outdoor light to 14% (Cardboard Court 118,130,155 → 17,18,22) and the light under the eaves to 25%;
+      - the moon's own light (Lighting.Brightness) 3 → 0.36, and the sky's fill and reflections to 15%;
+      - the moonlight fills over the yards (`MoonFill_`) to 10% (`BlackoutController`);
+      - the fog a black murk: its colour to 25%, no glare, little haze, a little thicker.
+      - Exposure is left alone, so a flashlight's beam is as bright as ever. What's still there to see by without one: the candles and jack-o'-lanterns, the Candy Boxes, the moon in the sky, his eyes.
+      - In the Witching Hour it goes dark red the same way.
+      - Checked: the targets tweened, normal / blackout / blackout in the Witching Hour / power back.
+    - What stays lit: candles and jack-o'-lanterns (`PumpkinLight`, `PumpkinGlow`; the decoration pumpkin's light is now named so), the seller's lantern, the Candy Boxes' glow, the moon (its `MoonFill_` lights dimmed, above), the passing cars' headlights (they're not the street's: `Traffic`; a parked prop van's do go), the Knifer's eyes, and flashlights (their own batteries: the night to have one).
     - Whatever changes a light meanwhile (a trick house's porch light, decorations put up at Dawn) is remembered and comes back with the power. Anything new put up while it's out is out too.
     - The power back: the lights come on again one by one over `backOver` (2 s), stuttering as they catch, and the lamps click back on.
     - Joining while it's out (a blackout older than 3 s): just dark, no wave and no thud.

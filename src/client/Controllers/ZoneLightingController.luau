@@ -3,7 +3,8 @@
 -- player's "Zone" attribute). Purely visual and local. In the Witching Hour (and under the Blood
 -- Moon) the sky goes red: red fog thick with haze, a red glare, red night light (the moon itself:
 -- MoonController). In a blackout on your street (the Knifer's come: BlackoutController) the night
--- itself is darker too (Knifer.BLACKOUT.darker of its light).
+-- itself goes dark (Knifer.BLACKOUT.night): the ambient light, the moon's own light, the sky's fill
+-- and the fog's glow all cut, the fog a black murk, so you see by flashlight (exposure untouched).
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -21,9 +22,17 @@ local ZoneLightingController = {}
 
 local worldState: Instance? = nil
 local wasRed = false
+local wasOut = false
+
+local function scaled(color: Color3, k: number): Color3
+	return Color3.new(color.R * k, color.G * k, color.B * k)
+end
 
 local function blend(zoneId: string?)
 	local properties = ZoneLighting.properties(zoneId)
+	properties.lighting.Brightness = World.LIGHTING.brightness
+	properties.lighting.EnvironmentDiffuseScale = World.LIGHTING.diffuseScale
+	properties.lighting.EnvironmentSpecularScale = World.LIGHTING.specularScale
 	properties.atmosphere.Haze = World.LIGHTING.fogHaze
 	properties.atmosphere.Glare = World.LIGHTING.fogGlare
 	-- Witching Hour and the Blood Moon paint everything red.
@@ -44,17 +53,33 @@ local function blend(zoneId: string?)
 		properties.colorCorrection.TintColor = Color3.fromHex(if witching then "FFC0C0" else "FFDADA")
 		properties.colorCorrection.Saturation = 0.15
 	end
-	-- The power's out here: darker still.
-	if worldState ~= nil and zoneId ~= nil and worldState:GetAttribute("Blackout_" .. zoneId) ~= nil then
-		local k = Knifer.BLACKOUT.darker
-		for _, key in { "OutdoorAmbient", "Ambient" } do
-			local color = properties.lighting[key] :: Color3
-			properties.lighting[key] = Color3.new(color.R * k, color.G * k, color.B * k)
-		end
+	-- The power's out here: the night goes dark (red or not), and you see by flashlight.
+	local out = worldState ~= nil and zoneId ~= nil and worldState:GetAttribute("Blackout_" .. zoneId) ~= nil
+	if out then
+		local night = Knifer.BLACKOUT.night
+		local lighting, atmosphere = properties.lighting, properties.atmosphere
+		lighting.Ambient = scaled(lighting.Ambient :: Color3, night.ambient)
+		lighting.OutdoorAmbient = scaled(lighting.OutdoorAmbient :: Color3, night.outdoor)
+		lighting.Brightness = World.LIGHTING.brightness * night.moon
+		lighting.EnvironmentDiffuseScale = World.LIGHTING.diffuseScale * night.sky
+		lighting.EnvironmentSpecularScale = World.LIGHTING.specularScale * night.sky
+		atmosphere.Color = scaled(atmosphere.Color :: Color3, night.fog)
+		atmosphere.Decay = scaled(atmosphere.Decay :: Color3, night.fog)
+		atmosphere.Density = math.min(0.8, (atmosphere.Density :: number) + night.thicker)
+		atmosphere.Glare = 0
+		atmosphere.Haze = (atmosphere.Haze :: number) * night.fog
 	end
-	-- Going red (or back) is slow, a zone change quick.
-	local info = if red ~= wasRed then RED_BLEND else BLEND
-	wasRed = red
+	-- The dark comes down fast with the power (and lifts slower); going red (or back) is slow, a zone
+	-- change quick.
+	local info = if out ~= wasOut
+		then TweenInfo.new(
+			if out then Knifer.BLACKOUT.night.fall else Knifer.BLACKOUT.night.lift,
+			Enum.EasingStyle.Sine,
+			Enum.EasingDirection.InOut
+		)
+		elseif red ~= wasRed then RED_BLEND
+		else BLEND
+	wasRed, wasOut = red, out
 	TweenService:Create(Lighting, info, properties.lighting):Play()
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
