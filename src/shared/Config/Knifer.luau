@@ -59,10 +59,32 @@ return {
 
 	-- When he comes onto a street the power goes (the user: "when knifer appears blackout occurs every
 	-- light is off"): every electric light on it dies, in a wave from where he came out at `wave`
-	-- studs/s (each one stutters first, a little apart: `stagger` s), and the dark itself gets
-	-- `darker` of its usual light (ZoneLightingController). `back` seconds after he's gone the lights
-	-- come back on, one by one over `backOver` s. (Services/KniferService, Controllers/BlackoutController.)
-	BLACKOUT = { wave = 160, stagger = 0.3, darker = 0.62, back = 3, backOver = 2 },
+	-- studs/s (each one stutters first, a little apart: `stagger` s). `back` seconds after he's gone
+	-- the lights come back on, one by one over `backOver` s. (Services/KniferService,
+	-- Controllers/BlackoutController.)
+	-- And the night itself goes properly dark (the user: "the night should be darker when its
+	-- blackout because now flashlight is useless"), so a flashlight is what you see by: of their
+	-- usual, the `ambient` light under the eaves, the `outdoor` light, the moon's own light (`moon`),
+	-- the sky's fill (`sky`), the moonlight fills over the yards (`fill`, Street's MoonFill_) and the
+	-- fog's glow (`fog`: a black murk, `thicker` denser). Exposure is left alone so a beam is as bright
+	-- as ever. The dark comes down over `fall` s and lifts over `lift` (ZoneLightingController).
+	BLACKOUT = {
+		wave = 160,
+		stagger = 0.3,
+		back = 3,
+		backOver = 2,
+		night = {
+			ambient = 0.25,
+			outdoor = 0.14,
+			moon = 0.12,
+			sky = 0.15,
+			fill = 0.1,
+			fog = 0.25,
+			thicker = 0.06,
+			fall = 1.2,
+			lift = 3,
+		},
+	},
 
 	SPAWN = { near = 25, far = 75, unseen = 45 }, -- studs from someone; no one closer than `unseen` may see the spot
 	CHARACTER = "Owner_SackMask", -- Config/Characters id: burlap sack head, one button eye, a stitched grin, overalls

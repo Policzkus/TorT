@@ -61,6 +61,7 @@ local EVENTS: { [string]: string } = {
 	SellerOpen = "S→C the seller's coming to his door for you: open his window once he's out (houseId, { outIn, street })",
 	SellerShut = "S→C your visit to the seller's over (you walked off, a new night): close his window (houseId)",
 	SellerDone = "C→S you closed the seller's window: he can go back in (houseId)",
+	SellerSold = "S→C the seller hands someone what they bought, everyone near sees it: (houseId, userId, itemId)",
 	ItemUsed = "S→C someone used one of their things, everyone near hears it: (userId, itemId)",
 }
 

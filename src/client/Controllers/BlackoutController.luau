@@ -4,11 +4,13 @@
 -- every electric light on it dies, in a wave from where he came out, each one stuttering a moment
 -- first. Porch lights, windows and the rooms behind them, street lamps (each with a pop as it goes),
 -- string lights, hall lights, the light of a hall behind an opening door (HomeownerController asks
--- isOut). A deep thud as the power goes, for whoever's on the street, and the night itself darker
--- (ZoneLightingController). What's left: candles and jack-o'-lanterns (they burn on), the seller's
--- lantern, the Candy Boxes' glow (you need to find them), the moon, the passing cars (Traffic), the
--- Knifer's eyes, and flashlights (their own batteries). When the power's back the lights come on
--- again one by one, stuttering as they catch.
+-- isOut). A deep thud as the power goes, for whoever's on the street, and the night itself dark: the
+-- moonlight fills over the yards (Street's MoonFill_) fade to Knifer.BLACKOUT.night.fill of theirs,
+-- and the rest is ZoneLightingController's (the ambient light, the moon's own, the fog's glow). What's
+-- left: candles and jack-o'-lanterns (they burn on), the seller's lantern, the Candy Boxes' glow (you
+-- need to find them), the moon in the sky, the passing cars (Traffic), the Knifer's eyes, and
+-- flashlights (their own batteries): you see by those. When the power's back the lights come on again
+-- one by one, stuttering as they catch.
 -- What counts as on a street: everything in its folder of the world, and its houses wherever they
 -- stand. What's electric: every PointLight, SpotLight and SurfaceLight, and every glowing (Neon)
 -- part, but what's kept above. Whatever changes them meanwhile (a trick house's porch light, a house
@@ -17,6 +19,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -27,6 +30,7 @@ local Sound = require(script.Parent.SoundController)
 local BlackoutController = {}
 
 local RULES = Knifer.BLACKOUT
+local NIGHT = RULES.night
 local CANDLES = { PumpkinLight = true, PumpkinGlow = true } -- they burn on
 local KEPT = { SellerLantern = true, Hunters = true } -- whole models/folders that keep their light
 local DARK = Color3.fromRGB(14, 14, 18)
@@ -41,16 +45,23 @@ type Held = {
 	watch: RBXScriptConnection?,
 	stuttering: boolean,
 }
-type Street = { out: boolean, held: { [Instance]: Held }, added: { RBXScriptConnection }, cut: number }
+type Street = {
+	out: boolean,
+	held: { [Instance]: Held },
+	added: { RBXScriptConnection },
+	cut: number,
+	fills: { Light }, -- its moonlight fills, dimmed
+}
 
 local streets: { [string]: Street } = {}
 local streetOfHouse: { [Instance]: string } = {}
+local fillBrightness: { [Light]: number } = {} -- each moonlight fill's own, from before any blackout
 local worldState: Instance? = nil
 
 local function streetOf(id: string): Street
 	local street = streets[id]
 	if street == nil then
-		street = { out = false, held = {}, added = {}, cut = 0 }
+		street = { out = false, held = {}, added = {}, cut = 0, fills = {} }
 		streets[id] = street
 	end
 	return street
@@ -73,6 +84,26 @@ local function kept(instance: Instance): boolean
 		node = node.Parent
 	end
 	return false
+end
+
+-- A moonlight fill over a yard (Street's MoonFill_<house>): not the power's, but the night's.
+local function isFill(instance: Instance): boolean
+	local parent = instance.Parent
+	return instance:IsA("Light") and parent ~= nil and string.sub(parent.Name, 1, 9) == "MoonFill_"
+end
+
+-- A moonlight fill fades to `k` of its own over `seconds` (at once if 0).
+local function fade(light: Light, k: number, seconds: number)
+	local full = fillBrightness[light]
+	if full == nil then
+		full = light.Brightness
+		fillBrightness[light] = full
+	end
+	if seconds <= 0 then
+		light.Brightness = full * k
+	else
+		TweenService:Create(light, TweenInfo.new(seconds, Enum.EasingStyle.Sine), { Brightness = full * k }):Play()
+	end
 end
 
 local function electric(instance: Instance): boolean
@@ -213,7 +244,11 @@ local function cut(id: string, from: Vector3?, instant: boolean)
 	end
 	for _, root in rootsOf(id) do
 		for _, instance in root:GetDescendants() do
-			if electric(instance) then
+			if isFill(instance) then
+				local light = instance :: Light
+				table.insert(street.fills, light)
+				fade(light, NIGHT.fill, if instant then 0 else NIGHT.fall)
+			elseif electric(instance) then
 				local at = positionOf(instance)
 				local delay = if instant
 						or from == nil
@@ -258,6 +293,10 @@ local function restore(id: string)
 		connection:Disconnect()
 	end
 	table.clear(street.added)
+	for _, light in street.fills do
+		fade(light, 1, NIGHT.lift)
+	end
+	table.clear(street.fills)
 	for _, held in street.held do
 		held.stuttering = true
 		task.delay(math.random() * RULES.backOver, function()

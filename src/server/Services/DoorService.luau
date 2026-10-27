@@ -21,6 +21,7 @@ local Items = require(ReplicatedStorage.Shared.Config.Items)
 local Minigames = require(ReplicatedStorage.Shared.Config.Minigames)
 local Neighborhoods = require(ReplicatedStorage.Shared.Config.Neighborhoods)
 local Format = require(ReplicatedStorage.Shared.Modules.Format)
+local OwnerMoves = require(ReplicatedStorage.Shared.Modules.OwnerMoves)
 local Formulas = require(ReplicatedStorage.Shared.Modules.Formulas)
 local Net = require(ReplicatedStorage.Shared.Modules.Net)
 local Rng = require(ReplicatedStorage.Shared.Modules.Rng)
@@ -54,9 +55,6 @@ export type DoorResult = {
 	bowlLeft: number?, -- what's still in it
 }
 
--- Goodbyes a homeowner picks from going back in, by how the visit went (HomeownerController.GOODBYES).
-local GOODBYES = { pleased = { "wave", "bow", "nod" }, displeased = { "point", "shoo", "stare" } }
-
 local DoorService = {}
 
 local houseReadyAt: { [string]: number } = {} -- each house's: when it answers again (server time)
@@ -68,6 +66,17 @@ local sellerBought: { [Player]: boolean } = {} -- bought something this visit
 local sellerThanked: { [string]: number } = {} -- when he last said thanks (os.clock), per house
 local random = Random.new()
 local rng = Rng.new(random:NextInteger(1, 2147483646))
+
+-- A homeowner's goodbye going back in (Modules/OwnerMoves.GOODBYES): their own sort's, for how the
+-- visit went ("pleased" / "displeased").
+local function goodbye(model: Model, mood: string): string
+	return OwnerMoves.bye(
+		model:GetAttribute("Owner"),
+		model:GetAttribute("HouseType") == "Seller",
+		mood,
+		random:NextNumber()
+	)
+end
 
 local function now(): number
 	return Workspace:GetServerTimeNow()
@@ -235,9 +244,8 @@ local function finish(player: Player, houseId: string, houseType: string, grade:
 	-- get it right and they hand you your candy. Their goodbye going back in follows from it (OwnerMood).
 	if houseType ~= "Trick" then
 		local mood = if grade == "MISS" then "displeased" else "pleased"
-		local byes = GOODBYES[mood]
 		house.model:SetAttribute("OwnerMood", mood)
-		house.model:SetAttribute("OwnerBye", byes[random:NextInteger(1, #byes)])
+		house.model:SetAttribute("OwnerBye", goodbye(house.model, mood))
 	end
 	if slapped then
 		Net.event("HomeownerStrike"):FireAllClients(houseId, player.UserId)
@@ -271,7 +279,7 @@ local function sellerDone(player: Player, houseId: any)
 	if house then
 		local mood = if bought then "pleased" else "displeased"
 		house.model:SetAttribute("OwnerMood", mood)
-		house.model:SetAttribute("OwnerBye", pick(GOODBYES[mood]))
+		house.model:SetAttribute("OwnerBye", goodbye(house.model, mood))
 	end
 	say(houseId, bye, 0.2)
 	HomeownerService.leave(
@@ -322,12 +330,14 @@ local function sellerVisit(player: Player, houseId: string)
 	end)
 end
 
--- Someone bought something at his door: he thanks them (now and then, not every time).
-local function onBought(player: Player, houseId: string)
+-- Someone bought something at his door: he hands it over (SellerSold, for everyone near) and thanks
+-- them (now and then, not every time).
+local function onBought(player: Player, houseId: string, itemId: string)
 	if browsing[player] ~= houseId then
 		return
 	end
 	sellerBought[player] = true
+	Net.event("SellerSold"):FireAllClients(houseId, player.UserId, itemId)
 	local clock = os.clock()
 	if clock - (sellerThanked[houseId] or -math.huge) >= Items.SELLER.THANKS_GAP then
 		sellerThanked[houseId] = clock
