@@ -58,6 +58,8 @@ local EVENTS: { [string]: string } = {
 	Fainted = "S→C you were caught: (lostBucket: number, wakeIn: number)",
 	-- The seller's things (ItemService)
 	UseItem = "C→S use one of your things from the bar: (itemId, aim: Vector3 where you're looking)",
+	SellerOpen = "S→C the seller's come to his door for you: open his window (houseId)",
+	SellerDone = "C→S you closed the seller's window: he can go back in (houseId)",
 	ItemUsed = "S→C someone used one of their things, everyone near hears it: (userId, itemId)",
 }
 

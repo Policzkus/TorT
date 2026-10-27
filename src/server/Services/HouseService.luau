@@ -7,9 +7,9 @@
 -- until the next Dawn, when every bowl is put out full again and every burst porch lamp
 -- (LampBroken) is mended.
 -- Every street has one seller (Config/Items), at a random house, a different one each Dawn: house
--- type "Seller", nobody to knock for, him standing in the doorway behind a crate of his wares with a
--- lantern on it and a sign over it. The crate's prompt (tag "SellerStall") opens his window
--- (Controllers/SellerController); ItemService sells.
+-- type "Seller", a lantern by his door. He's its homeowner (OwnerModel: Items.SELLER.CHARACTER):
+-- knock and he comes to the door like any of them, and his window opens (DoorService,
+-- Controllers/SellerController); ItemService sells.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -40,7 +40,7 @@ type HouseState = {
 	owner: string,
 	preference: string,
 	bowl: Model?,
-	stall: Model?, -- the seller's
+	lantern: Model?, -- the seller's
 }
 
 local houses: { [string]: HouseState } = {}
@@ -135,161 +135,32 @@ local function buildBowl(houseId: string): Model?
 	return m
 end
 
--- The seller's stall at `houseId`: him in the doorway, looking out, behind a crate with his wares
--- on it (a roll of bandage, a trap, firecrackers, a lockpick), a lantern on its corner so you see
--- it from the street, and a sign over it. Its prompt opens his window (the client's).
-local function buildStall(houseId: string): Model?
+-- The seller's lantern at `houseId`, hung beside his door so you can pick his house out from the
+-- street. He's inside: knock and he comes to the door like any homeowner (DoorService).
+local function hangLantern(houseId: string): Model?
 	local house = WorldService.getHouse(houseId)
 	if house == nil then
 		return nil
 	end
 	local door = house.door
-	local look = door.CFrame.LookVector
-	local out = Vector3.new(look.X, 0, look.Z)
-	if out.Magnitude < 0.1 then
-		return nil
-	end
-	out = out.Unit
-	local floor = door.Position - Vector3.new(0, door.Size.Y / 2, 0)
-	local sill = floor + out * 1.2
 	local m = Instance.new("Model")
-	m.Name = "SellerStall"
-	m:SetAttribute("House", houseId)
-	m:SetAttribute("Street", house.neighborhood) -- (his prices are the street's: Items.price)
-	local figure = CharacterRig.build(Items.SELLER.CHARACTER, "puppet")
-	if figure then
-		figure.Name = "Seller"
-		figure:PivotTo(CFrame.lookAt(sill, sill + out))
-		figure.Parent = m
-	end
-	-- The crate, facing the street (its -Z out), on the boards.
-	local base = CFrame.lookAt(floor + out * 3.4, floor + out * 4.4)
-	local crate = Parts.block(
-		m,
-		"Crate",
-		Vector3.new(3.4, 1.9, 1.7),
-		base * CFrame.new(0, 0.95, 0),
-		"5A3E26",
-		Enum.Material.WoodPlanks
-	)
-	local top = base * CFrame.new(0, 1.9, 0)
-	Parts.decor(
-		Parts.cylinder(
-			m,
-			"Bandage",
-			0.45,
-			0.55,
-			top * CFrame.new(-1.15, 0.28, 0) * CFrame.Angles(0, 0, math.rad(90)),
-			"EDE7DA",
-			Enum.Material.Fabric
-		)
-	)
-	Parts.decor(Parts.disc(m, "Trap", 1.1, 0.12, top * CFrame.new(-0.25, 0.01, 0.1), "4A4D52", Enum.Material.Metal))
-	for k = 1, 3 do
-		Parts.decor(
-			Parts.cylinder(
-				m,
-				"Firecracker",
-				0.7,
-				0.14,
-				top * CFrame.new(0.55, 0.08 + (k - 1) * 0.15, -0.2 + k * 0.12) * CFrame.Angles(0, math.rad(20 * k), 0),
-				"C81E1A"
-			)
-		)
-	end
+	m.Name = "SellerLantern"
+	local side = door.CFrame * CFrame.new(door.Size.X / 2 + 0.9, door.Size.Y * 0.15, -0.45)
 	Parts.decor(
 		Parts.block(
 			m,
-			"Lockpick",
-			Vector3.new(0.5, 0.05, 0.08),
-			top * CFrame.new(1.05, 0.03, 0.25),
-			"B8B2A6",
+			"Bracket",
+			Vector3.new(0.12, 0.12, 0.6),
+			side * CFrame.new(0, 0.55, 0.15),
+			"2A1E16",
 			Enum.Material.Metal
 		)
 	)
-	local lantern = Parts.decor(
-		Parts.block(
-			m,
-			"Lantern",
-			Vector3.new(0.45, 0.6, 0.45),
-			top * CFrame.new(1.35, 0.3, -0.4),
-			"FFB45A",
-			Enum.Material.Neon
-		)
-	)
+	local lantern =
+		Parts.decor(Parts.block(m, "Lantern", Vector3.new(0.5, 0.7, 0.5), side, "FFB45A", Enum.Material.Neon))
 	Parts.light(lantern, 18, 1.6, "FF9A40")
-	local sign = Parts.decor(
-		Parts.block(
-			m,
-			"Sign",
-			Vector3.new(3.2, 0.9, 0.12),
-			base * CFrame.new(0, 2.9, 0.55),
-			"2A1E16",
-			Enum.Material.Wood
-		)
-	)
-	Parts.sign(
-		sign,
-		Enum.NormalId.Front,
-		"SELLER",
-		{ color = Color3.fromHex("FFB45A"), stroke = Color3.fromHex("1A120C") }
-	)
-	local prompt = Parts.prompt(crate, "Browse", "Seller", 9)
-	prompt.Name = "Browse"
-	CollectionService:AddTag(crate, "SellerStall")
-	passable(m)
 	m.Parent = house.model
 	return m
-end
-
--- The crate of the seller at `houseId` (nil: he isn't there).
-function HouseService.stall(houseId: string): BasePart?
-	local house = houses[houseId]
-	local stall = house and house.stall
-	local crate = stall and stall.Parent and stall:FindFirstChild("Crate")
-	return if crate and crate:IsA("BasePart") then crate else nil
-end
-
--- The house on `neighborhoodId` the seller is at tonight (nil: none).
-function HouseService.sellerOn(neighborhoodId: string): string?
-	for houseId, state in houses do
-		local house = WorldService.getHouse(houseId)
-		if state.houseType == "Seller" and house and house.neighborhood == neighborhoodId then
-			return houseId
-		end
-	end
-	return nil
-end
-
--- How much candy `houseId`'s bowl has left (0 if it's empty, or there's no bowl).
-function HouseService.bowlCandy(houseId: string): number
-	local house = houses[houseId]
-	local bowl = house and house.bowl
-	if bowl == nil or bowl.Parent == nil then
-		return 0
-	end
-	return (bowl:GetAttribute("Candy") :: number?) or 0
-end
-
--- `amount` taken out of `houseId`'s bowl: fewer pieces in it as it goes down, and once it's empty no
--- prompt until the next Dawn.
-function HouseService.takeFromBowl(houseId: string, amount: number)
-	local house = houses[houseId]
-	local bowl = house and house.bowl
-	if bowl == nil then
-		return
-	end
-	local left = math.max(0, HouseService.bowlCandy(houseId) - amount)
-	bowl:SetAttribute("Candy", left)
-	local full = math.max(1, (bowl:GetAttribute("Full") :: number?) or 1)
-	local shown = math.ceil(#BOWL_COLORS * left / full)
-	for _, item in bowl:GetDescendants() do
-		if item:IsA("BasePart") and item.Name == "Candy" and ((item:GetAttribute("Order") :: number?) or 0) > shown then
-			item:Destroy()
-		elseif item:IsA("ProximityPrompt") and left <= 0 then
-			item.Enabled = false
-		end
-	end
 end
 
 -- `refill`: a new night, so a bowl that stays a bowl is put out full again.
@@ -307,23 +178,30 @@ local function apply(houseId: string, state: HouseState, refill: boolean?)
 	if state.houseType == "Bowl" and state.bowl == nil then
 		state.bowl = buildBowl(houseId)
 	end
-	if previous and previous.stall and state.houseType ~= "Seller" then
-		previous.stall:Destroy()
-	elseif previous and previous.stall then
-		state.stall = previous.stall
+	if previous and previous.lantern and state.houseType ~= "Seller" then
+		previous.lantern:Destroy()
+	elseif previous and previous.lantern then
+		state.lantern = previous.lantern
 	end
-	if state.houseType == "Seller" and state.stall == nil then
-		state.stall = buildStall(houseId)
+	if state.houseType == "Seller" and state.lantern == nil then
+		state.lantern = hangLantern(houseId)
+	end
+	-- The seller is his house's homeowner (if his meshes are in the place; else whoever lives there sells).
+	if state.houseType == "Seller" and CharacterRig.ready(Items.SELLER.CHARACTER) then
+		house.model:SetAttribute("OwnerModel", Items.SELLER.CHARACTER)
 	end
 	houses[houseId] = state
 	house.model:SetAttribute("HouseType", state.houseType)
 	house.model:SetAttribute("Owner", state.owner)
 	house.model:SetAttribute("Preference", state.preference)
 	-- Never who lives there: you find out when the door opens.
-	house.prompt.ObjectText = if state.houseType == "LightsOff" then "Nobody's home..." else "Trick or treat!"
-	-- Bowl, open and seller houses don't answer the door, and there's no knocking at them; a
-	-- lights-off one takes your knock, but nobody comes (DoorService).
-	house.prompt.Enabled = state.houseType ~= "Bowl" and state.houseType ~= "Open" and state.houseType ~= "Seller"
+	house.prompt.ObjectText = if state.houseType == "LightsOff"
+		then "Nobody's home..."
+		elseif state.houseType == "Seller" then "Seller"
+		else "Trick or treat!"
+	-- Bowl and open houses don't answer the door, and there's no knocking at them; a lights-off one
+	-- takes your knock, but nobody comes (DoorService).
+	house.prompt.Enabled = state.houseType ~= "Bowl" and state.houseType ~= "Open"
 	-- An open house's hall is lit, the chandelier's candles too (World/BlenderLot.dressHall); the
 	-- client swings its door open.
 	local open = state.houseType == "Open"
@@ -343,6 +221,10 @@ end
 -- mended.
 function HouseService.setType(houseId: string, houseType: string)
 	local current = houses[houseId]
+	local house = WorldService.getHouse(houseId)
+	if current and current.houseType == "Seller" and houseType ~= "Seller" and house then
+		HomeownerService.roll(house.model, house.neighborhood) -- someone else lives there again
+	end
 	if current then
 		local bowl = houseType == "Bowl"
 		apply(houseId, {
@@ -350,7 +232,6 @@ function HouseService.setType(houseId: string, houseType: string)
 			owner = current.owner,
 			preference = current.preference,
 		}, bowl)
-		local house = WorldService.getHouse(houseId)
 		if bowl and house then
 			house.model:SetAttribute("LampBroken", nil)
 			house.model:SetAttribute("LampBrokenBy", nil)

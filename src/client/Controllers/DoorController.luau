@@ -209,12 +209,12 @@ local function bucketFull(): boolean
 	return upgrades ~= nil and (StateController.get("bucket") or 0) >= Formulas.bucketCapacity(upgrades.bucketTier)
 end
 
--- Bowl, open and seller houses have no door to knock on (a lights-off one has: nobody comes,
--- DoorService).
+-- Bowl and open houses have no door to knock on (a lights-off one has: nobody comes, DoorService;
+-- the seller's has: he comes to sell, SellerController).
 local function knockable(door: BasePart): boolean
 	local model = Houses.of(door)
 	local houseType = model and model:GetAttribute("HouseType")
-	return houseType ~= "Bowl" and houseType ~= "Open" and houseType ~= "Seller"
+	return houseType ~= "Bowl" and houseType ~= "Open"
 end
 
 -- A candy bowl's prompt: how much is left in it, or that your bucket's full.
@@ -236,14 +236,16 @@ local function apply(houseId: string)
 	if door then
 		local prompt = promptOf(door)
 		if prompt then
-			prompt.Enabled = not onCooldown and knockable(door)
-			local full = bucketFull()
-			prompt.ActionText = if full then "Bucket full" else "Knock"
 			local model = Houses.of(door)
-			local lightsOff = model ~= nil and model:GetAttribute("HouseType") == "LightsOff"
-			prompt.ObjectText = if full
-				then "Empty it at your Candy Box"
-				elseif lightsOff then "Nobody's home..."
+			local houseType = model and model:GetAttribute("HouseType")
+			local seller = houseType == "Seller" -- (no cooldown, and no candy: a full bucket can knock)
+			prompt.Enabled = (seller or not onCooldown) and knockable(door)
+			local full = bucketFull() and not seller
+			prompt.ActionText = if full then "Bucket full" else "Knock"
+			prompt.ObjectText = if seller
+				then "Seller"
+				elseif full then "Empty it at your Candy Box"
+				elseif houseType == "LightsOff" then "Nobody's home..."
 				else "Trick or treat!"
 		end
 	end
@@ -506,6 +508,15 @@ local function releaseLook(houseId: string?, after: number)
 	end
 end
 
+-- At the seller's (SellerController): your view goes to him while his window's open, as at any door.
+function DoorController.faceHouse(houseId: string)
+	onAnswered(houseId)
+end
+
+function DoorController.release(houseId: string)
+	releaseLook(houseId, LOOK_AFTER)
+end
+
 local function steerLook(dt: number)
 	local active = look
 	if active == nil then
@@ -562,7 +573,9 @@ function DoorController.Start()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
 		local parent = prompt.Parent
 		if parent and CollectionService:HasTag(parent, "Door") then
-			Sound.play(if bucketFull() then "Miss" else "Knock")
+			local house = Houses.of(parent :: BasePart)
+			local seller = house ~= nil and house:GetAttribute("HouseType") == "Seller"
+			Sound.play(if bucketFull() and not seller then "Miss" else "Knock")
 		end
 	end)
 

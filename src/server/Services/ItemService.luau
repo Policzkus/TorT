@@ -1,7 +1,7 @@
 --!strict
--- The seller's things (Config/Items): buying them at his crate (BuyItem: banked candy, near him, at
--- most Item.most of each, kept in PlayerData.consumables) and using them from the bar (UseItem,
--- Controllers/ItemsController):
+-- The seller's things (Config/Items): buying them at his door (BuyItem: banked candy, while he's out
+-- and you're near, at most Item.most of each, kept in PlayerData.consumables) and using them from the
+-- bar (UseItem, Controllers/ItemsController):
 --   Bandage: Items.BANDAGE.heal health back, if you're hurt (HealthService.heal): the only way back.
 --   Bear trap: set at your feet (a model tagged "BearTrap"; every client hears it snap). A hunter
 --     (AI/Hunter: the Knifer, a homeowner after you) whose feet come within TRAP.reach of it is held
@@ -85,14 +85,13 @@ local function buy(player: Player, houseId: any, itemId: any): (boolean, string)
 		return false, "He doesn't sell that"
 	end
 	local item = (Items :: any)[itemId] :: Items.Item
-	local crate = HouseService.stall(houseId)
 	local house = WorldService.getHouse(houseId)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if crate == nil or house == nil then
-		return false, "He's gone"
+	if house == nil or HouseService.houseType(houseId) ~= "Seller" or house.model:GetAttribute("OwnerOut") ~= true then
+		return false, "He's gone back in"
 	end
-	if root == nil or (root.Position - crate.Position).Magnitude > Items.SELLER.RANGE then
+	if root == nil or (root.Position - house.door.Position).Magnitude > Items.SELLER.RANGE then
 		return false, "You're too far from the seller"
 	end
 	local data = DataService.get(player)
