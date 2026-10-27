@@ -619,6 +619,24 @@ function DoorController.Start()
 			return root and root.Position
 		end, bucket)
 	end)
+	-- Someone bought something at the seller's: he hands it over (to you: down into your hands, at the
+	-- bottom of your view; anyone else: to them).
+	Net.event("SellerSold").OnClientEvent:Connect(function(houseId: any, userId: any, itemId: any)
+		local door = if type(houseId) == "string" then doors[houseId] else nil
+		local house = door and Houses.of(door)
+		local buyer = if type(userId) == "number" then Players:GetPlayerByUserId(userId) else nil
+		if house == nil or buyer == nil or type(itemId) ~= "string" then
+			return
+		end
+		Homeowner.give(house, function(): Vector3?
+			if buyer == Players.LocalPlayer then
+				local camera = Workspace.CurrentCamera
+				return camera and (camera.CFrame * CFrame.new(-0.6, -1.0, -1.4)).Position
+			end
+			local root = buyer.Character and buyer.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			return root and root.Position
+		end, nil, itemId)
+	end)
 	-- You walked away: no hello, nothing more said, your view is yours again.
 	Minigame.abandoned:Connect(function(houseId: string?)
 		local door = if houseId then doors[houseId] else nil

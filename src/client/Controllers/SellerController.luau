@@ -26,6 +26,7 @@ local Format = require(Shared.Modules.Format)
 local Houses = require(Shared.Modules.Houses)
 local Net = require(Shared.Modules.Net)
 local DoorController = require(script.Parent.DoorController)
+local Homeowner = require(script.Parent.HomeownerController)
 local NotificationController = require(script.Parent.NotificationController)
 local Sound = require(script.Parent.SoundController)
 local StateController = require(script.Parent.StateController)
@@ -130,6 +131,9 @@ local function buy(itemId: string, count: number)
 	buying = false
 	Sound.play(if ok then "Purchase" else "Error")
 	NotificationController.show(message or "Couldn't buy that", if ok then "success" else "error")
+	if not ok and house then
+		Homeowner.react(house, "headShake") -- he shakes his head at you
+	end
 	local row = rows[itemId]
 	if ok and row then
 		flash(row)

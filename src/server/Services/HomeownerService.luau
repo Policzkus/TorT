@@ -11,7 +11,7 @@
 --   OwnerVisitor - the UserId of whoever knocked last (or is being peeked at): everyone sees the
 --                  homeowner face them
 --   OwnerMood  - "pleased" / "displeased": how the last visit went
---   OwnerBye   - their goodbye going back in (HomeownerController.GOODBYES), picked to fit it
+--   OwnerBye   - their goodbye going back in (Modules/OwnerMoves.GOODBYES), picked to fit it and them
 --   Glance     - true while they're peeking out at someone going by (the door cracked; nobody
 --                knocked), GlanceSlam - it ended with the door slammed (someone came too close)
 
@@ -98,6 +98,7 @@ function HomeownerService.appear(houseId: string, visitor: Player?, style: strin
 	visits[houseId] = { count = 1, closing = 0 }
 	local model = house.model
 	model:SetAttribute("OwnerBye", nil) -- no goodbye unless this visit earns one
+	model:SetAttribute("OwnerMood", nil) -- (nor a mood: how they talk till then is their hello)
 	local number = ((model:GetAttribute("OwnerVisit") :: number?) or 0) + 1
 	model:SetAttribute("OwnerVisit", number)
 	local how = style or Homeowners.STYLES[random:NextInteger(1, #Homeowners.STYLES)]

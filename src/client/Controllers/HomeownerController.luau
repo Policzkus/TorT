@@ -10,10 +10,15 @@
 -- see before it moves), fold forward under a frame or ceiling too low for them and turn sideways
 -- through a door too narrow. They stop on the porch, shuffle round to face you, settle, and watch
 -- you while you play: breathing, head following you, twitching, sometimes slowly reaching for you,
--- and now and then doing something (ACTS: a look back into the dark house, the head cocked over too
--- far, a scratch, fingers drumming, leaning in for a closer look...; the same on every screen: server
--- time and the house's seed). They gesture as they talk (talk), clap slowly at a PERFECT (clap).
--- Then they turn back to the door, back into the dark step by step, and the door shuts on them.
+-- and now and then doing something. What, and how, is who they are (Modules/OwnerMoves: the house's
+-- personality, or the seller): a look back into the dark house, hands wrung, a foot tapping, a yawn,
+-- a giggle behind a hand, a look up at a creak upstairs, the seller counting his coins or watching
+-- the street...; the same on every screen (server time and the house's seed). They gesture as they
+-- talk, their own way (a bow and a hand on the heart, a finger wagged, a hand cupped to the ear...),
+-- clap slowly at a PERFECT, hand over your candy their own way (held out in both hands, tossed,
+-- teased away and back, dropped from up high), shield their eyes from a flashlight shone in their
+-- face, start when the power goes. Then a goodbye of theirs, they turn back to the door, back into
+-- the dark step by step, and the door shuts on them.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -27,90 +32,20 @@ local Characters = require(Shared.Config.Characters)
 local Homeowners = require(Shared.Config.Homeowners)
 local CandyPiece = require(Shared.Modules.CandyPiece)
 local CharacterRig = require(Shared.Modules.CharacterRig)
+local OwnerMoves = require(Shared.Modules.OwnerMoves)
+local Rng = require(Shared.Modules.Rng)
 local Blackout = require(script.Parent.BlackoutController)
 local Sound = require(script.Parent.SoundController)
 
 local HomeownerController = {}
 
--- What they do standing at the door while you play, now and then (every `ACT_EVERY` s there's an
--- `ACT_CHANCE` one starts, picked from the house's seed and server time, so every player sees the
--- same). `time` seconds of it; `pose(t)` what it does `t` seconds in (radians): the near (`arm` =
--- "near", their slapping side) or far arm swung up (`pitch`) and out (`roll`); a bend forward
--- (`fold`); a turn of the body (`twist`) and a sway (`sway`); the head nodding up (`nod`), tilted
--- (`tilt`) and turned (`turn`, away from you toward the house behind them).
-type Act = {
-	arm: string?,
-	pitch: number?,
-	roll: number?,
-	fold: number?,
-	twist: number?,
-	sway: number?,
-	nod: number?,
-	tilt: number?,
-	turn: number?,
-}
-local ACT_EVERY = 4.5
-local ACT_CHANCE = 0.55
-local ACTS: { { name: string, time: number, pose: (t: number) -> Act } } = {
-	-- A look back over the shoulder into the dark house, as if someone in there said something.
-	{
-		name = "lookBack",
-		time = 1.9,
-		pose = function()
-			return { turn = 1.45, twist = 0.3, nod = 0.05 }
-		end,
-	},
-	-- The head slowly cocked right over, too far, and held there.
-	{
-		name = "cock",
-		time = 2.2,
-		pose = function()
-			return { tilt = 0.75, nod = -0.06 }
-		end,
-	},
-	-- A hand up to the side of the head, scratching.
-	{
-		name = "scratch",
-		time = 1.7,
-		pose = function(t)
-			return { arm = "far", pitch = 2.45, roll = 0.55 + 0.12 * math.sin(t * 24), tilt = -0.15 }
-		end,
-	},
-	-- Fingers drumming on the leg: impatient.
-	{
-		name = "drum",
-		time = 1.9,
-		pose = function(t)
-			return { arm = "near", pitch = 0.16 + 0.07 * math.sin(t * 26), roll = 0.12 }
-		end,
-	},
-	-- Weight from one foot to the other, slowly.
-	{
-		name = "shift",
-		time = 2.6,
-		pose = function(t)
-			return { sway = 0.11 * math.sin(t * 2.4), tilt = 0.06 * math.sin(t * 2.4) }
-		end,
-	},
-	-- Leaning in closer, for a better look at you.
-	{
-		name = "lean",
-		time = 2.0,
-		pose = function()
-			return { fold = 0.32, nod = 0.16 }
-		end,
-	},
-	-- Sniffing the air: little lifts of the chin.
-	{
-		name = "sniff",
-		time = 1.5,
-		pose = function(t)
-			return { nod = 0.24 + 0.08 * math.max(0, math.sin(t * 18)), tilt = 0.06 }
-		end,
-	},
-}
--- Talking (talk): the far hand beats in time with the words, the head nods on them.
-local TALK = { pitch = 0.8, beat = 0.28, roll = 0.3, nod = 0.09, ease = 0.25 }
+type Move = OwnerMoves.Move
+-- Talking: their gestures eased in and out over this many seconds.
+local TALK_EASE = 0.25
+-- A flashlight shone in their face (anyone's, from within `range` studs, within `cone` of straight at
+-- their face): they shield their eyes (their temperament's glare), easing into it over `rise` s and
+-- out over `fall`; a hiss at it, at most every `hiss` s.
+local GLARE = { range = 26, cone = math.cos(math.rad(13)), rise = 0.18, fall = 0.45, hiss = 4 }
 -- A slow clap at a PERFECT (clap): both hands out in front, meeting `claps` times over `time` s.
 local CLAP = { time = 1.15, claps = 3, pitch = 1.3, apart = 0.08, together = 0.42 }
 
@@ -148,68 +83,9 @@ local LATE = 1 -- seconds after they came out (OwnerOutAt) past which we show th
 -- A peek at someone going by (Glance, HomeownerService): the door cracked this far over `open`
 -- seconds, their head leaning out into the gap, held till the server says; slammed if you come close.
 local GLANCE = { crack = 0.4, open = 0.5, lean = 0.45, slam = 0.35, aside = 0.28, nearer = 0.6 } -- aside: of the door's width, to the gap's side; nearer: studs in from their start
--- Goodbyes before they go back in (OwnerBye: the server picks one that fits how the visit went):
--- `time` seconds of it, still facing you, before they turn to the door; the displeased ones end with
--- the door slammed. `pose(t)` is what it does `t` seconds in (radians): the near arm swung up
--- (`pitch`) and out (`roll`), if it uses the arm; a bend forward (`fold`); a nod (`nod`, down is
--- negative), a tilt of the head (`tilt`) and a turn of it away from you (`turn`).
-type Bye = { pitch: number?, roll: number?, fold: number?, nod: number?, tilt: number?, turn: number? }
-local GOODBYES: { [string]: { time: number, slam: boolean, sound: string?, pose: (t: number) -> Bye } } = {
-	-- A slow wave, the hand up by their head, the head on one side.
-	wave = {
-		time = 1.4,
-		slam = false,
-		pose = function(t)
-			return { pitch = 0.45, roll = 2.0 + 0.3 * math.sin(t * 8), tilt = 0.25 }
-		end,
-	},
-	-- A deep bow, slow, held a little too long.
-	bow = {
-		time = 1.5,
-		slam = false,
-		sound = "Breath",
-		pose = function()
-			return { fold = 0.75, nod = -0.35 }
-		end,
-	},
-	-- Two nods and a little hand raised to you.
-	nod = {
-		time = 1.1,
-		slam = false,
-		pose = function(t)
-			return { pitch = 0.35, roll = 1.0 + 0.15 * math.sin(t * 10), nod = -0.32 * math.max(0, math.sin(t * 7)) }
-		end,
-	},
-	-- A finger jabbed at you, twice, leaning in.
-	point = {
-		time = 1.0,
-		slam = true,
-		pose = function(t)
-			return { pitch = 1.55 + 0.18 * math.max(0, math.sin(t * 9)) ^ 3, fold = 0.15 }
-		end,
-	},
-	-- The back of the hand flicked at you (go away), the head turned from you.
-	shoo = {
-		time = 1.0,
-		slam = true,
-		sound = "Whoosh",
-		pose = function(t)
-			return { pitch = 0.8, roll = 0.3 + 0.6 * math.max(0, math.sin(t * 11)), turn = 0.45, fold = -0.06 }
-		end,
-	},
-	-- Just a long stare, the head tipping over, leaning in.
-	stare = {
-		time = 1.5,
-		slam = true,
-		sound = "Breath",
-		pose = function()
-			return { tilt = 0.55, fold = 0.18, nod = -0.12 }
-		end,
-	},
-}
--- Handing you your candy (HomeownerGive): the arm out to you over `reach`, the candy leaving the
--- hand at `release` and in your bucket `fly` later, the arm back by `back`.
-local GIVE = { reach = 0.25, release = 0.45, fly = 0.35, back = 0.95, raise = 1.35 }
+-- Their goodbye going back in (OwnerBye, picked by the server to fit who they are and how the visit
+-- went): OwnerMoves.GOODBYES. Handing you your candy (HomeownerGive) or what you bought from the
+-- seller (SellerSold): OwnerMoves.GIVES, the thing leaving their hand at its `release`.
 -- Someone else's scare (a trick house's Nerve Hold): they lunge out at them, both hands up, hold it,
 -- then settle. Seconds; radians the arms come up and the body leans; studs the lunge.
 local SCARE = { rush = 0.12, hold = 0.5, recover = 0.45, reach = 1.7, lean = 0.4, lunge = 1.5 }
@@ -327,14 +203,27 @@ type Figure = {
 	scareAt: number?, -- when they lunged at someone (figure clock)
 	glance: boolean, -- only peeking out at someone going by: they never come out
 	slam: boolean, -- the door's slammed on the way in (a peek someone came too close to)
-	gesture: string?, -- their goodbye, going back in (a GOODBYES key)
+	gesture: string?, -- their goodbye, going back in (an OwnerMoves.GOODBYES key)
 	gestureFor: number, -- seconds of it before they turn back to the door
 	giveAt: number?, -- when they reached out with your candy (figure clock)
+	giveKind: string, -- how (OwnerMoves.GIVES)
+	gives: number, -- things handed over this visit (the next one's way is picked from it)
 	talkAt: number?, -- when they started saying a line (figure clock), and for how long
 	talkFor: number,
+	talkKind: string, -- how they gesture with it (OwnerMoves.TALKS)
 	clapAt: number?, -- when they started clapping (figure clock)
 	claps: number, -- claps heard so far
 	seed: number, -- the house's OwnerSeed: their acts and twitches, the same on every screen
+	temper: OwnerMoves.Temperament, -- who they are: what they do, and how
+	acts: OwnerMoves.Weighted, -- their acts, with this house's favourite
+	answered: boolean, -- they've given (or slapped, or clapped): their lines are reactions now
+	reaction: string?, -- something they're reacting to, once (OwnerMoves.REACTIONS), since reactAt
+	reactAt: number,
+	glare: number, -- 0..1: a flashlight in their face
+	hissedAt: number, -- when they last hissed at one (figure clock)
+	powerOut: boolean, -- the power's off on their street (a change startles them)
+	actWindow: number, -- the act window their act's sounds were played in, and which
+	actPlayed: { [number]: boolean },
 	cues: { [string]: boolean },
 	rng: Random,
 	shut: boolean,
@@ -1072,6 +961,10 @@ local function create(house: Model, door: BasePart, skipEntrance: boolean, glanc
 	end
 	local spots = if hinge then hallSpots(house, door, door.CFrame) else {}
 	local fit = measure(door, door.CFrame, model, joints, ignore, leaf, spots, side)
+	local seed = if type(house:GetAttribute("OwnerSeed")) == "number"
+		then house:GetAttribute("OwnerSeed") :: number
+		else 0
+	local temper = OwnerMoves.temperament(house:GetAttribute("Owner"), house:GetAttribute("HouseType") == "Seller")
 	local figure: Figure = {
 		house = house,
 		door = door,
@@ -1131,13 +1024,24 @@ local function create(house: Model, door: BasePart, skipEntrance: boolean, glanc
 		gesture = nil,
 		gestureFor = 0,
 		giveAt = nil,
+		giveKind = "hand",
+		gives = 0,
 		talkAt = nil,
 		talkFor = 0,
+		talkKind = temper.hello,
 		clapAt = nil,
 		claps = 0,
-		seed = if type(house:GetAttribute("OwnerSeed")) == "number"
-			then house:GetAttribute("OwnerSeed") :: number
-			else 0,
+		seed = seed,
+		temper = temper,
+		acts = OwnerMoves.acts(temper, seed),
+		answered = false,
+		reaction = nil,
+		reactAt = 0,
+		glare = 0,
+		hissedAt = -math.huge,
+		powerOut = Blackout.isOut(house),
+		actWindow = -1,
+		actPlayed = {},
 		cues = {},
 		rng = Random.new(
 			if type(house:GetAttribute("OwnerSeed")) == "number" then house:GetAttribute("OwnerSeed") :: number else nil
@@ -1307,6 +1211,67 @@ local function watching(figure: Figure, camera: Camera): Vector3
 		end
 	end
 	return camera.CFrame.Position
+end
+
+-- Sounds partway through a move, `t` seconds into it: each once (`done` remembers which), and none
+-- that's long past (you've only just come to see it).
+local function cues(figure: Figure, done: { [number]: boolean }, list: { OwnerMoves.Cue }?, t: number)
+	for i, sound in list or {} do
+		if not done[i] and t >= sound.at then
+			done[i] = true
+			if t - sound.at < 0.25 then
+				Sound.play(sound.sound, { at = figure.root, volume = sound.volume, speed = sound.speed })
+			end
+		end
+	end
+end
+
+-- They react to something (OwnerMoves.REACTIONS), once, with its sounds.
+local function react(figure: Figure, name: string)
+	local def = OwnerMoves.REACTIONS[name]
+	if def == nil then
+		return
+	end
+	figure.reaction, figure.reactAt = name, figure.clock
+	for _, sound in def.sounds or {} do
+		task.delay(sound.at, function()
+			if figures[figure.house] == figure then
+				Sound.play(sound.sound, { at = figure.root, volume = sound.volume, speed = sound.speed })
+			end
+		end)
+	end
+end
+
+-- Whether someone's shining a flashlight in their face (yours from your view, anyone else's from
+-- their head, the way FlashlightController draws it).
+local function glaredAt(figure: Figure, camera: Camera): boolean
+	local head = figure.model:FindFirstChild("Head") :: BasePart?
+	if head == nil then
+		return false
+	end
+	local face = head.Position
+	for _, player in Players:GetPlayers() do
+		if player:GetAttribute("FlashlightOn") ~= true then
+			continue
+		end
+		local from, along
+		if player == Players.LocalPlayer then
+			from, along = camera.CFrame.Position, camera.CFrame.LookVector
+		else
+			local character = player.Character
+			local theirs = character and character:FindFirstChild("Head") :: BasePart?
+			if theirs == nil then
+				continue
+			end
+			from, along = theirs.Position, theirs.CFrame.LookVector
+		end
+		local to = face - from
+		local distance = to.Magnitude
+		if distance > 0.5 and distance < GLARE.range and along:Dot(to / distance) > GLARE.cone then
+			return true
+		end
+	end
+	return false
 end
 
 local function setJoint(figure: Figure, name: string, value: CFrame)
@@ -1481,31 +1446,72 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 	end
 	local slapSide = if figure.look.hinge > 0 then "Right" else "Left"
 	local mirror = if slapSide == "Right" then 1 else -1
-	-- Something they do while you play (ACTS), when nothing else has them: the same on every screen.
-	local act: Act = {}
-	local actWeight = 0
-	local busy = figure.strikeAt or figure.scareAt or figure.giveAt or figure.clapAt or figure.talkAt
-	if arrived and not figure.leaving and not figure.glance and not busy then
-		local serverNow = Workspace:GetServerTimeNow()
-		local window = math.floor(serverNow / ACT_EVERY)
-		local roll = Random.new(figure.seed + window * 13)
-		if roll:NextNumber() < ACT_CHANCE then
-			local chosen = ACTS[roll:NextInteger(1, #ACTS)]
-			local t = serverNow - window * ACT_EVERY - roll:NextNumber(0, 0.8)
-			if t >= 0 and t < chosen.time then
-				act = chosen.pose(t)
-				actWeight = math.min(ease(t / 0.35), 1 - ease((t - (chosen.time - 0.4)) / 0.4))
-			end
+	-- What they're doing, in layers (Modules/OwnerMoves), each eased in and out: something they do
+	-- while you play (when nothing else has them; the same on every screen), the gestures of what
+	-- they're saying, handing something over, a reaction (the power going, a no), a flashlight in
+	-- their face, their goodbye. A later layer takes an arm from the ones before; bodies add up.
+	local layers: { { move: Move, weight: number } } = {}
+	local function add(move: Move, weight: number)
+		if weight > 0.001 then
+			table.insert(layers, { move = move, weight = math.min(weight, 1) })
 		end
 	end
-	-- Talking: the far hand beating with the words, the head nodding on them.
-	local talk = 0
+	local present = arrived and not figure.leaving and not figure.glance and figure.shown
+	-- The power going on their street: a start, a look up at the dead light, then out at the street.
+	if powerOut ~= figure.powerOut then
+		figure.powerOut = powerOut
+		if powerOut and present and figure.reaction == nil then
+			react(figure, "startle")
+		end
+	end
+	-- A flashlight shone in their face: an arm up over their eyes (their way), a hiss.
+	local glaring = present and glaredAt(figure, camera)
+	figure.glare = approach(figure.glare, if glaring then 1 else 0, step / (if glaring then GLARE.rise else GLARE.fall))
+	if glaring and figure.glare < 0.5 and figure.clock - figure.hissedAt > GLARE.hiss then
+		figure.hissedAt = figure.clock
+		Sound.play("Breath", { at = figure.root, volume = 0.6, speed = 1.5 })
+	end
+	local busy = figure.strikeAt
+		or figure.scareAt
+		or figure.giveAt
+		or figure.clapAt
+		or figure.talkAt
+		or figure.reaction
+		or figure.glare > 0.05
+	if present and not busy then
+		local name, t, window = OwnerMoves.actAt(figure.temper, figure.acts, figure.seed, Workspace:GetServerTimeNow())
+		local def = if name then OwnerMoves.ACTS[name] else nil
+		if def then
+			local length = math.min(def.time, figure.temper.every - 0.05)
+			add(def.pose(t), math.min(ease(t / 0.35), 1 - ease((t - (length - 0.4)) / 0.4)))
+			if window ~= figure.actWindow then
+				figure.actWindow = window
+				table.clear(figure.actPlayed)
+			end
+			cues(figure, figure.actPlayed, def.sounds, t)
+		end
+	end
+	-- Talking: their own gestures with it.
 	if figure.talkAt then
 		local t = figure.clock - (figure.talkAt :: number)
 		if t > figure.talkFor then
 			figure.talkAt = nil
 		else
-			talk = math.min(ease(t / TALK.ease), 1 - ease((t - (figure.talkFor - TALK.ease)) / TALK.ease))
+			local talk = OwnerMoves.TALKS[figure.talkKind] or OwnerMoves.TALKS.beat
+			add(
+				talk.pose(t, figure.talkFor),
+				math.min(ease(t / TALK_EASE), 1 - ease((t - (figure.talkFor - TALK_EASE)) / TALK_EASE))
+			)
+		end
+	end
+	-- Handing something over, their way.
+	if figure.giveAt then
+		local g = figure.clock - (figure.giveAt :: number)
+		local give = OwnerMoves.GIVES[figure.giveKind] or OwnerMoves.GIVES.hand
+		if g > give.time then
+			figure.giveAt = nil
+		else
+			add(give.pose(g), math.min(ease(g / 0.25), 1 - ease((g - (give.time - 0.4)) / 0.4)))
 		end
 	end
 	-- Clapping: both hands out, meeting CLAP.claps times.
@@ -1524,34 +1530,45 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 			end
 		end
 	end
-	local talkBeat = figure.talkAt and math.sin((figure.clock - (figure.talkAt :: number)) * 5.5) or 0
-	-- Their goodbye (going back in, before they turn to the door), eased in and out.
-	local bye: Bye = {}
-	local byeWeight = 0
-	local goodbye = if figure.gesture then GOODBYES[figure.gesture :: string] else nil
+	-- Reacting to something, once.
+	if figure.reaction then
+		local def = OwnerMoves.REACTIONS[figure.reaction :: string]
+		local t = figure.clock - figure.reactAt
+		if def == nil or t > def.time or figure.leaving then
+			figure.reaction = nil
+		else
+			add(def.pose(t), math.min(ease(t / 0.15), 1 - ease((t - (def.time - 0.35)) / 0.35)))
+		end
+	end
+	local glare = OwnerMoves.REACTIONS[figure.temper.glare] or OwnerMoves.REACTIONS.shield
+	add(glare.pose(0), ease(figure.glare))
+	-- Their goodbye (going back in, before they turn to the door).
+	local goodbye = if figure.gesture then OwnerMoves.GOODBYES[figure.gesture :: string] else nil
 	if goodbye and figure.leaving and figure.leaveClock < figure.gestureFor then
 		local t = figure.leaveClock
-		bye = goodbye.pose(t)
-		byeWeight = math.min(ease(t / 0.2), 1 - ease((t - (goodbye.time - 0.25)) / 0.25))
+		add(goodbye.pose(t), math.min(ease(t / 0.2), 1 - ease((t - (goodbye.time - 0.25)) / 0.25)))
+	end
+	local body: { [string]: number } =
+		{ fold = 0, twist = 0, sway = 0, nod = 0, tilt = 0, turn = 0, step = 0, lunge = 0 }
+	for _, layer in layers do
+		local move = layer.move :: any
+		for key, value in body do
+			body[key] = value + (move[key] or 0) * layer.weight
+		end
 	end
 
 	figure.root.CFrame = doorFrame
-		* CFrame.new(x, -door.Size.Y / 2 + bob, z - slapLunge - SCARE.lunge * scare)
+		* CFrame.new(x, -door.Size.Y / 2 + bob, z - slapLunge - SCARE.lunge * scare - body.lunge)
 		* CFrame.Angles(0, figure.yaw, 0)
 		* figure.rootOffset
-	local fold = figure.bend
-		+ lean
-		+ slapLean
-		+ SCARE.lean * scare
-		+ (bye.fold or 0) * byeWeight
-		+ (act.fold or 0) * actWeight
+	local fold = figure.bend + lean + slapLean + SCARE.lean * scare + body.fold
 	setJoint(
 		figure,
 		"RootJoint",
 		CFrame.Angles(
 			-fold + breathe + p.bow * 0.25,
-			slapTwist * mirror + (act.twist or 0) * mirror * actWeight,
-			(p.roll + tilt * 0.3 + figure.twitchBody + swing * 0.035 + (act.sway or 0) * actWeight) * loose
+			(slapTwist + body.twist) * mirror,
+			(p.roll + tilt * 0.3 + figure.twitchBody + swing * 0.035 + body.sway * mirror) * loose
 		)
 	)
 
@@ -1578,14 +1595,10 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 		"Neck",
 		CFrame.fromEulerAnglesYXZ(
 			(if arrived then figure.headPitch + p.bow else math.max(figure.headPitch + p.bow, HEAD_WALK.down))
-				+ (bye.nod or 0) * byeWeight
-				+ (act.nod or 0) * actWeight
-				+ TALK.nod * talkBeat * talk
+				+ body.nod
 				- 0.15 * clap,
-			figure.headYaw * loose + (bye.turn or 0) * mirror * byeWeight + (act.turn or 0) * mirror * actWeight,
-			(tilt + figure.twitchNeck) * loose
-				+ (bye.tilt or 0) * mirror * byeWeight
-				+ (act.tilt or 0) * mirror * actWeight
+			figure.headYaw * loose + body.turn * mirror,
+			(tilt + figure.twitchNeck) * loose + body.tilt * mirror
 		)
 	)
 
@@ -1621,46 +1634,29 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 	-- legs and hang down as the body folds; some homeowners slowly reach for you while you play.
 	local reach = if figure.look.reach and arrived and not figure.leaving then ease((idle - 2) / 4) * 1.25 else 0
 	local reachSide = slapSide
-	-- Handing you your candy: the arm out to you, then back.
-	if figure.giveAt then
-		local g = figure.clock - (figure.giveAt :: number)
-		if g > GIVE.back then
-			figure.giveAt = nil
-		else
-			local out =
-				math.min(ease(g / GIVE.reach), 1 - ease((g - GIVE.release - 0.1) / (GIVE.back - GIVE.release - 0.1)))
-			reach = math.max(reach, GIVE.raise * out)
-		end
-	end
 
 	for _, side in { "Left", "Right" } do
 		local sign = if side == "Left" then 1 else -1
 		-- The legs stay put while the body turns over them.
-		setJoint(figure, side .. " Hip", CFrame.Angles(fold + sign * swing * 0.5, -slapTwist * mirror, 0))
+		local stepped = if side == reachSide then body.step else 0 -- a foot tapped, stamped
+		setJoint(figure, side .. " Hip", CFrame.Angles(fold + sign * swing * 0.5 + stepped, -slapTwist * mirror, 0))
 		local lift = if side == reachSide then reach else 0
 		local jerk = if side == figure.twitchArmSide then figure.twitchArm else 0
 		local sway = math.sin(now * 0.9 + (if side == "Left" then 0 else 1.7)) * 0.04
 		local splay = if side == "Left" then -0.05 else 0.05 :: number
 		local pitch = lerp(fold * 0.8 - sign * swing * 0.35 + lift + jerk + sway, SCARE.reach, scare)
-		if side == reachSide and byeWeight > 0 and bye.pitch then
-			pitch = lerp(pitch, bye.pitch :: number, byeWeight)
-			splay = lerp(splay, (bye.roll or 0) * mirror, byeWeight)
-		end
-		-- An act that uses an arm (near: their slapping side; far: the other).
-		local actSide = if act.arm == "near"
-			then reachSide
-			elseif act.arm == "far" then (if reachSide == "Left" then "Right" else "Left")
-			else nil
-		if side == actSide and act.pitch then
-			local out = if side == "Right" then 1 else -1
-			pitch = lerp(pitch, act.pitch :: number, actWeight)
-			splay = lerp(splay, (act.roll or 0) * out, actWeight)
-		end
-		-- Talking: the far hand.
-		if talk > 0 and side ~= reachSide then
-			local out = if side == "Right" then 1 else -1
-			pitch = lerp(pitch, TALK.pitch + TALK.beat * talkBeat, talk)
-			splay = lerp(splay, TALK.roll * out, talk)
+		-- The layers that use this arm (near: their slapping side; far: the other; or both).
+		local yaw = 0
+		local outward = if side == "Right" then 1 else -1
+		local near = side == reachSide
+		for _, layer in layers do
+			local move = layer.move
+			local arm = (if near then move.near else move.far) or move.both
+			if arm then
+				pitch = lerp(pitch, arm.pitch, layer.weight)
+				splay = lerp(splay, (arm.roll or 0) * outward, layer.weight)
+				yaw = lerp(yaw, (arm.yaw or 0) * outward, layer.weight)
+			end
 		end
 		-- Clapping: both hands out in front, swung in to meet.
 		if clap > 0 then
@@ -1673,10 +1669,10 @@ local function pose(figure: Figure, dt: number, camera: Camera)
 			setJoint(
 				figure,
 				side .. " Shoulder",
-				CFrame.Angles(lerp(pitch, SLAP.lift, slap), slapYaw * mirror * slap, splay + slapRoll * mirror)
+				CFrame.Angles(lerp(pitch, SLAP.lift, slap), slapYaw * mirror * slap + yaw, splay + slapRoll * mirror)
 			)
 		else
-			setJoint(figure, side .. " Shoulder", CFrame.Angles(pitch, 0, splay))
+			setJoint(figure, side .. " Shoulder", CFrame.Angles(pitch, yaw, splay))
 		end
 	end
 end
@@ -1719,7 +1715,7 @@ local function goBackIn(figure: Figure, slam: boolean)
 	figure.leaveOpen = figure.open
 	figure.slam = slam
 	local chosen = if figure.glance or not figure.shown then nil else figure.house:GetAttribute("OwnerBye")
-	local goodbye = if type(chosen) == "string" then GOODBYES[chosen] else nil
+	local goodbye = if type(chosen) == "string" then OwnerMoves.GOODBYES[chosen] else nil
 	figure.gesture = if goodbye then chosen :: string else nil
 	figure.gestureFor = if goodbye then goodbye.time else 0
 	if goodbye then
@@ -1828,6 +1824,8 @@ function HomeownerController.strike(house: Model): (number?, string?)
 	end
 	figure.strikeAt = figure.clock
 	figure.twitchArm = 0
+	figure.answered = true
+	figure.reaction = nil
 	Sound.play("Cloth", { at = figure.root, volume = 0.8 })
 	Sound.play("Breath", { at = figure.root, volume = 0.9, speed = 1.2 })
 	task.delay(SLAP.windup, function()
@@ -1841,55 +1839,138 @@ function HomeownerController.atDoor(house: Model): boolean
 	return figures[house] ~= nil or house:GetAttribute("OwnerOut") == true
 end
 
--- They hand someone their candy: the arm out, a piece of candy (like those in `bucket`, the
--- receiver's) leaving the hand and flying to `target()` (where it's going, asked as it flies), a pop
--- as it lands. Nothing if nobody's out.
-function HomeownerController.give(house: Model, target: () -> Vector3?, bucket: Model?)
+-- What the seller hands over (SellerSold): a little something that looks like it.
+local PARCELS: { [string]: { size: Vector3, color: string, material: Enum.Material, shape: Enum.PartType } } = {
+	Bandage = {
+		size = Vector3.new(0.4, 0.34, 0.34),
+		color = "EDE8DC",
+		material = Enum.Material.Fabric,
+		shape = Enum.PartType.Cylinder,
+	},
+	BearTrap = {
+		size = Vector3.new(0.16, 0.62, 0.62),
+		color = "4A4A4E",
+		material = Enum.Material.Metal,
+		shape = Enum.PartType.Cylinder,
+	},
+	Firecracker = {
+		size = Vector3.new(0.55, 0.16, 0.16),
+		color = "B8262A",
+		material = Enum.Material.SmoothPlastic,
+		shape = Enum.PartType.Cylinder,
+	},
+	Flashlight = {
+		size = Vector3.new(0.62, 0.2, 0.2),
+		color = "26262A",
+		material = Enum.Material.Metal,
+		shape = Enum.PartType.Cylinder,
+	},
+	Lockpick = {
+		size = Vector3.new(0.05, 0.05, 0.46),
+		color = "9A9AA2",
+		material = Enum.Material.Metal,
+		shape = Enum.PartType.Block,
+	},
+}
+
+local function parcel(itemId: string): BasePart
+	local spec = PARCELS[itemId]
+	local part = Instance.new("Part")
+	if spec then
+		part.Shape = spec.shape
+		part.Size = spec.size
+		part.Color = Color3.fromHex(spec.color)
+		part.Material = spec.material
+	else
+		part.Size = Vector3.new(0.4, 0.3, 0.3) -- a paper-wrapped something
+		part.Color = Color3.fromHex("8A6E4E")
+		part.Material = Enum.Material.Fabric
+	end
+	return part
+end
+
+-- They hand someone something, their way (OwnerMoves.GIVES, picked the same on every screen): their
+-- candy (a piece like those in `bucket`, the receiver's) or, at the seller's, what they bought
+-- (`itemId`). It leaves the hand and flies to `target()` (where it's going, asked as it flies), a
+-- pop as it lands (the seller's: a clink of the coins). Nothing if nobody's out.
+function HomeownerController.give(house: Model, target: () -> Vector3?, bucket: Model?, itemId: string?)
 	local figure = figures[house]
 	if figure == nil or figure.leaving or not figure.shown then
 		return
 	end
+	local visit = (house:GetAttribute("OwnerVisit") :: number?) or 0
+	local roll = Rng.new(figure.seed + visit * 31 + figure.gives * 7):next()
+	figure.gives += 1
+	figure.giveKind = OwnerMoves.pick(figure.temper.gives, roll)
 	figure.giveAt = figure.clock
+	figure.answered = true
+	local give = OwnerMoves.GIVES[figure.giveKind] or OwnerMoves.GIVES.hand
+	for _, sound in give.sounds or {} do
+		task.delay(sound.at, function()
+			if figures[house] == figure then
+				Sound.play(sound.sound, { at = figure.root, volume = sound.volume, speed = sound.speed })
+			end
+		end)
+	end
 	local side = if figure.look.hinge > 0 then "Right" else "Left"
 	local shoulder = figure.joints[side .. " Shoulder"]
 	local arm = shoulder and shoulder.Part1
 	if arm == nil then
 		return
 	end
-	local source = bucket and bucket:FindFirstChild("Candy1")
-	local candy =
-		CandyPiece.make(0.45, if source and source:IsA("BasePart") then source.Color else Color3.fromHex("E8513C"))
-	candy.Name = "GivenCandy"
-	candy.Transparency = 0
-	candy.Anchored = true
-	candy.CanCollide = false
-	candy.CanQuery = false
-	candy.CanTouch = false
-	candy:ClearAllChildren()
-	candy.Parent = Workspace
+	local thing: BasePart
+	if itemId then
+		thing = parcel(itemId)
+	else
+		local source = bucket and bucket:FindFirstChild("Candy1")
+		thing =
+			CandyPiece.make(0.45, if source and source:IsA("BasePart") then source.Color else Color3.fromHex("E8513C"))
+		thing:ClearAllChildren()
+	end
+	thing.Name = "GivenCandy"
+	thing.Transparency = 0
+	thing.Anchored = true
+	thing.CanCollide = false
+	thing.CanQuery = false
+	thing.CanTouch = false
+	thing.CastShadow = false
+	thing.Parent = Workspace
 	local started = os.clock()
+	local spin = CFrame.Angles(0, 0, 0)
 	local connection: RBXScriptConnection
-	connection = RunService.RenderStepped:Connect(function()
+	connection = RunService.RenderStepped:Connect(function(dt)
 		local t = os.clock() - started
 		local hand = (arm.CFrame * CFrame.new(0, -arm.Size.Y / 2, 0)).Position
-		if t < GIVE.release then
-			candy.Position = hand
+		if t < give.release then
+			thing.CFrame = CFrame.new(hand) * spin
 			return
 		end
-		local k = (t - GIVE.release) / GIVE.fly
+		local k = (t - give.release) / give.fly
 		local to = target()
 		if k >= 1 or to == nil or figures[house] ~= figure then
 			connection:Disconnect()
 			if to then
-				Sound.play("Pop", { at = candy, volume = 0.7 })
+				Sound.play(if itemId then "Coin" else "Pop", { at = thing, volume = 0.7 })
 			end
-			candy:Destroy()
+			thing:Destroy()
 			return
 		end
-		-- An arc from the hand to them.
-		local at = hand:Lerp(to :: Vector3, k) + Vector3.new(0, math.sin(math.pi * k) * 1.2, 0)
-		candy.Position = at
+		-- An arc from the hand to them (straight down into it for a drop), tumbling if tossed.
+		if give.arc > 2 then
+			spin *= CFrame.Angles(dt * 9, dt * 5, 0)
+		end
+		local at = hand:Lerp(to :: Vector3, k) + Vector3.new(0, math.sin(math.pi * k) * give.arc, 0)
+		thing.CFrame = CFrame.new(at) * spin
 	end)
+end
+
+-- They react to something, once (OwnerMoves.REACTIONS: "headShake", "startle"...). Nothing if
+-- nobody's out on the porch.
+function HomeownerController.react(house: Model, name: string)
+	local figure = figures[house]
+	if figure and not figure.leaving and figure.shown and figure.clock >= figure.walkAt + figure.walkFor then
+		react(figure, name)
+	end
 end
 
 -- They lunge out at someone (someone else's scare; yours is the jumpscare). Nothing if nobody's out.
@@ -1899,6 +1980,7 @@ function HomeownerController.talk(house: Model, seconds: number)
 	if figure and not figure.leaving then
 		figure.talkAt = figure.clock
 		figure.talkFor = seconds
+		figure.talkKind = OwnerMoves.talk(figure.temper, house:GetAttribute("OwnerMood"), figure.answered)
 	end
 end
 
@@ -1908,6 +1990,7 @@ function HomeownerController.clap(house: Model)
 	if figure and not figure.leaving and figure.shown then
 		figure.clapAt = figure.clock
 		figure.claps = 0
+		figure.answered = true
 	end
 end
 
